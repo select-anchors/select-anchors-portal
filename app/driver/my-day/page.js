@@ -4,29 +4,30 @@ export default function MyDay() {
     { customer: 'Pioneer Basin Ops', api: '30-025-11111', need: 'Today', exp: '2026-03-20' },
   ];
   return (
-    <main className="max-w-6xl mx-auto p-6 space-y-6">
-      <header className="flex items-center justify-between">
+    <div className="container space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">My Day — Driver Route</h1>
           <p className="text-sm text-gray-600">Lovington Yard • Start 6:00 AM</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="rounded-xl px-4 py-2 text-white" style={{background:'#2f4f4f'}}>Optimize (Farthest → Yard)</button>
-          <button className="rounded-xl px-4 py-2 text-white" style={{background:'#2f4f4f'}}>Start Day</button>
+          <button className="btn btn-primary">Optimize (Farthest → Yard)</button>
+          <button className="btn btn-primary">Start Day</button>
         </div>
-      </header>
-      <div className="rounded-xl border divide-y">
+      </div>
+
+      <div className="card divide-y">
         {stops.map((s, i) => (
-          <div key={i} className="grid grid-cols-3 gap-4 p-4">
+          <div key={i} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
             <div>
               <div className="font-semibold">{s.customer}</div>
               <div className="text-xs text-gray-600 mt-1">API: {s.api}</div>
             </div>
             <div className="text-sm text-gray-700">Need: {s.need}</div>
-            <div className="text-right text-sm">Exp: {s.exp}</div>
+            <div className="md:text-right text-sm">Exp: {s.exp}</div>
           </div>
         ))}
       </div>
-    </main>
+    </div>
   );
 }
