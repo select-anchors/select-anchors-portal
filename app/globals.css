@@ -2,15 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { --brand-green: #2f4f4f; --brand-olive: #4A5E48; }
-body { background:#fff; color:#000; font-family: ui-sans-serif, system-ui; }
-.container { max-width: 72rem; margin: 0 auto; padding: 1.5rem; }
-.btn { display:inline-flex; align-items:center; justify-content:center; padding:.5rem 1rem; border-radius:12px; font-weight:600; font-size:.875rem; }
-.btn-primary { background: var(--brand-green); color:#fff; }
-.btn-secondary { border:1px solid #6b7280; background:#fff; color:#000; }
-.btn-danger { background:#C43D3D; color:#fff; }
-.input { width:100%; border:1px solid #e5e7eb; border-radius:12px; padding:.5rem; }
-.label { display:block; font-size:.875rem; color:#111827; }
-.card { border:1px solid #e5e7eb; border-radius:12px; background:#fff; }
-.card-body { padding:1rem; }
-.divider { border-top:1px solid #e5e7eb; }
+/* Fonts */
+@import url("/app/fonts/norwester.css");
+@import url("/app/fonts/league-spartan.css");
+
+/* Brand tokens */
+:root{
+  --brand-green:#2f4f4f;      /* primary */
+  --brand-olive:#4A5E48;      /* accent */
+  --brand-red:#C43D3D;        /* destructive */
+  --ink:#111827;              /* text */
+  --muted:#6B7280;            /* secondary text */
+  --line:#E5E7EB;             /* borders/dividers */
+  --surface:#FFFFFF;          /* cards */
+  --page:#FFFFFF;             /* background */
+}
+
+html,body{ background:var(--page); color:var(--ink); }
+
+/* Typography */
+.h1{ font-family:"Norwester", system-ui; letter-spacing:.02em; }
+.h2{ font-family:"Norwester", system-ui; letter-spacing:.02em; }
+.body{ font-family:"League Spartan", system-ui; }
+
+/* Layout helpers */
+.container{ @apply max-w-6xl mx-auto px-6; }
+.card{ @apply bg-white border rounded-xl; border-color:var(--line); }
+.card-body{ @apply p-5; }
+.divider{ border-top:1px solid var(--line); }
+
+/* Buttons */
+.btn{ @apply inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold transition; }
+.btn-primary{ background:var(--brand-green); color:#fff; }
+.btn-primary:hover{ filter:brightness(0.95); }
+.btn-secondary{ @apply border; border-color:var(--line); color:var(--ink); background:#fff; }
+.btn-secondary:hover{ background:#fafafa; }
+.btn-danger{ background:var(--brand-red); color:#fff; }
+.btn-danger:hover{ filter:brightness(0.95); }
+
+/* Inputs */
+.input{ @apply w-full rounded-xl px-3 py-2 border; border-color:var(--line); }
+.label{ @apply block text-sm; color:var(--muted); }
