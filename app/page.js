@@ -1,32 +1,25 @@
 import Link from "next/link";
 
-export default function Home(){
+export default function Home() {
   return (
-    <section className="space-y-6">
-      <h1 className="h1 text-3xl">Operational Portal</h1>
-      <p className="text-[15px]" style={{color:"var(--muted)"}}>
-        Fast access to wells, routes, and tests. Use the links below or the header.
-      </p>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Link href="/dashboard" className="card hover:shadow-sm">
-          <div className="card-body">
-            <div className="h2 text-lg mb-1">Dispatcher Dashboard</div>
-            <div className="text-sm" style={{color:"var(--muted)"}}>Sort by need-by & expiration.</div>
+    <div className="container space-y-6">
+      <section className="card">
+        <div className="card-section">
+          <h1 className="font-display text-2xl">SELECT ANCHORS</h1>
+          <p className="text-gray-600 mt-2">Oilfield anchor installation & testing • Hole drilling</p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link href="/login" className="btn btn-primary">Client Login</Link>
+            <Link href="/dashboard" className="btn btn-secondary">Dispatcher Dashboard</Link>
+            <Link href="/driver/my-day" className="btn btn-secondary">Driver — My Day</Link>
           </div>
-        </Link>
-        <Link href="/driver/my-day" className="card hover:shadow-sm">
-          <div className="card-body">
-            <div className="h2 text-lg mb-1">Driver — My Day</div>
-            <div className="text-sm" style={{color:"var(--muted)"}}>Route from Lovington yard.</div>
-          </div>
-        </Link>
-        <Link href="/wells/30-015-54321" className="card hover:shadow-sm">
-          <div className="card-body">
-            <div className="h2 text-lg mb-1">Well Detail (Demo)</div>
-            <div className="text-sm" style={{color:"var(--muted)"}}>Anchors, GPS, next due.</div>
-          </div>
-        </Link>
-      </div>
-    </section>
+        </div>
+      </section>
+
+      <section className="grid md:grid-cols-3 gap-4">
+        <div className="card"><div className="card-section"><h3 className="font-semibold">Testing</h3><p className="text-sm text-gray-600 mt-1">Anchors tested to 23,500 lbs with tagging & 2-year compliance tracking.</p></div></div>
+        <div className="card"><div className="card-section"><h3 className="font-semibold">Installation</h3><p className="text-sm text-gray-600 mt-1">Four-corner installs with precise GPS for each anchor.</p></div></div>
+        <div className="card"><div className="card-section"><h3 className="font-semibold">Records</h3><p className="text-sm text-gray-600 mt-1">Client portal shows wells, expirations, PDFs, and map routes.</p></div></div>
+      </section>
+    </div>
   );
 }
