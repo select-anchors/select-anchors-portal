@@ -1,5 +1,5 @@
 import "./globals.css";
-import Header from "../components/Header";
+import Header from "@/components/Header";
 
 export const metadata = {
   title: "Select Anchors Portal",
@@ -8,10 +8,10 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="body">
+    <html lang="en">
       <body>
         <Header />
-        <main className="container py-8">{children}</main>
+        <main className="py-8">{children}</main>
       </body>
     </html>
   );
