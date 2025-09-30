@@ -1,0 +1,1 @@
+export default function WellDetail() { return (<main><h1>Well Detail</h1></main>) }
