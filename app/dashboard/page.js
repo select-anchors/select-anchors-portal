@@ -1,3 +1,4 @@
+
 export default function Dashboard() {
   const rows = [
     { customer: 'Select Demo Energy', api: '30-015-54321', county: 'Eddy, NM', need: 'Today', exp: '2026-02-01' },
@@ -15,7 +16,6 @@ export default function Dashboard() {
           <button className="btn btn-primary">Add to My Day</button>
         </div>
       </div>
-
       <div className="card">
         <div className="card-section overflow-x-auto">
           <table className="w-full text-sm">

@@ -1,3 +1,4 @@
+
 export default function MyDay() {
   const stops = [
     { customer: 'Select Demo Energy', api: '30-015-54321', need: 'Today', exp: '2026-02-01' },
@@ -15,7 +16,6 @@ export default function MyDay() {
           <button className="btn btn-primary">Start Day</button>
         </div>
       </div>
-
       <div className="card divide-y">
         {stops.map((s, i) => (
           <div key={i} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">

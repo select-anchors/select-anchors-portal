@@ -1,3 +1,4 @@
+
 export default function WellDetail() {
   const anchors = [1,2,3,4];
   return (
@@ -6,7 +7,6 @@ export default function WellDetail() {
         <h1 className="text-2xl font-bold">Well Detail — Rivera 7 — Unit A</h1>
         <p className="text-sm text-gray-600">API 30-015-54321 • Select Demo Energy • Eddy, NM</p>
       </header>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <div className="card h-64 flex items-center justify-center">Google Map</div>

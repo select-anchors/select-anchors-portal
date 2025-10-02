@@ -1,47 +1,16 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Fonts */
-@font-face {
-  font-family: "Norwester";
-  src: url("/fonts/norwester.otf") format("opentype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "LeagueSpartan";
-  src: url("/fonts/LeagueSpartan-VF.ttf") format("truetype");
-  font-weight: 200 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* Base */
-:root {
-  --brand-green: #2f4f4f;
-  --brand-olive: #4a5e48;
-}
+:root { --brand-green: #2f4f4f; --brand-olive: #4A5E48; }
 html, body { height: 100%; }
-body { @apply bg-white text-black font-sans; }
-
-/* Reusable */
+body { @apply bg-white text-black font-sans; font-family: ui-sans-serif, system-ui; }
 .container { @apply max-w-6xl mx-auto px-6; }
 .card { @apply bg-white rounded-2xl shadow-card border border-gray-100; }
-.card-section { @apply p-5 md:p-6; }
+.card-section { @apply p-6; }
 .btn { @apply inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold transition; }
 .btn-primary { @apply bg-brand-green text-white hover:opacity-90; }
 .btn-secondary { @apply border border-gray-400 text-black bg-white hover:bg-gray-50; }
-.btn-danger { @apply bg-brand-red text-white hover:opacity-90; }
-.input { @apply w-full border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-green/30; }
-.label { @apply block text-sm text-gray-800; }
 .badge { @apply inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-semibold; }
 .badge-warn { @apply bg-amber-500 text-white; }
-.divider { @apply border-t border-gray-200; }
-.link { @apply underline decoration-gray-400 underline-offset-4 hover:decoration-gray-700; }
-
-/* Header */
-.site-header {
-  @apply sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-gray-200;
-}muted); }
