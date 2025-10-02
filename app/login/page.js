@@ -1,24 +1,49 @@
-
 export default function Login() {
   return (
-    <div className="container flex justify-center">
-      <div className="card w-full max-w-md">
-        <div className="card-section">
-          <h1 className="text-2xl font-bold text-center">Log in</h1>
-          <div className="mt-6 space-y-3">
-            <label className="block text-sm">Email</label>
-            <input className="w-full border rounded-xl p-2" />
-            <label className="block text-sm mt-2">Password</label>
-            <input type="password" className="w-full border rounded-xl p-2" />
-            <button className="btn btn-primary w-full mt-4">Sign in</button>
-            <div className="text-center text-xs text-gray-600 mt-2 underline cursor-pointer">Forgot password?</div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="bg-white rounded-2xl shadow-md w-full max-w-md p-8">
+        <h1 className="text-2xl font-bold text-center text-brand-green">
+          Client Login
+        </h1>
+        <p className="text-center text-gray-600 text-sm mt-2">
+          Access your well and anchor test records
+        </p>
+
+        <form className="mt-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Email
+            </label>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              className="w-full mt-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-green"
+            />
           </div>
-        </div>
-        <div className="border-t" />
-        <div className="card-section text-center text-xs text-gray-600">
-          By signing in you agree to allow SMS notifications.
-        </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              className="w-full mt-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-green"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-brand-green text-white py-2 rounded-lg font-semibold hover:bg-green-700"
+          >
+            Sign in
+          </button>
+
+          <p className="text-xs text-gray-600 text-center mt-3">
+            By signing in, you agree to allow SMS notifications.
+          </p>
+        </form>
       </div>
     </div>
-  );
+  )
 }
