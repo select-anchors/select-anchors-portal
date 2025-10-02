@@ -14,3 +14,31 @@ body { @apply bg-white text-black font-sans; font-family: ui-sans-serif, system-
 .btn-secondary { @apply border border-gray-400 text-black bg-white hover:bg-gray-50; }
 .badge { @apply inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-semibold; }
 .badge-warn { @apply bg-amber-500 text-white; }
+
+/* globals.css */
+
+body {
+  margin: 0;
+  font-family: 'League Spartan', 'Norwester', sans-serif;
+  background-color: #f8f9fa; /* light gray */
+  color: #222;
+}
+
+h1, h2, h3 {
+  color: #0A472E; /* Select Anchors green */
+}
+
+button {
+  border-radius: 8px;
+  padding: 10px 16px;
+  border: 1px solid #0A472E;
+  background: white;
+  color: #0A472E;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  background: #0A472E;
+  color: white;
+}
