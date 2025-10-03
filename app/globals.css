@@ -42,3 +42,10 @@ button:hover {
   background: #0A472E;
   color: white;
 }
+
+/* Fix white button hover issue */
+button.bg-white:hover,
+.bg-white:hover {
+  background-color: #f9fafb !important; /* light gray hover */
+  color: #111827 !important; /* keep text dark */
+}
