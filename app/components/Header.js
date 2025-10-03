@@ -8,9 +8,9 @@ export default function Header() {
     <header className="site-header">
       <div className="container h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-brand-green/90 flex items-center justify-center text-white font-bold">SA</div>
-          <div className="font-display tracking-wide text-xl">SELECT ANCHORS</div>
-        </Link>
+  <div className="h-8 w-8 rounded-lg bg-brand-green/90 flex items-center justify-center text-white font-bold">SA</div>
+  <div className="tracking-wide text-xl font-bold">SELECT ANCHORS</div>
+</Link>
 
         <nav className="hidden md:flex items-center gap-6">
           <Link href="/dashboard" className="hover:opacity-80">Dashboard</Link>
