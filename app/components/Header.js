@@ -6,8 +6,11 @@ import { usePathname } from "next/navigation";
 function NavLink({ href, children }) {
   const pathname = usePathname();
   const isActive = pathname === href;
+
   const base = "pb-1 hover:opacity-80";
-  const active = "border-b-2 border-brand-green font-semibold";
+  const active =
+    "border-b-2 border-brand-green font-extrabold text-gray-900"; // heavier + darker
+
   return (
     <Link href={href} className={`${base} ${isActive ? active : ""}`}>
       {children}
