@@ -1,3 +1,6 @@
+/* ============================= */
+/* Custom Fonts                  */
+/* ============================= */
 @font-face {
   font-family: "Norwester";
   src: url("/fonts/norwester.otf") format("opentype");
@@ -12,58 +15,87 @@
   font-style: normal;
 }
 
-
+/* ============================= */
+/* Tailwind Base + Utilities     */
+/* ============================= */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root { --brand-green: #2f4f4f; --brand-olive: #4A5E48; }
-html, body { height: 100%; }
-body { @apply bg-white text-black font-sans; font-family: ui-sans-serif, system-ui; }
-.container { @apply max-w-6xl mx-auto px-6; }
-.card { @apply bg-white rounded-2xl shadow-sm border border-gray-100; }
-.card-section { @apply p-6; }
-.btn { @apply inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold transition; }
-.btn-primary { @apply bg-brand-green text-white hover:opacity-90; }
-.btn-secondary { @apply border border-gray-400 text-black bg-white hover:bg-gray-50; }
-.badge { @apply inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-semibold; }
-.badge-warn { @apply bg-amber-500 text-white; }
+/* ============================= */
+/* Root Variables & Base Styles  */
+/* ============================= */
+:root {
+  --brand-green: #2f4f4f;
+  --brand-olive: #4A5E48;
+}
 
-/* globals.css */
+html, body {
+  height: 100%;
+}
 
 body {
+  @apply bg-white text-black font-sans;
+  font-family: 'LeagueSpartan', 'Norwester', ui-sans-serif, system-ui, sans-serif;
   margin: 0;
-  font-family: 'League Spartan', 'Norwester', sans-serif;
-  background-color: #f8f9fa; /* light gray */
+  background-color: #f8f9fa; /* light gray background */
   color: #222;
 }
 
+/* ============================= */
+/* Layout Helpers                */
+/* ============================= */
+.container {
+  @apply max-w-6xl mx-auto px-6;
+}
+
+.card {
+  @apply bg-white rounded-2xl shadow-sm border border-gray-100;
+}
+
+.card-section {
+  @apply p-6;
+}
+
+/* ============================= */
+/* Buttons                       */
+/* ============================= */
+.btn {
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold transition;
+}
+
+.btn-primary {
+  @apply bg-[var(--brand-green)] text-white hover:opacity-90;
+}
+
+.btn-secondary {
+  @apply border border-gray-400 text-black bg-white hover:bg-gray-50;
+}
+
+/* Fix hover issue for white buttons */
+button.bg-white:hover,
+.bg-white:hover {
+  background-color: #f9fafb !important; /* light gray */
+  color: #111827 !important; /* keep text dark */
+}
+
+/* ============================= */
+/* Badges                        */
+/* ============================= */
+.badge {
+  @apply inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-semibold;
+}
+
+.badge-warn {
+  @apply bg-amber-500 text-white;
+}
+
+/* ============================= */
+/* Typography                    */
+/* ============================= */
 h1, h2, h3 {
   color: #0A472E; /* Select Anchors green */
 }
 
-button {
-  border-radius: 8px;
-  padding: 10px 16px;
-  border: 1px solid #0A472E;
-  background: white;
-  color: #0A472E;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-button:hover {
-  background: #0A472E;
-  color: white;
-}
-
-/* Fix white button hover issue */
-button.bg-white:hover,
-.bg-white:hover {
-  background-color: #f9fafb !important; /* light gray hover */
-  color: #111827 !important; /* keep text dark */
-}
-
-.font-norwester { font-family: var(--font-norwester), system-ui, sans-serif; }
-.font-league    { font-family: var(--font-league), system-ui, sans-serif; }
-
+.font-norwester { font-family: "Norwester", system-ui, sans-serif; }
+.font-league { font-family: "LeagueSpartan", system-ui, sans-serif; }
