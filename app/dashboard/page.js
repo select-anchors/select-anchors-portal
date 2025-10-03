@@ -89,3 +89,40 @@ export default function Dashboard() {
     </div>
   );
 }
+
+
+import { createClient } from "@vercel/edge-config";
+
+const edgeConfig = createClient(process.env.EDGE_CONFIG);
+
+export default async function Dashboard() {
+  const wells = (await edgeConfig.get("wells")) || [];
+
+  return (
+    <div className="container py-10">
+      <h1 className="text-2xl font-bold mb-6">Upcoming Wells</h1>
+      <table className="table-auto w-full border-collapse">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>API</th>
+            <th>County</th>
+            <th>Need By</th>
+            <th>Expiration</th>
+          </tr>
+        </thead>
+        <tbody>
+          {wells.map((w) => (
+            <tr key={w.id}>
+              <td>{w.customer}</td>
+              <td>{w.api}</td>
+              <td>{w.county}</td>
+              <td>{w.needBy}</td>
+              <td>{w.expiration}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
