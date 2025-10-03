@@ -15,10 +15,10 @@ export default function Header() {
   return (
     <header className="site-header border-b border-gray-200 bg-white">
       <div className="container h-14 flex items-center justify-between px-4 md:px-6">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-[#2f4f4f] flex items-center justify-center text-white font-bold">SA</div>
-          <div className="tracking-wide text-xl font-bold">SELECT ANCHORS</div>
-        </Link>
+        <Link href="/dashboard" className="flex items-center gap-3">
+  <div className="h-8 w-8 rounded-lg bg-brand-green/90 flex items-center justify-center text-white font-bold">SA</div>
+  <div className="tracking-wide text-xl font-bold">SELECT ANCHORS</div>
+</Link>
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6">
