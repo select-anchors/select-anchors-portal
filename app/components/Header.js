@@ -1,6 +1,19 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
+
+function NavLink({ href, children }) {
+  const pathname = usePathname();
+  const isActive = pathname === href;
+  const base = "pb-1 hover:opacity-80";
+  const active = "border-b-2 border-brand-green font-semibold";
+  return (
+    <Link href={href} className={`${base} ${isActive ? active : ""}`}>
+      {children}
+    </Link>
+  );
+}
 
 export default function Header() {
   const [open, setOpen] = useState(false);
@@ -12,14 +25,13 @@ export default function Header() {
   <div className="tracking-wide text-xl font-bold">SELECT ANCHORS</div>
 </Link>
 
-        <nav className="hidden md:flex items-center gap-6">
-  <Link href="/dashboard" className="hover:opacity-80">Dashboard</Link>
-  <Link href="/driver/my-day" className="hover:opacity-80">My Day</Link>
-  <Link href="/wells/30-015-54321" className="hover:opacity-80">Well Detail</Link>
-  <Link href="/account" className="hover:opacity-80">Account</Link>
+       <nav className="hidden md:flex items-center gap-6">
+  <NavLink href="/dashboard">Dashboard</NavLink>
+  <NavLink href="/driver/my-day">My Day</NavLink>
+  <NavLink href="/wells/30-015-54321">Well Detail</NavLink>
+  <NavLink href="/account">Account</NavLink>
   <Link href="/login" className="btn btn-secondary">Client Login</Link>
 </nav>
-
         <button className="md:hidden p-2 rounded-lg border border-gray-300" onClick={()=>setOpen(v=>!v)} aria-label="Open menu">
           <div className="w-5 h-[2px] bg-black mb-1"></div>
           <div className="w-5 h-[2px] bg-black mb-1"></div>
