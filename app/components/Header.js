@@ -20,6 +20,7 @@ export default function Header() {
           <div className="tracking-wide text-xl font-bold">SELECT ANCHORS</div>
         </Link>
 
+        {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6">
           <Link href="/dashboard" className={`${base} ${is("/dashboard") ? active : inactive}`}>Dashboard</Link>
           <Link href="/driver/my-day" className={`${base} ${is("/driver/my-day") ? active : inactive}`}>My Day</Link>
@@ -28,6 +29,7 @@ export default function Header() {
           <Link href="/login" className="btn btn-secondary">Client Login</Link>
         </nav>
 
+        {/* Mobile button */}
         <button
           className="md:hidden p-2 rounded-lg border border-gray-300"
           onClick={() => setOpen((v) => !v)}
@@ -39,6 +41,7 @@ export default function Header() {
         </button>
       </div>
 
+      {/* Mobile menu */}
       {open && (
         <div className="md:hidden border-t border-gray-200">
           <div className="container py-3 flex flex-col gap-3 px-4 md:px-6">
