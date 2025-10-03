@@ -25,9 +25,8 @@ export const metadata = { title: "Select Anchors Portal", description: "Client l
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>
-        <Header />
-        <main className="py-8">{children}</main>
+      <body className={`${norwester.variable} ${leagueSpartan.variable}`}>
+        {children}
       </body>
     </html>
   );
