@@ -11,3 +11,15 @@ module.exports = {
   },
   plugins: []
 };
+
+module.exports = {
+  theme: {
+    extend: {
+      fontFamily: {
+        norwester: ["Norwester", "sans-serif"],
+        leaguespartan: ["LeagueSpartan", "sans-serif"],
+      },
+    },
+  },
+  plugins: [],
+};
