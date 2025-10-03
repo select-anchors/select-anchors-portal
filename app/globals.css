@@ -1,3 +1,17 @@
+@font-face {
+  font-family: "Norwester";
+  src: url("/fonts/norwester.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "LeagueSpartan";
+  src: url("/fonts/LeagueSpartan-VF.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
 
 @tailwind base;
 @tailwind components;
