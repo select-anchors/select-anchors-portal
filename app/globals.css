@@ -49,3 +49,7 @@ button.bg-white:hover,
   background-color: #f9fafb !important; /* light gray hover */
   color: #111827 !important; /* keep text dark */
 }
+
+.font-norwester { font-family: var(--font-norwester), system-ui, sans-serif; }
+.font-league    { font-family: var(--font-league), system-ui, sans-serif; }
+
