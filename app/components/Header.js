@@ -43,16 +43,16 @@ export default function Header() {
 
       {/* Mobile menu */}
       {open && (
-        <div className="md:hidden border-t border-gray-200">
-          <div className="container py-3 flex flex-col gap-3 px-4 md:px-6">
-            <Link href="/dashboard" onClick={() => setOpen(false)}>Dashboard</Link>
-            <Link href="/driver/my-day" onClick={() => setOpen(false)}>My Day</Link>
-            <Link href="/wells/30-015-54321" onClick={() => setOpen(false)}>Well Detail</Link>
-            <Link href="/account" onClick={() => setOpen(false)}>Account</Link>
-            <Link href="/login" className="btn btn-secondary w-fit" onClick={() => setOpen(false)}>Client Login</Link>
-          </div>
-        </div>
-      )}
+  <div className="md:hidden border-t border-gray-200">
+    <div className="container py-3 flex flex-col gap-3 px-4 md:px-6">
+      <Link href="/dashboard" onClick={() => setOpen(false)}>Dashboard</Link>
+      <Link href="/driver/my-day" onClick={() => setOpen(false)}>My Day</Link>
+      <Link href="/wells/30-015-54321" onClick={() => setOpen(false)}>Well Detail</Link>
+      <Link href="/account" onClick={() => setOpen(false)}>Account</Link>
+      <Link href="/login" className="btn btn-secondary w-fit" onClick={() => setOpen(false)}>Client Login</Link>
+    </div>
+  </div>
+)}
     </header>
   );
 }
