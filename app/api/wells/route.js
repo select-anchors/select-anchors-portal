@@ -1,6 +1,6 @@
 // app/api/wells/route.js
 import { NextResponse } from "next/server";
-import { sql } from "@/lib/db";
+import { sql } from "../../../lib/db";
 import { revalidatePath } from "next/cache";
 
 function addYears(dateStr, years = 2) {
