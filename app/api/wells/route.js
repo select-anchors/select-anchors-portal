@@ -1,25 +1,29 @@
 // app/api/wells/route.js
-import db from '@/lib/db';
+import { NextResponse } from "next/server";
+import { query } from "@/lib/db";
 
+// GET /api/wells → list wells
 export async function GET() {
   const { rows } = await query(
-    "CREATE TABLE IF NOT EXISTS wells (id serial PRIMARY KEY, api text UNIQUE, customer text, county text, need_by text, expiration text); SELECT * FROM wells;"
+    `SELECT id, customer, api,
+            county, need_by as "needBy",
+            expiration, status
+     FROM wells
+     ORDER BY need_by NULLS LAST, expiration NULLS LAST`
   );
-  return new Response(JSON.stringify(rows || []), { status: 200 });
+  return NextResponse.json(rows);
 }
 
-// (Optional) POST to add a well
+// POST /api/wells → create a well { customer, api, county, needBy, expiration, status? }
 export async function POST(req) {
-  const body = await req.json();
-  const { api, customer, county, need_by, expiration } = body;
+  const { customer, api, county, needBy, expiration, status } = await req.json();
 
   const { rows } = await query(
-    `INSERT INTO wells (api, customer, county, need_by, expiration)
-     VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (api) DO UPDATE SET customer=EXCLUDED.customer, county=EXCLUDED.county, need_by=EXCLUDED.need_by, expiration=EXCLUDED.expiration
-     RETURNING *`,
-    [api, customer, county, need_by, expiration]
+    `INSERT INTO wells (customer, api, county, need_by, expiration, status)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     RETURNING id, customer, api, county, need_by as "needBy", expiration, status`,
+    [customer, api, county, needBy, expiration, status ?? "Queued"]
   );
 
-  return new Response(JSON.stringify(rows[0]), { status: 201 });
+  return NextResponse.json(rows[0], { status: 201 });
 }
