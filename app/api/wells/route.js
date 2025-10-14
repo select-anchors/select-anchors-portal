@@ -1,5 +1,5 @@
 // app/api/wells/route.js
-import { query } from "@/lib/db";
+import db from '../../../lib/db';
 
 export async function GET() {
   const { rows } = await query(
