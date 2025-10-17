@@ -1,114 +1,108 @@
+// app/admin/wells/new/page.js
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function NewWellPage() {
-  const router = useRouter();
+  const r = useRouter();
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    company_name: "",
-    company_email: "",
-    company_phone: "",
-    company_address: "",
-    company_man_name: "",
-    company_man_email: "",
-    company_man_phone: "",
-    api: "",
-    previous_anchor_company: "",
-    last_test_date: "",
-    anchor1_lat: "", anchor1_lng: "",
-    anchor2_lat: "", anchor2_lng: "",
-    anchor3_lat: "", anchor3_lng: "",
-    anchor4_lat: "", anchor4_lng: "",
-  });
+  const [err, setErr] = useState("");
 
-  function update(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
-
-  async function submit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
-    try {
-      setSaving(true);
-      const res = await fetch("/api/wells", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-role": "admin" },
-        body: JSON.stringify({
-          ...form,
-          is_approved: false, // new entries require approval
-        }),
-      });
-      if (!res.ok) throw new Error(`Create failed (${res.status})`);
-      // Go back to admin list
-      router.push("/admin/wells");
-    } catch (e) {
-      alert(String(e));
-    } finally {
-      setSaving(false);
+    setErr("");
+    setSaving(true);
+
+    const form = new FormData(e.currentTarget);
+    const payload = Object.fromEntries(form.entries());
+
+    // Force pending until an admin approves
+    payload.status = "pending";
+
+    const res = await fetch("/api/wells", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    setSaving(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErr(data.error || "Failed to submit");
+      return;
     }
+
+    r.push("/admin/wells/pending");
   }
 
-  const Field = ({ label, name, type="text", placeholder="" }) => (
-    <label className="flex flex-col gap-1">
-      <span className="text-sm text-gray-600">{label}</span>
-      <input
-        type={type}
-        value={form[name] ?? ""}
-        onChange={(e) => update(name, e.target.value)}
-        placeholder={placeholder}
-        className="border border-gray-300 rounded-xl px-3 py-2"
-        required={name === "company_name" || name === "api"}
-      />
-    </label>
-  );
-
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
-      <h1 className="text-2xl font-bold mb-1">New Well</h1>
+    <div className="container py-8">
+      <h1 className="text-2xl font-bold mb-2">New Well</h1>
       <p className="text-sm text-gray-600 mb-6">
-        Fill in details. Submission will appear in “Pending Approval”.
+        Fill in details. Submission will appear in <span className="font-medium">Pending Approval</span>.
       </p>
 
-      <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="Company" name="company_name" />
-          <Field label="Company Email" name="company_email" type="email" />
-          <Field label="Company Phone" name="company_phone" />
-          <Field label="Company Address" name="company_address" />
+      <form onSubmit={onSubmit} className="bg-white rounded-2xl border border-gray-200 p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Company */}
+        <input className="input" name="company" placeholder="Company" />
+        <input className="input" name="company_email" placeholder="Company Email" />
+        <input className="input" name="company_phone" placeholder="Company Phone" />
+        <input className="input" name="company_address" placeholder="Company Address" />
 
-          <Field label="Company Man (Name)" name="company_man_name" />
-          <Field label="Company Man Email" name="company_man_email" type="email" />
-          <Field label="Company Man Phone" name="company_man_phone" />
+        {/* Divider / line break after Company Man Phone */}
+        <input className="input" name="company_man_name" placeholder="Company Man (Name)" />
+        <input className="input" name="company_man_email" placeholder="Company Man Email" />
+        <input className="input md:col-span-2" name="company_man_phone" placeholder="Company Man Phone" />
 
-          <Field label="Well API" name="api" />
-          <Field label="Previous Anchor Company" name="previous_anchor_company" />
-          <Field label="Last Test Date" name="last_test_date" type="date" />
+        {/* Lease / Well name then API */}
+        <input className="input" name="lease_name" placeholder="Lease / Well Name" />
+        <input className="input" name="api" placeholder="Well API" />
 
-          <Field label="Anchor #1 Lat" name="anchor1_lat" />
-          <Field label="Anchor #1 Lng" name="anchor1_lng" />
-          <Field label="Anchor #2 Lat" name="anchor2_lat" />
-          <Field label="Anchor #2 Lng" name="anchor2_lng" />
-          <Field label="Anchor #3 Lat" name="anchor3_lat" />
-          <Field label="Anchor #3 Lng" name="anchor3_lng" />
-          <Field label="Anchor #4 Lat" name="anchor4_lat" />
-          <Field label="Anchor #4 Lng" name="anchor4_lng" />
-        </div>
+        {/* Dates */}
+        <input className="input" name="last_test_date" type="date" placeholder="Last Test Date" />
 
-        <div className="flex justify-end gap-2">
+        {/* Previous anchor work (larger) */}
+        <textarea className="input md:col-span-2 h-24" name="previous_anchor_work" placeholder="Previous Anchor Work"></textarea>
+
+        {/* Directions & Other Notes (larger) */}
+        <textarea className="input md:col-span-2 h-24" name="notes_previous_manager" placeholder="Directions & Other Notes"></textarea>
+
+        {/* GPS — 4 anchors */}
+        <input className="input" name="anchor1_lat" placeholder="Anchor #1 Lat" />
+        <input className="input" name="anchor1_lng" placeholder="Anchor #1 Lng" />
+        <input className="input" name="anchor2_lat" placeholder="Anchor #2 Lat" />
+        <input className="input" name="anchor2_lng" placeholder="Anchor #2 Lng" />
+        <input className="input" name="anchor3_lat" placeholder="Anchor #3 Lat" />
+        <input className="input" name="anchor3_lng" placeholder="Anchor #3 Lng" />
+        <input className="input" name="anchor4_lat" placeholder="Anchor #4 Lat" />
+        <input className="input" name="anchor4_lng" placeholder="Anchor #4 Lng" />
+
+        {/* Actions */}
+        <div className="md:col-span-2 flex gap-2 pt-2">
           <button
             type="button"
-            onClick={() => history.back()}
-            className="px-4 py-2 rounded-xl border border-gray-400 bg-white hover:bg-gray-100"
+            onClick={() => r.back()}
+            className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
           >
             Cancel
           </button>
           <button
-            type="submit"
             disabled={saving}
-            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white disabled:opacity-60"
+            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 disabled:opacity-60"
           >
             {saving ? "Saving…" : "Create (needs approval)"}
           </button>
         </div>
+
+        {/* simple input style */}
+        <style jsx>{`
+          .input {
+            @apply w-full rounded-xl border border-gray-300 px-3 py-2 text-sm;
+          }
+        `}</style>
+        {err && <p className="text-red-600 text-sm md:col-span-2">{err}</p>}
       </form>
     </div>
   );
