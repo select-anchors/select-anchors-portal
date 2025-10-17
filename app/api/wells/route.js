@@ -2,9 +2,9 @@
 import { NextResponse } from "next/server";
 import { q } from "@/lib/db";
 
-/** ─────────────────────────────────────────────────────────────────────────────
- * Helpers
- * ────────────────────────────────────────────────────────────────────────────*/
+/* ────────────────────────────────────────────────────────────────────────────
+ * Utilities
+ * ──────────────────────────────────────────────────────────────────────────*/
 function bool(x) {
   if (typeof x === "boolean") return x;
   if (typeof x === "string") return x.toLowerCase() === "true";
@@ -17,7 +17,7 @@ function safeDateISO(d) {
   return isNaN(dt) ? null : dt.toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-// Whitelist fields we accept for create/update
+/** Fields we accept for create/update */
 const FIELDS = [
   "company_name",
   "company_email",
@@ -36,17 +36,29 @@ const FIELDS = [
   "anchor4_lat",
   "anchor4_lng",
   "previous_anchor_company",
-  "last_test_date",     // expects YYYY-MM-DD
-  "customer_id",        // optional linkage for customer views
+  "previous_manager_notes",
+  "last_test_date",          // YYYY-MM-DD
+  "anchor1_expiration",      // YYYY-MM-DD
+  "anchor2_expiration",      // YYYY-MM-DD
+  "anchor3_expiration",      // YYYY-MM-DD
+  "anchor4_expiration",      // YYYY-MM-DD
+  "customer_id",             // optional linkage for customer visibility
 ];
+
+const DATE_FIELDS = new Set([
+  "last_test_date",
+  "anchor1_expiration",
+  "anchor2_expiration",
+  "anchor3_expiration",
+  "anchor4_expiration",
+]);
 
 function filterBody(body = {}) {
   const out = {};
   for (const k of FIELDS) {
-    if (body[k] !== undefined) out[k] = body[k];
-  }
-  if ("last_test_date" in out) {
-    out.last_test_date = safeDateISO(out.last_test_date);
+    if (body[k] !== undefined) {
+      out[k] = DATE_FIELDS.has(k) ? safeDateISO(body[k]) : body[k];
+    }
   }
   return out;
 }
@@ -74,7 +86,6 @@ function buildListWhere({ role, search, status, customerId, customerEmail }) {
 
   // Role-based visibility
   if (role === "customer") {
-    // Prefer customerId, else fallback to company_email match
     if (customerId) {
       params.push(customerId);
       where.push(`customer_id = $${params.length}`);
@@ -82,19 +93,18 @@ function buildListWhere({ role, search, status, customerId, customerEmail }) {
       params.push(customerEmail.toLowerCase());
       where.push(`LOWER(company_email) = $${params.length}`);
     } else {
-      // If we don't know which customer, no results.
-      where.push("1 = 0");
+      where.push("1 = 0"); // no identity → no results
     }
   }
 
-  // Simple text search across a few columns
+  // Simple text search
   if (search) {
     const n = `%${search.toLowerCase()}%`;
     params.push(n, n, n);
     where.push(
       `(LOWER(company_name) LIKE $${params.length - 2} ` +
-        `OR LOWER(api) LIKE $${params.length - 1} ` +
-        `OR LOWER(company_man_name) LIKE $${params.length})`
+      `OR LOWER(api) LIKE $${params.length - 1} ` +
+      `OR LOWER(company_man_name) LIKE $${params.length})`
     );
   }
 
@@ -102,18 +112,25 @@ function buildListWhere({ role, search, status, customerId, customerEmail }) {
   return { sqlWhere, params };
 }
 
-/** ─────────────────────────────────────────────────────────────────────────────
+// Expression to compute earliest expiration across the 4 anchors
+const NEXT_EXP_EXPR =
+  `LEAST(
+     COALESCE(anchor1_expiration, '9999-12-31'),
+     COALESCE(anchor2_expiration, '9999-12-31'),
+     COALESCE(anchor3_expiration, '9999-12-31'),
+     COALESCE(anchor4_expiration, '9999-12-31')
+   ) AS next_expiration`;
+
+/* ────────────────────────────────────────────────────────────────────────────
  * GET /api/wells
- *   - List wells (admin/employee = all; customer = only their wells)
- *   - Query params:
- *       ?api=30-015-54321             → get single by API
- *       ?q=needle                     → search company/api/company_man_name
- *       ?status=approved|pending|all  → filter by approval state
- *   - Headers:
- *       x-role: admin|employee|customer
- *       x-customer-id: <id>      (for customer role)
- *       x-customer-email: <email> (fallback for customer role)
- * ────────────────────────────────────────────────────────────────────────────*/
+ *   Query:
+ *     ?api=30-015-54321           → single well by API (scoped for customers)
+ *     ?q=needle                   → search
+ *     ?status=approved|pending|all
+ *   Headers:
+ *     x-role: admin|employee|customer
+ *     x-customer-id | x-customer-email (for customer role)
+ * ──────────────────────────────────────────────────────────────────────────*/
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -126,9 +143,8 @@ export async function GET(request) {
     const customerId = headers.get("x-customer-id");
     const customerEmail = headers.get("x-customer-email");
 
-    // Single by API:
     if (api) {
-      // Respect customer visibility on single fetch too
+      // Single
       const clauses = [`api = $1`];
       const params = [api];
 
@@ -145,7 +161,10 @@ export async function GET(request) {
       }
 
       const { rows } = await q(
-        `SELECT * FROM wells WHERE ${clauses.join(" AND ")} LIMIT 1`,
+        `SELECT *, ${NEXT_EXP_EXPR}
+         FROM wells
+         WHERE ${clauses.join(" AND ")}
+         LIMIT 1`,
         params
       );
       if (!rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -162,8 +181,11 @@ export async function GET(request) {
     });
 
     const { rows } = await q(
-      `SELECT * FROM wells ${sqlWhere} ORDER BY created_at DESC NULLS LAST, id DESC`
-      , params
+      `SELECT *, ${NEXT_EXP_EXPR}
+       FROM wells
+       ${sqlWhere}
+       ORDER BY created_at DESC NULLS LAST, id DESC`,
+      params
     );
 
     return NextResponse.json(rows);
@@ -173,14 +195,11 @@ export async function GET(request) {
   }
 }
 
-/** ─────────────────────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────────────────────
  * POST /api/wells
- *   - Create a new well (defaults to is_approved = false unless admin overrides)
- *   - Body: any of the whitelisted fields + optional is_approved (admin only)
- *   - Headers:
- *       x-role: admin|employee|customer
- *     (employees/customers cannot force approval)
- * ────────────────────────────────────────────────────────────────────────────*/
+ *   - Creates a well; only admins can force is_approved=true on create.
+ *   - Body: allowed fields above, plus optional is_approved (admin only).
+ * ──────────────────────────────────────────────────────────────────────────*/
 export async function POST(request) {
   try {
     const headers = request.headers;
@@ -188,7 +207,6 @@ export async function POST(request) {
     const body = await request.json();
     const data = filterBody(body);
 
-    // Required minimal fields
     if (!data.company_name || !data.api) {
       return NextResponse.json(
         { error: "company_name and api are required" },
@@ -196,13 +214,11 @@ export async function POST(request) {
       );
     }
 
-    // Approval rules
     let isApproved = false;
     if (role === "admin" && body.is_approved !== undefined) {
       isApproved = bool(body.is_approved);
     }
 
-    // Build INSERT
     const cols = [];
     const vals = [];
     const params = [];
@@ -218,8 +234,8 @@ export async function POST(request) {
     const { rows } = await q(
       `INSERT INTO wells (${cols.join(", ")})
        VALUES (${vals.join(", ")})
-       RETURNING *`
-      , params
+       RETURNING *`,
+      params
     );
 
     return NextResponse.json(rows[0], { status: 201 });
@@ -229,14 +245,11 @@ export async function POST(request) {
   }
 }
 
-/** ─────────────────────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────────────────────
  * PATCH /api/wells
- *   - Approve:  { id, approve: true }
- *   - Edit:     { id, ...fields }  → sets is_approved = false (requires re-approval)
- *   - Headers:
- *       x-role: admin|employee|customer
- *     (Only admin can approve. Employees can edit but that triggers re-approval.)
- * ────────────────────────────────────────────────────────────────────────────*/
+ *   Approve: { id, approve: true }          → admin only
+ *   Edit:    { id, ...fields }              → flips is_approved=false for re-approval
+ * ──────────────────────────────────────────────────────────────────────────*/
 export async function PATCH(request) {
   try {
     const headers = request.headers;
@@ -246,13 +259,14 @@ export async function PATCH(request) {
     const id = body.id;
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
-    // Approve path
+    // Approve
     if (bool(body.approve)) {
       if (role !== "admin") {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
       const { rows } = await q(
-        `UPDATE wells SET is_approved = TRUE, updated_at = NOW()
+        `UPDATE wells
+         SET is_approved = TRUE, updated_at = NOW()
          WHERE id = $1
          RETURNING *`,
         [id]
@@ -261,7 +275,7 @@ export async function PATCH(request) {
       return NextResponse.json(rows[0]);
     }
 
-    // Edit path → always flips approval off (requires re-approval)
+    // Edit → flips approval off
     const updates = filterBody(body);
     const sets = [];
     const params = [];
@@ -269,13 +283,15 @@ export async function PATCH(request) {
       params.push(v === "" ? null : v);
       sets.push(`${k} = $${params.length}`);
     }
-    // Flip approval off on any edit
     sets.push(`is_approved = FALSE`);
     sets.push(`updated_at = NOW()`);
 
     params.push(id);
     const { rows } = await q(
-      `UPDATE wells SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`,
+      `UPDATE wells
+       SET ${sets.join(", ")}
+       WHERE id = $${params.length}
+       RETURNING *`,
       params
     );
     if (!rows.length) return NextResponse.json({ error: "Not found" }, { status: 404 });
