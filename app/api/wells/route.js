@@ -1,199 +1,87 @@
-// app/api/wells/route.js
 import { NextResponse } from "next/server";
 import { q } from "@/lib/db";
 
-// ✅ GET - List all wells
 export async function GET() {
   try {
-    const wells = await q(`
-      SELECT 
-        w.id,
-        w.api,
-        w.company_man_name,
-        w.company_man_email,
-        w.company_man_phone,
-        w.company_name,
-        w.company_email,
-        w.company_phone,
-        w.company_address,
-        w.gps_anchor_1,
-        w.gps_anchor_2,
-        w.gps_anchor_3,
-        w.gps_anchor_4,
-        w.previous_anchor_company,
-        w.last_test_date,
-        w.expiration_date,
-        w.notes,
-        w.approved,
-        w.created_at
-      FROM wells w
-      ORDER BY w.created_at DESC
-    `);
-    return NextResponse.json({ wells: wells.rows });
-  } catch (err) {
-    console.error("GET wells error:", err);
-    return NextResponse.json({ error: "Failed to fetch wells" }, { status: 500 });
+    const { rows } = await q(
+      `SELECT id, api, lease_well_name, company, company_man_name, last_test_date,
+              previous_anchor_work, directions_notes,
+              anchor1_expiration, anchor2_expiration, anchor3_expiration, anchor4_expiration,
+              status
+         FROM wells
+         ORDER BY created_at DESC`
+    );
+    return NextResponse.json(rows, { status: 200 });
+  } catch (e) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
 
-// ✅ POST - Create a new well
 export async function POST(req) {
   try {
-    const data = await req.json();
-    const {
-      api,
-      company_man_name,
-      company_man_email,
-      company_man_phone,
-      company_name,
-      company_email,
-      company_phone,
-      company_address,
-      gps_anchor_1,
-      gps_anchor_2,
-      gps_anchor_3,
-      gps_anchor_4,
-      previous_anchor_company,
-      last_test_date,
-      expiration_date,
-      notes
-    } = data;
+    const b = await req.json();
 
-    await q(
-      `
+    const {
+      company, company_email, company_phone, company_address,
+      company_man_name, company_man_email, company_man_phone,
+
+      lease_well_name, // NEW
+      api,
+
+      previous_anchor_work, // NEW (textarea)
+      directions_notes,     // RENAMED (textarea)
+      last_test_date,
+
+      anchor1_lat, anchor1_lng, anchor1_expiration,
+      anchor2_lat, anchor2_lng, anchor2_expiration,
+      anchor3_lat, anchor3_lng, anchor3_expiration,
+      anchor4_lat, anchor4_lng, anchor4_expiration,
+    } = b || {};
+
+    if (!api || !company) {
+      return NextResponse.json({ error: "API and Company are required." }, { status: 400 });
+    }
+
+    const sql = `
       INSERT INTO wells (
-        api,
-        company_man_name,
-        company_man_email,
-        company_man_phone,
-        company_name,
-        company_email,
-        company_phone,
-        company_address,
-        gps_anchor_1,
-        gps_anchor_2,
-        gps_anchor_3,
-        gps_anchor_4,
-        previous_anchor_company,
-        last_test_date,
-        expiration_date,
-        notes,
-        approved
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, FALSE
+        company, company_email, company_phone, company_address,
+        company_man_name, company_man_email, company_man_phone,
+        lease_well_name, api,
+        previous_anchor_work, directions_notes, last_test_date,
+        anchor1_lat, anchor1_lng, anchor1_expiration,
+        anchor2_lat, anchor2_lng, anchor2_expiration,
+        anchor3_lat, anchor3_lng, anchor3_expiration,
+        anchor4_lat, anchor4_lng, anchor4_expiration,
+        status
       )
-      `,
-      [
-        api,
-        company_man_name,
-        company_man_email,
-        company_man_phone,
-        company_name,
-        company_email,
-        company_phone,
-        company_address,
-        gps_anchor_1,
-        gps_anchor_2,
-        gps_anchor_3,
-        gps_anchor_4,
-        previous_anchor_company,
-        last_test_date,
-        expiration_date,
-        notes
-      ]
-    );
+      VALUES (
+        $1,$2,$3,$4,
+        $5,$6,$7,
+        $8,$9,
+        $10,$11,$12,
+        $13,$14,$15,
+        $16,$17,$18,
+        $19,$20,$21,
+        $22,$23,$24,
+        'pending'
+      )
+      RETURNING id
+    `;
 
-    return NextResponse.json({ message: "Well submitted for approval" }, { status: 201 });
-  } catch (err) {
-    console.error("POST wells error:", err);
-    return NextResponse.json({ error: "Failed to create well" }, { status: 500 });
-  }
-}
+    const params = [
+      company, company_email, company_phone, company_address,
+      company_man_name, company_man_email, company_man_phone,
+      lease_well_name, api,
+      previous_anchor_work, directions_notes, last_test_date,
+      anchor1_lat, anchor1_lng, anchor1_expiration,
+      anchor2_lat, anchor2_lng, anchor2_expiration,
+      anchor3_lat, anchor3_lng, anchor3_expiration,
+      anchor4_lat, anchor4_lng, anchor4_expiration,
+    ];
 
-// ✅ PATCH - Approve or update a well
-export async function PATCH(req) {
-  try {
-    const data = await req.json();
-    const {
-      id,
-      api,
-      company_man_name,
-      company_man_email,
-      company_man_phone,
-      company_name,
-      company_email,
-      company_phone,
-      company_address,
-      gps_anchor_1,
-      gps_anchor_2,
-      gps_anchor_3,
-      gps_anchor_4,
-      previous_anchor_company,
-      last_test_date,
-      expiration_date,
-      notes,
-      approved
-    } = data;
-
-    await q(
-      `
-      UPDATE wells SET
-        api = $2,
-        company_man_name = $3,
-        company_man_email = $4,
-        company_man_phone = $5,
-        company_name = $6,
-        company_email = $7,
-        company_phone = $8,
-        company_address = $9,
-        gps_anchor_1 = $10,
-        gps_anchor_2 = $11,
-        gps_anchor_3 = $12,
-        gps_anchor_4 = $13,
-        previous_anchor_company = $14,
-        last_test_date = $15,
-        expiration_date = $16,
-        notes = $17,
-        approved = $18
-      WHERE id = $1
-      `,
-      [
-        id,
-        api,
-        company_man_name,
-        company_man_email,
-        company_man_phone,
-        company_name,
-        company_email,
-        company_phone,
-        company_address,
-        gps_anchor_1,
-        gps_anchor_2,
-        gps_anchor_3,
-        gps_anchor_4,
-        previous_anchor_company,
-        last_test_date,
-        expiration_date,
-        notes,
-        approved
-      ]
-    );
-
-    return NextResponse.json({ message: "Well updated successfully" });
-  } catch (err) {
-    console.error("PATCH wells error:", err);
-    return NextResponse.json({ error: "Failed to update well" }, { status: 500 });
-  }
-}
-
-// ✅ DELETE - Remove a well
-export async function DELETE(req) {
-  try {
-    const { id } = await req.json();
-    await q(`DELETE FROM wells WHERE id = $1`, [id]);
-    return NextResponse.json({ message: "Well deleted successfully" });
-  } catch (err) {
-    console.error("DELETE wells error:", err);
-    return NextResponse.json({ error: "Failed to delete well" }, { status: 500 });
+    const { rows } = await q(sql, params);
+    return NextResponse.json({ ok: true, id: rows[0]?.id }, { status: 201 });
+  } catch (e) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
