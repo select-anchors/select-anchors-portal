@@ -13,40 +13,40 @@ export default function NewWellPage() {
     setSaving(true);
     setMsg("");
 
-    const form = new FormData(e.currentTarget);
+    const f = new FormData(e.currentTarget);
 
     const payload = {
       // company & company man
-      company: form.get("company")?.trim() || "",
-      company_email: form.get("company_email")?.trim() || "",
-      company_phone: form.get("company_phone")?.trim() || "",
-      company_address: form.get("company_address")?.trim() || "",
-      company_man_name: form.get("company_man_name")?.trim() || "",
-      company_man_email: form.get("company_man_email")?.trim() || "",
-      company_man_phone: form.get("company_man_phone")?.trim() || "",
+      company: f.get("company")?.trim() || "",
+      company_email: f.get("company_email")?.trim() || "",
+      company_phone: f.get("company_phone")?.trim() || "",
+      company_address: f.get("company_address")?.trim() || "",
+      company_man_name: f.get("company_man_name")?.trim() || "",
+      company_man_email: f.get("company_man_email")?.trim() || "",
+      company_man_phone: f.get("company_man_phone")?.trim() || "",
 
-      // well
-      api: form.get("api")?.trim() || "",
-      previous_anchor_company: form.get("previous_anchor_company")?.trim() || "",
-      previous_manager_notes: form.get("previous_manager_notes")?.trim() || "",
-      last_test_date: form.get("last_test_date") || null,
+      // new / reordered fields
+      lease_well_name: f.get("lease_well_name")?.trim() || "",  // NEW
+      api: f.get("api")?.trim() || "",
 
-      // anchors: lat/lng + NEW expiration dates
-      anchor1_lat: form.get("anchor1_lat") || null,
-      anchor1_lng: form.get("anchor1_lng") || null,
-      anchor1_expiration: form.get("anchor1_expiration") || null,
+      // text areas / dates
+      previous_anchor_work: f.get("previous_anchor_work")?.trim() || "", // NEW (textarea)
+      directions_notes: f.get("directions_notes")?.trim() || "",        // RENAMED (textarea)
+      last_test_date: f.get("last_test_date") || null,
 
-      anchor2_lat: form.get("anchor2_lat") || null,
-      anchor2_lng: form.get("anchor2_lng") || null,
-      anchor2_expiration: form.get("anchor2_expiration") || null,
-
-      anchor3_lat: form.get("anchor3_lat") || null,
-      anchor3_lng: form.get("anchor3_lng") || null,
-      anchor3_expiration: form.get("anchor3_expiration") || null,
-
-      anchor4_lat: form.get("anchor4_lat") || null,
-      anchor4_lng: form.get("anchor4_lng") || null,
-      anchor4_expiration: form.get("anchor4_expiration") || null,
+      // anchors + expirations
+      anchor1_lat: f.get("anchor1_lat") || null,
+      anchor1_lng: f.get("anchor1_lng") || null,
+      anchor1_expiration: f.get("anchor1_expiration") || null,
+      anchor2_lat: f.get("anchor2_lat") || null,
+      anchor2_lng: f.get("anchor2_lng") || null,
+      anchor2_expiration: f.get("anchor2_expiration") || null,
+      anchor3_lat: f.get("anchor3_lat") || null,
+      anchor3_lng: f.get("anchor3_lng") || null,
+      anchor3_expiration: f.get("anchor3_expiration") || null,
+      anchor4_lat: f.get("anchor4_lat") || null,
+      anchor4_lng: f.get("anchor4_lng") || null,
+      anchor4_expiration: f.get("anchor4_expiration") || null,
     };
 
     try {
@@ -61,8 +61,6 @@ export default function NewWellPage() {
         throw new Error(err?.error || `Request failed (${res.status})`);
       }
 
-      setMsg("Saved. Awaiting admin approval.");
-      // Send them back to dashboard or a success state
       router.push("/dashboard");
     } catch (err) {
       setMsg(err.message || "Something went wrong");
@@ -79,7 +77,7 @@ export default function NewWellPage() {
       </p>
 
       <form onSubmit={onSubmit} className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
-        {/* Row 1 */}
+        {/* Company row */}
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Company</label>
@@ -91,7 +89,7 @@ export default function NewWellPage() {
           </div>
         </div>
 
-        {/* Row 2 */}
+        {/* Company phone/address */}
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Company Phone</label>
@@ -103,7 +101,7 @@ export default function NewWellPage() {
           </div>
         </div>
 
-        {/* Row 3 */}
+        {/* Company man rows */}
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Company Man (Name)</label>
@@ -115,37 +113,40 @@ export default function NewWellPage() {
           </div>
         </div>
 
-        {/* Row 4 */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Company Man Phone</label>
-            <input name="company_man_phone" className="w-full rounded-xl border p-2" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Well API</label>
-            <input name="api" className="w-full rounded-xl border p-2" />
-          </div>
+        {/* line break, then phone; then Lease/Well Name; then API */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Company Man Phone</label>
+          <input name="company_man_phone" className="w-full rounded-xl border p-2" />
         </div>
 
-        {/* Row 5 */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Lease/Well Name</label>
+          <input name="lease_well_name" className="w-full rounded-xl border p-2" />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Well API</label>
+          <input name="api" className="w-full rounded-xl border p-2" />
+        </div>
+
+        {/* Textareas / date */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Previous Anchor Work</label>
+          <textarea name="previous_anchor_work" rows={3} className="w-full rounded-xl border p-2" placeholder="Work done before SA took over (tests, installs, issues, notes)" />
+        </div>
+
         <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Previous Anchor Company</label>
-            <input name="previous_anchor_company" className="w-full rounded-xl border p-2" />
-          </div>
           <div>
             <label className="block text-sm font-medium mb-1">Last Test Date</label>
             <input name="last_test_date" type="date" className="w-full rounded-xl border p-2" />
           </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Directions & Other Notes</label>
+            <textarea name="directions_notes" rows={3} className="w-full rounded-xl border p-2" placeholder="Directions to location, gate codes, landmarks, etc." />
+          </div>
         </div>
 
-        {/* NEW: Previous manager notes */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Notes about previous manager</label>
-          <textarea name="previous_manager_notes" rows={3} className="w-full rounded-xl border p-2" placeholder="Who managed anchors before, any issues, context, etc." />
-        </div>
-
-        {/* Anchors rows with expiration dates */}
+        {/* Anchors with expirations */}
         {[1,2,3,4].map((n) => (
           <div key={n} className="grid md:grid-cols-3 gap-4">
             <div>
