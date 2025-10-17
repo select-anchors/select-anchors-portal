@@ -1,16 +1,27 @@
 import { NextResponse } from "next/server";
 import { q } from "@/lib/db";
 
-export async function GET() {
+export async function GET(req) {
   try {
+    const { searchParams } = new URL(req.url);
+    const status = searchParams.get("status"); // e.g. "pending" or "approved"
+
+    const where = status ? `WHERE status = $1` : "";
+    const params = status ? [status] : [];
+
     const { rows } = await q(
-      `SELECT id, api, lease_well_name, company, company_man_name, last_test_date,
-              previous_anchor_work, directions_notes,
-              anchor1_expiration, anchor2_expiration, anchor3_expiration, anchor4_expiration,
-              status
-         FROM wells
-         ORDER BY created_at DESC`
+      `
+      SELECT id, api, lease_well_name, company, company_man_name, last_test_date,
+             previous_anchor_work, directions_notes,
+             anchor1_expiration, anchor2_expiration, anchor3_expiration, anchor4_expiration,
+             status, approved_by, approved_at, created_at
+      FROM wells
+      ${where}
+      ORDER BY created_at DESC
+      `,
+      params
     );
+
     return NextResponse.json(rows, { status: 200 });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });
