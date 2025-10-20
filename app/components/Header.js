@@ -1,49 +1,34 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 export default function Header() {
-  const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
-  const navItems = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/driver/my-day", label: "My Day" },
-    { href: "/wells/30-015-54321", label: "Well Detail" },
-    { href: "/account", label: "Account" },
-  ];
+  const linkCls = (href) =>
+    `hover:opacity-80 ${pathname === href ? "font-semibold text-black" : ""}`;
 
   return (
-    <header className="site-header border-b border-gray-200">
+    <header className="site-header">
       <div className="container h-14 flex items-center justify-between">
-        {/* Logo + Title always go to dashboard */}
+        {/* Logo + Title -> always to /dashboard */}
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-brand-green/90 flex items-center justify-center text-white font-bold">
-            SA
-          </div>
+          <div className="h-8 w-8 rounded-lg bg-brand-green/90 flex items-center justify-center text-white font-bold">SA</div>
           <div className="tracking-wide text-xl font-bold">SELECT ANCHORS</div>
         </Link>
 
-        {/* Desktop navigation */}
+        {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`hover:opacity-80 ${
-                pathname === item.href ? "font-bold text-brand-green" : ""
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
-          <Link href="/login" className="btn btn-secondary">
-            Client Login
-          </Link>
+          <Link href="/dashboard" className={linkCls("/dashboard")}>Dashboard</Link>
+          <Link href="/driver/my-day" className={linkCls("/driver/my-day")}>My Day</Link>
+          <Link href="/wells/30-015-54321" className={linkCls("/wells/30-015-54321")}>Well Detail</Link>
+          <Link href="/account" className={linkCls("/account")}>Account</Link>
+          <Link href="/login" className="btn btn-secondary">Client Login</Link>
         </nav>
 
-        {/* Mobile hamburger button */}
+        {/* Mobile menu button */}
         <button
           className="md:hidden p-2 rounded-lg border border-gray-300"
           onClick={() => setOpen((v) => !v)}
@@ -57,27 +42,13 @@ export default function Header() {
 
       {/* Mobile menu */}
       {open && (
-        <div className="md:hidden border-t border-gray-200 bg-white">
+        <div className="md:hidden border-t border-gray-200">
           <div className="container py-3 flex flex-col gap-3">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={`${
-                  pathname === item.href ? "font-bold text-brand-green" : ""
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-            <Link
-              href="/login"
-              className="btn btn-secondary w-fit"
-              onClick={() => setOpen(false)}
-            >
-              Client Login
-            </Link>
+            <Link href="/dashboard" onClick={() => setOpen(false)}>Dashboard</Link>
+            <Link href="/driver/my-day" onClick={() => setOpen(false)}>My Day</Link>
+            <Link href="/wells/30-015-54321" onClick={() => setOpen(false)}>Well Detail</Link>
+            <Link href="/account" onClick={() => setOpen(false)}>Account</Link>
+            <Link href="/login" className="btn btn-secondary w-fit" onClick={() => setOpen(false)}>Client Login</Link>
           </div>
         </div>
       )}
