@@ -1,108 +1,197 @@
 // app/admin/wells/new/page.js
 "use client";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function NewWellPage() {
-  const r = useRouter();
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const [form, setForm] = useState({
+    company: "",
+    company_email: "",
+    company_phone: "",
+    company_address: "",
+    company_man_name: "",
+    company_man_email: "",
+    company_man_phone: "",
+    lease_name: "",          // Lease/Well Name
+    api: "",                 // Well API
+    previous_anchor_work: "",// (bigger text area)
+    directions_notes: "",    // (renamed from previous manager notes)
+    anchor1_coords: "",
+    anchor2_coords: "",
+    anchor3_coords: "",
+    anchor4_coords: "",
+    last_test_date: "",
+    expiration_date: "",
+    status: "Pending",
+  });
+
+  function setField(k, v) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
 
   async function onSubmit(e) {
     e.preventDefault();
-    setErr("");
     setSaving(true);
+    setMsg("");
 
-    const form = new FormData(e.currentTarget);
-    const payload = Object.fromEntries(form.entries());
+    try {
+      const res = await fetch("/api/wells", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    // Force pending until an admin approves
-    payload.status = "pending";
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg(data?.error || "Failed to save.");
+        setSaving(false);
+        return;
+      }
 
-    const res = await fetch("/api/wells", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    setSaving(false);
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErr(data.error || "Failed to submit");
-      return;
+      setMsg("Well saved!");
+      // Go to Well Detail
+      router.push(`/wells/${encodeURIComponent(data.api)}`);
+    } catch (err) {
+      console.error(err);
+      setMsg("Server error.");
+    } finally {
+      setSaving(false);
     }
-
-    r.push("/admin/wells/pending");
   }
 
   return (
     <div className="container py-8">
-      <h1 className="text-2xl font-bold mb-2">New Well</h1>
-      <p className="text-sm text-gray-600 mb-6">
-        Fill in details. Submission will appear in <span className="font-medium">Pending Approval</span>.
-      </p>
+      <h1 className="text-2xl font-bold mb-6">New Well</h1>
 
-      <form onSubmit={onSubmit} className="bg-white rounded-2xl border border-gray-200 p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Company */}
-        <input className="input" name="company" placeholder="Company" />
-        <input className="input" name="company_email" placeholder="Company Email" />
-        <input className="input" name="company_phone" placeholder="Company Phone" />
-        <input className="input" name="company_address" placeholder="Company Address" />
+      <form onSubmit={onSubmit} className="bg-white border border-gray-200 rounded-2xl p-6 space-y-6">
+        {/* Company section */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold mb-1">Company</label>
+            <input className="w-full border rounded-xl px-3 py-2" value={form.company}
+              onChange={(e)=>setField("company", e.target.value)} placeholder="Company name" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Company Email</label>
+            <input type="email" className="w-full border rounded-xl px-3 py-2" value={form.company_email}
+              onChange={(e)=>setField("company_email", e.target.value)} placeholder="ops@company.com" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Company Phone</label>
+            <input className="w-full border rounded-xl px-3 py-2" value={form.company_phone}
+              onChange={(e)=>setField("company_phone", e.target.value)} placeholder="575-555-0100" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Company Address</label>
+            <input className="w-full border rounded-xl px-3 py-2" value={form.company_address}
+              onChange={(e)=>setField("company_address", e.target.value)} placeholder="Street, City, ST" />
+          </div>
+        </div>
 
-        {/* Divider / line break after Company Man Phone */}
-        <input className="input" name="company_man_name" placeholder="Company Man (Name)" />
-        <input className="input" name="company_man_email" placeholder="Company Man Email" />
-        <input className="input md:col-span-2" name="company_man_phone" placeholder="Company Man Phone" />
+        {/* Company Man */}
+        <div className="grid md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-semibold mb-1">Company Man Name</label>
+            <input className="w-full border rounded-xl px-3 py-2" value={form.company_man_name}
+              onChange={(e)=>setField("company_man_name", e.target.value)} placeholder="Full name" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Company Man Email</label>
+            <input type="email" className="w-full border rounded-xl px-3 py-2" value={form.company_man_email}
+              onChange={(e)=>setField("company_man_email", e.target.value)} placeholder="name@company.com" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Company Man Phone</label>
+            <input className="w-full border rounded-xl px-3 py-2" value={form.company_man_phone}
+              onChange={(e)=>setField("company_man_phone", e.target.value)} placeholder="575-555-0101" />
+          </div>
+        </div>
 
-        {/* Lease / Well name then API */}
-        <input className="input" name="lease_name" placeholder="Lease / Well Name" />
-        <input className="input" name="api" placeholder="Well API" />
+        {/* Line break, then Lease/Well Name, then API */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold mb-1">Lease/Well Name</label>
+            <input className="w-full border rounded-xl px-3 py-2" value={form.lease_name}
+              onChange={(e)=>setField("lease_name", e.target.value)} placeholder="Palo Duro 12 #3" required />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Well API</label>
+            <input className="w-full border rounded-xl px-3 py-2" value={form.api}
+              onChange={(e)=>setField("api", e.target.value)} placeholder="30-025-123456" required />
+          </div>
+        </div>
+
+        {/* Coordinates */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold mb-1">
+              Anchor #1 Coordinates <span className="font-normal text-gray-500">(e.g. 32.987654, -103.456789)</span>
+            </label>
+            <input className="w-full border rounded-xl px-3 py-2" value={form.anchor1_coords}
+              onChange={(e)=>setField("anchor1_coords", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Anchor #2 Coordinates</label>
+            <input className="w-full border rounded-xl px-3 py-2" value={form.anchor2_coords}
+              onChange={(e)=>setField("anchor2_coords", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Anchor #3 Coordinates</label>
+            <input className="w-full border rounded-xl px-3 py-2" value={form.anchor3_coords}
+              onChange={(e)=>setField("anchor3_coords", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Anchor #4 Coordinates</label>
+            <input className="w-full border rounded-xl px-3 py-2" value={form.anchor4_coords}
+              onChange={(e)=>setField("anchor4_coords", e.target.value)} />
+          </div>
+        </div>
 
         {/* Dates */}
-        <input className="input" name="last_test_date" type="date" placeholder="Last Test Date" />
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold mb-1">Last Test Date</label>
+            <input type="date" className="w-full border rounded-xl px-3 py-2" value={form.last_test_date}
+              onChange={(e)=>setField("last_test_date", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Expiration Date</label>
+            <input type="date" className="w-full border rounded-xl px-3 py-2" value={form.expiration_date}
+              onChange={(e)=>setField("expiration_date", e.target.value)} />
+          </div>
+        </div>
 
-        {/* Previous anchor work (larger) */}
-        <textarea className="input md:col-span-2 h-24" name="previous_anchor_work" placeholder="Previous Anchor Work"></textarea>
-
-        {/* Directions & Other Notes (larger) */}
-        <textarea className="input md:col-span-2 h-24" name="notes_previous_manager" placeholder="Directions & Other Notes"></textarea>
-
-        {/* GPS — 4 anchors */}
-        <input className="input" name="anchor1_lat" placeholder="Anchor #1 Lat" />
-        <input className="input" name="anchor1_lng" placeholder="Anchor #1 Lng" />
-        <input className="input" name="anchor2_lat" placeholder="Anchor #2 Lat" />
-        <input className="input" name="anchor2_lng" placeholder="Anchor #2 Lng" />
-        <input className="input" name="anchor3_lat" placeholder="Anchor #3 Lat" />
-        <input className="input" name="anchor3_lng" placeholder="Anchor #3 Lng" />
-        <input className="input" name="anchor4_lat" placeholder="Anchor #4 Lat" />
-        <input className="input" name="anchor4_lng" placeholder="Anchor #4 Lng" />
+        {/* Textareas */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="md:col-span-1">
+            <label className="block text-sm font-semibold mb-1">Previous Anchor Work</label>
+            <textarea rows={4} className="w-full border rounded-xl px-3 py-2" value={form.previous_anchor_work}
+              onChange={(e)=>setField("previous_anchor_work", e.target.value)}
+              placeholder="Notes on prior installations, repairs, dates, vendors…" />
+          </div>
+          <div className="md:col-span-1">
+            <label className="block text-sm font-semibold mb-1">Directions &amp; Other Notes</label>
+            <textarea rows={4} className="w-full border rounded-xl px-3 py-2" value={form.directions_notes}
+              onChange={(e)=>setField("directions_notes", e.target.value)}
+              placeholder="Gate code, driving notes, hazards, yard return, etc." />
+          </div>
+        </div>
 
         {/* Actions */}
-        <div className="md:col-span-2 flex gap-2 pt-2">
+        <div className="flex gap-3">
           <button
-            type="button"
-            onClick={() => r.back()}
-            className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
-          >
-            Cancel
-          </button>
-          <button
+            type="submit"
             disabled={saving}
             className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 disabled:opacity-60"
           >
-            {saving ? "Saving…" : "Create (needs approval)"}
+            {saving ? "Saving..." : "Save Well"}
           </button>
+          {msg && <div className="self-center text-sm text-gray-700">{msg}</div>}
         </div>
-
-        {/* simple input style */}
-        <style jsx>{`
-          .input {
-            @apply w-full rounded-xl border border-gray-300 px-3 py-2 text-sm;
-          }
-        `}</style>
-        {err && <p className="text-red-600 text-sm md:col-span-2">{err}</p>}
       </form>
     </div>
   );
