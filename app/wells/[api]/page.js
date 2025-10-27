@@ -27,6 +27,23 @@ export default async function WellDetail({ params }) {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h1 className="text-xl font-semibold mb-2">Well not found</h1>
           <p className="text-gray-600 mb-4">API: {api}</p>
+      <p className="text-sm text-gray-600">
+  API: <span className="font-mono">{well.api}</span>
+</p>
+
+{well.wellhead_coords && (
+  <p className="text-sm text-gray-600 mt-1">
+    Well Head GPS:{' '}
+    <a
+      className="text-blue-600 underline"
+      href={`https://maps.google.com/?q=${encodeURIComponent(well.wellhead_coords)}`}
+      target="_blank"
+      rel="noreferrer"
+    >
+      {well.wellhead_coords}
+    </a>
+  </p>
+)}
           <Link href="/admin/wells" className="underline text-[#2f4f4f]">
             ← Back to All Wells
           </Link>
