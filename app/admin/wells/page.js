@@ -1,184 +1,71 @@
-"use client";
+// app/admin/wells/page.js
+export const dynamic = "force-dynamic";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+async function getWells() {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/wells`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to load wells");
+  return res.json();
+}
 
-export default function NewWellPage() {
-  const router = useRouter();
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  async function onSubmit(e) {
-    e.preventDefault();
-    setSaving(true);
-    setMsg("");
-
-    const f = new FormData(e.currentTarget);
-
-    const payload = {
-      // company & company man
-      company: f.get("company")?.trim() || "",
-      company_email: f.get("company_email")?.trim() || "",
-      company_phone: f.get("company_phone")?.trim() || "",
-      company_address: f.get("company_address")?.trim() || "",
-      company_man_name: f.get("company_man_name")?.trim() || "",
-      company_man_email: f.get("company_man_email")?.trim() || "",
-      company_man_phone: f.get("company_man_phone")?.trim() || "",
-
-      // new / reordered fields
-      lease_well_name: f.get("lease_well_name")?.trim() || "",  // NEW
-      api: f.get("api")?.trim() || "",
-
-      // text areas / dates
-      previous_anchor_work: f.get("previous_anchor_work")?.trim() || "", // NEW (textarea)
-      directions_notes: f.get("directions_notes")?.trim() || "",        // RENAMED (textarea)
-      last_test_date: f.get("last_test_date") || null,
-
-      // anchors + expirations
-      anchor1_lat: f.get("anchor1_lat") || null,
-      anchor1_lng: f.get("anchor1_lng") || null,
-      anchor1_expiration: f.get("anchor1_expiration") || null,
-      anchor2_lat: f.get("anchor2_lat") || null,
-      anchor2_lng: f.get("anchor2_lng") || null,
-      anchor2_expiration: f.get("anchor2_expiration") || null,
-      anchor3_lat: f.get("anchor3_lat") || null,
-      anchor3_lng: f.get("anchor3_lng") || null,
-      anchor3_expiration: f.get("anchor3_expiration") || null,
-      anchor4_lat: f.get("anchor4_lat") || null,
-      anchor4_lng: f.get("anchor4_lng") || null,
-      anchor4_expiration: f.get("anchor4_expiration") || null,
-    };
-
-    try {
-      const res = await fetch("/api/wells", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || `Request failed (${res.status})`);
-      }
-
-      router.push("/dashboard");
-    } catch (err) {
-      setMsg(err.message || "Something went wrong");
-    } finally {
-      setSaving(false);
-    }
-  }
+export default async function AdminWellsPage() {
+  const wells = await getWells();
 
   return (
-    <div className="container py-8">
-      <h1 className="text-xl font-bold mb-1">New Well</h1>
-      <p className="text-sm text-gray-600 mb-6">
-        Fill in details. Submission will appear in “Pending Approval”.
-      </p>
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">All Wells</h1>
+        <a
+          href="/admin/wells/new"
+          className="px-4 py-2 rounded-md border hover:bg-gray-50"
+        >
+          + New Well
+        </a>
+      </div>
 
-      <form onSubmit={onSubmit} className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
-        {/* Company row */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Company</label>
-            <input name="company" className="w-full rounded-xl border p-2" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Company Email</label>
-            <input name="company_email" type="email" className="w-full rounded-xl border p-2" />
-          </div>
-        </div>
-
-        {/* Company phone/address */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Company Phone</label>
-            <input name="company_phone" className="w-full rounded-xl border p-2" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Company Address</label>
-            <input name="company_address" className="w-full rounded-xl border p-2" />
-          </div>
-        </div>
-
-        {/* Company man rows */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Company Man (Name)</label>
-            <input name="company_man_name" className="w-full rounded-xl border p-2" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Company Man Email</label>
-            <input name="company_man_email" type="email" className="w-full rounded-xl border p-2" />
-          </div>
-        </div>
-
-        {/* line break, then phone; then Lease/Well Name; then API */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Company Man Phone</label>
-          <input name="company_man_phone" className="w-full rounded-xl border p-2" />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Lease/Well Name</label>
-          <input name="lease_well_name" className="w-full rounded-xl border p-2" />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Well API</label>
-          <input name="api" className="w-full rounded-xl border p-2" />
-        </div>
-
-        {/* Textareas / date */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Previous Anchor Work</label>
-          <textarea name="previous_anchor_work" rows={3} className="w-full rounded-xl border p-2" placeholder="Work done before SA took over (tests, installs, issues, notes)" />
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Last Test Date</label>
-            <input name="last_test_date" type="date" className="w-full rounded-xl border p-2" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Directions & Other Notes</label>
-            <textarea name="directions_notes" rows={3} className="w-full rounded-xl border p-2" placeholder="Directions to location, gate codes, landmarks, etc." />
-          </div>
-        </div>
-
-        {/* Anchors with expirations */}
-        {[1,2,3,4].map((n) => (
-          <div key={n} className="grid md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">{`Anchor #${n} Lat`}</label>
-              <input name={`anchor${n}_lat`} className="w-full rounded-xl border p-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">{`Anchor #${n} Lng`}</label>
-              <input name={`anchor${n}_lng`} className="w-full rounded-xl border p-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">{`Anchor #${n} Expiration`}</label>
-              <input name={`anchor${n}_expiration`} type="date" className="w-full rounded-xl border p-2" />
-            </div>
-          </div>
-        ))}
-
-        {/* Actions */}
-        <div className="flex items-center gap-3 pt-2">
-          <button type="button" onClick={() => router.back()} className="px-4 py-2 rounded-xl border border-gray-400 bg-white">
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white disabled:opacity-60"
-          >
-            {saving ? "Saving…" : "Create (needs approval)"}
-          </button>
-          {msg && <span className="text-sm text-gray-600">{msg}</span>}
-        </div>
-      </form>
+      <div className="overflow-x-auto rounded-xl border">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="text-left p-3">Lease / Well</th>
+              <th className="text-left p-3">API</th>
+              <th className="text-left p-3">Company</th>
+              <th className="text-left p-3">Last Test</th>
+              <th className="text-left p-3">Expires</th>
+              <th className="text-left p-3">Status</th>
+              <th className="p-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {wells.map((w) => (
+              <tr key={w.id} className="border-t">
+                <td className="p-3">{w.lease_well_name}</td>
+                <td className="p-3">{w.api}</td>
+                <td className="p-3">{w.company_name}</td>
+                <td className="p-3">{w.last_test_date ?? "-"}</td>
+                <td className="p-3">{w.expiration_date ?? "-"}</td>
+                <td className="p-3 capitalize">{w.status}</td>
+                <td className="p-3">
+                  <a
+                    className="underline"
+                    href={`/wells/${encodeURIComponent(w.api)}`}
+                  >
+                    View
+                  </a>
+                </td>
+              </tr>
+            ))}
+            {wells.length === 0 && (
+              <tr>
+                <td className="p-6 text-center text-gray-500" colSpan={7}>
+                  No wells yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
