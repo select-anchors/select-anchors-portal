@@ -122,7 +122,21 @@ export default function NewWellPage() {
             <input className="w-full border rounded-xl px-3 py-2" value={form.api}
               onChange={(e)=>setField("api", e.target.value)} placeholder="30-025-123456" required />
           </div>
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  {/* API field …already present… */}
+
+  {/* Well Head GPS (single paste field) */}
+  <div>
+    <label className="block text-sm font-medium mb-1">Well Head GPS</label>
+    <input
+      name="wellhead_coords"
+      type="text"
+      placeholder="32.702981,-103.136790"
+      className="w-full rounded-md border px-3 py-2"
+    />
+    <p className="text-xs text-gray-500 mt-1">Paste from Google Maps (lat,lng)</p>
+  </div>
+</div>        </div>
 
         {/* Coordinates (single fields) */}
         <div className="grid md:grid-cols-2 gap-4">
