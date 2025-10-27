@@ -1,14 +1,13 @@
-// /app/api/health/route.js
+// app/api/health/route.js
 import { NextResponse } from "next/server";
 import { q } from "@/lib/db";
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   try {
-    const res = await q("select now() as ts");
-    return NextResponse.json({ ok: true, dbTime: res.rows[0].ts }, { status: 200 });
+    const r = await q("SELECT now() as server_time");
+    return NextResponse.json({ ok: true, server_time: r.rows[0].server_time }, { status: 200 });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    console.error("GET /api/health error:", e?.message || e);
+    return NextResponse.json({ ok: false, error: e?.message || "DB error" }, { status: 500 });
   }
 }
