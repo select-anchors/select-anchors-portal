@@ -16,10 +16,10 @@ export default function NewWellPage() {
     company_man_name: "",
     company_man_email: "",
     company_man_phone: "",
-    lease_name: "",          // Lease/Well Name
-    api: "",                 // Well API
-    previous_anchor_work: "",// (bigger text area)
-    directions_notes: "",    // (renamed from previous manager notes)
+    lease_name: "",
+    api: "",
+    previous_anchor_work: "",
+    directions_notes: "",
     anchor1_coords: "",
     anchor2_coords: "",
     anchor3_coords: "",
@@ -44,8 +44,8 @@ export default function NewWellPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-
       const data = await res.json();
+
       if (!res.ok) {
         setMsg(data?.error || "Failed to save.");
         setSaving(false);
@@ -53,7 +53,6 @@ export default function NewWellPage() {
       }
 
       setMsg("Well saved!");
-      // Go to Well Detail
       router.push(`/wells/${encodeURIComponent(data.api)}`);
     } catch (err) {
       console.error(err);
@@ -68,7 +67,7 @@ export default function NewWellPage() {
       <h1 className="text-2xl font-bold mb-6">New Well</h1>
 
       <form onSubmit={onSubmit} className="bg-white border border-gray-200 rounded-2xl p-6 space-y-6">
-        {/* Company section */}
+        {/* Company */}
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold mb-1">Company</label>
@@ -111,7 +110,7 @@ export default function NewWellPage() {
           </div>
         </div>
 
-        {/* Line break, then Lease/Well Name, then API */}
+        {/* Break → Lease/Well Name + Well API */}
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold mb-1">Lease/Well Name</label>
@@ -125,29 +124,31 @@ export default function NewWellPage() {
           </div>
         </div>
 
-        {/* Coordinates */}
+        {/* Coordinates (single fields) */}
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold mb-1">
-              Anchor #1 Coordinates <span className="font-normal text-gray-500">(e.g. 32.987654, -103.456789)</span>
-            </label>
+            <label className="block text-sm font-semibold mb-1">Anchor #1 Coordinates</label>
             <input className="w-full border rounded-xl px-3 py-2" value={form.anchor1_coords}
-              onChange={(e)=>setField("anchor1_coords", e.target.value)} />
+              onChange={(e)=>setField("anchor1_coords", e.target.value)}
+              placeholder="32.987654, -103.456789" />
           </div>
           <div>
             <label className="block text-sm font-semibold mb-1">Anchor #2 Coordinates</label>
             <input className="w-full border rounded-xl px-3 py-2" value={form.anchor2_coords}
-              onChange={(e)=>setField("anchor2_coords", e.target.value)} />
+              onChange={(e)=>setField("anchor2_coords", e.target.value)}
+              placeholder="32.987654, -103.456789" />
           </div>
           <div>
             <label className="block text-sm font-semibold mb-1">Anchor #3 Coordinates</label>
             <input className="w-full border rounded-xl px-3 py-2" value={form.anchor3_coords}
-              onChange={(e)=>setField("anchor3_coords", e.target.value)} />
+              onChange={(e)=>setField("anchor3_coords", e.target.value)}
+              placeholder="32.987654, -103.456789" />
           </div>
           <div>
             <label className="block text-sm font-semibold mb-1">Anchor #4 Coordinates</label>
             <input className="w-full border rounded-xl px-3 py-2" value={form.anchor4_coords}
-              onChange={(e)=>setField("anchor4_coords", e.target.value)} />
+              onChange={(e)=>setField("anchor4_coords", e.target.value)}
+              placeholder="32.987654, -103.456789" />
           </div>
         </div>
 
@@ -167,13 +168,13 @@ export default function NewWellPage() {
 
         {/* Textareas */}
         <div className="grid md:grid-cols-2 gap-4">
-          <div className="md:col-span-1">
+          <div>
             <label className="block text-sm font-semibold mb-1">Previous Anchor Work</label>
             <textarea rows={4} className="w-full border rounded-xl px-3 py-2" value={form.previous_anchor_work}
               onChange={(e)=>setField("previous_anchor_work", e.target.value)}
               placeholder="Notes on prior installations, repairs, dates, vendors…" />
           </div>
-          <div className="md:col-span-1">
+          <div>
             <label className="block text-sm font-semibold mb-1">Directions &amp; Other Notes</label>
             <textarea rows={4} className="w-full border rounded-xl px-3 py-2" value={form.directions_notes}
               onChange={(e)=>setField("directions_notes", e.target.value)}
