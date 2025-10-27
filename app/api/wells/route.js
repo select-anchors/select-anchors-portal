@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { q } from "@/lib/db";
 
-// GET /api/wells  -> list (simple)
+// GET /api/wells  -> list wells
 export async function GET() {
   try {
     const { rows } = await q(
@@ -18,12 +18,11 @@ export async function GET() {
   }
 }
 
-// POST /api/wells  -> create new well
+// POST /api/wells  -> create/update a well (upsert by api)
 export async function POST(req) {
   try {
     const data = await req.json();
 
-    // Required minimal fields
     const api = (data.api || "").trim();
     const lease_name = (data.lease_name || "").trim();
     if (!api || !lease_name) {
@@ -33,7 +32,6 @@ export async function POST(req) {
       );
     }
 
-    // Normalize coordinate strings if present (trim whitespace)
     const anchor1_coords = (data.anchor1_coords || "").trim();
     const anchor2_coords = (data.anchor2_coords || "").trim();
     const anchor3_coords = (data.anchor3_coords || "").trim();
@@ -96,10 +94,7 @@ export async function POST(req) {
     );
 
     const created = result.rows[0];
-    return NextResponse.json(
-      { ok: true, id: created.id, api },
-      { status: 201 }
-    );
+    return NextResponse.json({ ok: true, id: created.id, api }, { status: 201 });
   } catch (e) {
     console.error("POST /api/wells error:", e);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
