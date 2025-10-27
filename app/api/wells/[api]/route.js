@@ -2,58 +2,36 @@
 import { NextResponse } from "next/server";
 import { q } from "@/lib/db";
 
-// GET /api/wells/:api  — single well (including company + notes)
 export async function GET(_req, { params }) {
-  const { api } = params;
+  try {
+    const api = decodeURIComponent(params.api);
+    const { rows } = await q(
+      `
+      SELECT
+        id,
+        lease_well_name, api,
+        company_name, company_email, company_phone, company_address,
+        company_man_name, company_man_email, company_man_phone,
+        anchor1_coords, anchor2_coords, anchor3_coords, anchor4_coords,
+        previous_anchor_work, directions_other_notes, previous_anchor_company,
+        TO_CHAR(last_test_date, 'YYYY-MM-DD') AS last_test_date,
+        TO_CHAR(expiration_date, 'YYYY-MM-DD') AS expiration_date,
+        TO_CHAR(need_by, 'YYYY-MM-DD') AS need_by,
+        managed_by_company, status,
+        customer, customer_id
+      FROM wells
+      WHERE api = $1
+      LIMIT 1
+      `,
+      [api]
+    );
 
-  // Well + company (if linked)
-  const wellRes = await q(
-    `
-    SELECT w.*, c.name AS company_name, c.email AS company_email, c.phone AS company_phone
-    FROM wells w
-    LEFT JOIN companies c ON c.id = w.company_id
-    WHERE w.api = $1
-    `,
-    [api]
-  );
-
-  if (wellRes.rowCount === 0) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (rows.length === 0) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    return NextResponse.json(rows[0]);
+  } catch (err) {
+    console.error("GET /api/wells/[api] error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
-
-  return NextResponse.json(wellRes.rows[0]);
-}
-
-// PATCH /api/wells/:api  — update a well (also used for “approve”)
-export async function PATCH(req, { params }) {
-  const { api } = params;
-  const body = await req.json();
-
-  // Build dynamic update
-  const fields = [];
-  const values = [];
-  let idx = 1;
-
-  for (const [k, v] of Object.entries(body)) {
-    fields.push(`${k} = $${idx++}`);
-    values.push(v);
-  }
-  if (!fields.length) return NextResponse.json({ ok: true });
-
-  values.push(api);
-
-  const sql = `UPDATE wells SET ${fields.join(", ")} WHERE api = $${idx} RETURNING *`;
-  const upd = await q(sql, values);
-
-  if (upd.rowCount === 0) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  return NextResponse.json(upd.rows[0]);
-}
-
-// DELETE /api/wells/:api  — remove well
-export async function DELETE(_req, { params }) {
-  const { api } = params;
-  await q(`DELETE FROM wells WHERE api = $1`, [api]);
-  return NextResponse.json({ ok: true });
 }
