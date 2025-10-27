@@ -10,6 +10,7 @@ export async function GET() {
         id,
         lease_well_name,
         api,
+        wellhead_coords,
         company_name,
         TO_CHAR(last_test_date, 'YYYY-MM-DD') AS last_test_date,
         TO_CHAR(expiration_date, 'YYYY-MM-DD') AS expiration_date,
@@ -31,7 +32,7 @@ export async function POST(req) {
     const body = await req.json();
 
     const {
-      lease_well_name, api,
+      lease_well_name, api, wellhead_coords,
       company_name, company_email, company_phone, company_address,
       company_man_name, company_man_email, company_man_phone,
       anchor1_coords, anchor2_coords, anchor3_coords, anchor4_coords,
@@ -44,7 +45,7 @@ export async function POST(req) {
     const { rows } = await q(
       `
       INSERT INTO wells (
-        lease_well_name, api,
+        lease_well_name, api, wellhead_coords,
         company_name, company_email, company_phone, company_address,
         company_man_name, company_man_email, company_man_phone,
         anchor1_coords, anchor2_coords, anchor3_coords, anchor4_coords,
@@ -65,7 +66,7 @@ export async function POST(req) {
       RETURNING id, api
       `,
       [
-        lease_well_name, api,
+        lease_well_name, api, wellhead_coords,
         company_name, company_email, company_phone, company_address,
         company_man_name, company_man_email, company_man_phone,
         anchor1_coords, anchor2_coords, anchor3_coords, anchor4_coords,
