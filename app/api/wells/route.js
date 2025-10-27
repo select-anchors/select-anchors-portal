@@ -2,25 +2,60 @@
 import { NextResponse } from "next/server";
 import { q } from "@/lib/db";
 
-// GET /api/wells  -> list wells
+// Ensures table exists so the first GET doesn't crash if migrations weren't run.
+async function ensureWellsTable() {
+  await q(`
+    CREATE TABLE IF NOT EXISTS wells (
+      id                BIGSERIAL PRIMARY KEY,
+      api               TEXT NOT NULL,
+      company           TEXT,
+      company_email     TEXT,
+      company_phone     TEXT,
+      company_address   TEXT,
+      company_man_name  TEXT,
+      company_man_email TEXT,
+      company_man_phone TEXT,
+      lease_name        TEXT,
+      previous_anchor_work TEXT,
+      directions_notes     TEXT,
+      anchor1_coords    TEXT,
+      anchor2_coords    TEXT,
+      anchor3_coords    TEXT,
+      anchor4_coords    TEXT,
+      last_test_date    DATE,
+      expiration_date   DATE,
+      status            TEXT DEFAULT 'Pending',
+      created_at        TIMESTAMPTZ DEFAULT now(),
+      updated_at        TIMESTAMPTZ DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS wells_api_key ON wells(api);
+  `);
+}
+
+// GET /api/wells -> list the most recent wells
 export async function GET() {
   try {
+    await ensureWellsTable();
+
     const { rows } = await q(
       `SELECT id, api, company, lease_name, expiration_date, status
        FROM wells
        ORDER BY updated_at DESC
        LIMIT 200`
     );
+
     return NextResponse.json(rows, { status: 200 });
   } catch (e) {
-    console.error("GET /api/wells error:", e);
+    console.error("GET /api/wells error:", e?.message || e);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
 
-// POST /api/wells  -> create/update a well (upsert by api)
+// POST /api/wells -> upsert by api
 export async function POST(req) {
   try {
+    await ensureWellsTable();
+
     const data = await req.json();
 
     const api = (data.api || "").trim();
@@ -31,11 +66,6 @@ export async function POST(req) {
         { status: 400 }
       );
     }
-
-    const anchor1_coords = (data.anchor1_coords || "").trim();
-    const anchor2_coords = (data.anchor2_coords || "").trim();
-    const anchor3_coords = (data.anchor3_coords || "").trim();
-    const anchor4_coords = (data.anchor4_coords || "").trim();
 
     const result = await q(
       `INSERT INTO wells (
@@ -83,10 +113,10 @@ export async function POST(req) {
         lease_name || null,
         data.previous_anchor_work || null,
         data.directions_notes || null,
-        anchor1_coords || null,
-        anchor2_coords || null,
-        anchor3_coords || null,
-        anchor4_coords || null,
+        (data.anchor1_coords || "").trim() || null,
+        (data.anchor2_coords || "").trim() || null,
+        (data.anchor3_coords || "").trim() || null,
+        (data.anchor4_coords || "").trim() || null,
         data.last_test_date || null,
         data.expiration_date || null,
         data.status || "Pending",
@@ -96,7 +126,7 @@ export async function POST(req) {
     const created = result.rows[0];
     return NextResponse.json({ ok: true, id: created.id, api }, { status: 201 });
   } catch (e) {
-    console.error("POST /api/wells error:", e);
+    console.error("POST /api/wells error:", e?.message || e);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
