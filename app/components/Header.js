@@ -23,7 +23,7 @@ export default function Header() {
         <nav className="hidden md:flex items-center gap-6">
           <Link href="/dashboard" className={linkCls("/dashboard")}>Dashboard</Link>
           <Link href="/driver/my-day" className={linkCls("/driver/my-day")}>My Day</Link>
-          <Link href="/wells/30-015-54321" className={linkCls("/wells/30-015-54321")}>Well Detail</Link>
+          <Link href="/admin/wells" className={linkCls("/admin/wells")}>All Wells</Link>
           <Link href="/account" className={linkCls("/account")}>Account</Link>
           <Link href="/login" className="btn btn-secondary">Client Login</Link>
         </nav>
@@ -46,7 +46,7 @@ export default function Header() {
           <div className="container py-3 flex flex-col gap-3">
             <Link href="/dashboard" onClick={() => setOpen(false)}>Dashboard</Link>
             <Link href="/driver/my-day" onClick={() => setOpen(false)}>My Day</Link>
-            <Link href="/wells/30-015-54321" onClick={() => setOpen(false)}>Well Detail</Link>
+            <Link href="/admin/wells" onClick={() => setOpen(false)}>All Wells</Link>
             <Link href="/account" onClick={() => setOpen(false)}>Account</Link>
             <Link href="/login" className="btn btn-secondary w-fit" onClick={() => setOpen(false)}>Client Login</Link>
           </div>
