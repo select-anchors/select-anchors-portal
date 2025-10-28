@@ -13,7 +13,6 @@ function fmtDate(d) {
 export default async function Dashboard() {
   const session = await getSession();
 
-  // If not logged in, punt to /login
   if (!session.isAuthenticated) {
     return (
       <div className="container py-10">
@@ -28,8 +27,8 @@ export default async function Dashboard() {
     );
   }
 
-  // Admins: show upcoming wells (soonest expirations & tests)
-  // Customers: show only wells linked to their email
+  // Admins: show global upcoming wells
+  // Employees/Customers: show only wells mapped to their email via user_wells
   let wells = [];
   if (session.role === "admin") {
     const { rows } = await q(
@@ -70,22 +69,26 @@ export default async function Dashboard() {
     wells = rows;
   }
 
+  const showMyDay = session.role === "admin" || session.role === "employee";
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
       {/* Quick actions */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Everyone can see these */}
         <Link href="/wells" className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100">
           All Wells
         </Link>
-        <Link href="/driver/my-day" className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100">
-          My Day
-        </Link>
+
+        {showMyDay && (
+          <Link href="/driver/my-day" className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100">
+            My Day
+          </Link>
+        )}
+
         <Link href="/account" className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100">
           Account
         </Link>
 
-        {/* Admin-only */}
         {session.role === "admin" && (
           <>
             <Link href="/admin/wells/new" className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90">
@@ -98,7 +101,7 @@ export default async function Dashboard() {
         )}
       </div>
 
-      {/* Upcoming wells */}
+      {/* Upcoming / Your wells */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">
