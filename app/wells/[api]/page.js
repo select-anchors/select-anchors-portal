@@ -6,13 +6,32 @@ function fmtDate(d) {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function GpsLink({ coords }) {
+  if (!coords) return <span className="font-medium">—</span>;
+  const url = `https://maps.google.com/?q=${encodeURIComponent(coords)}`;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium text-blue-600 underline break-words"
+    >
+      {coords}
+    </a>
+  );
 }
 
 export default async function WellDetail({ params }) {
   const api = decodeURIComponent(params.api);
 
-  // Defensive: use the view so we don't care about underlying column names
+  // Use the view so we’re insulated from underlying column name changes
   const { rows } = await q(
     `SELECT *
        FROM wells_view
@@ -24,29 +43,22 @@ export default async function WellDetail({ params }) {
   if (!rows?.length) {
     return (
       <div className="container py-10">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h1 className="text-xl font-semibold mb-2">Well not found</h1>
-          <p className="text-gray-600 mb-4">API: {api}</p>
-      <p className="text-sm text-gray-600">
-  API: <span className="font-mono">{well.api}</span>
-</p>
-
-{well.wellhead_coords && (
-  <p className="text-sm text-gray-600 mt-1">
-    Well Head GPS:{' '}
-    <a
-      className="text-blue-600 underline"
-      href={`https://maps.google.com/?q=${encodeURIComponent(well.wellhead_coords)}`}
-      target="_blank"
-      rel="noreferrer"
-    >
-      {well.wellhead_coords}
-    </a>
-  </p>
-)}
-          <Link href="/admin/wells" className="underline text-[#2f4f4f]">
-            ← Back to All Wells
-          </Link>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+          <h1 className="text-xl font-semibold">Well not found</h1>
+          <p className="text-gray-600">
+            API: <span className="font-mono">{api}</span>
+          </p>
+          <div className="flex gap-3">
+            <Link href="/admin/wells" className="underline text-[#2f4f4f]">
+              ← Back to All Wells
+            </Link>
+            <Link
+              href="/admin/wells/new"
+              className="underline text-blue-700"
+            >
+              + Create New Well
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -56,25 +68,53 @@ export default async function WellDetail({ params }) {
 
   return (
     <div className="container py-10 space-y-6">
-      {/* Title */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{w.lease_well_name ?? "Untitled Well"}</h1>
-          <p className="text-gray-600">API: {w.api}</p>
-        </div>
-        <div className="flex gap-2">
-          <Link
-            href={`/admin/wells?api=${encodeURIComponent(w.api)}&edit=1`}
-            className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
-          >
-            Edit
-          </Link>
-          <Link
-            href="/admin/wells"
-            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
-          >
-            All Wells
-          </Link>
+      {/* Header */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">
+              {w.lease_well_name ?? "Untitled Well"}
+            </h1>
+
+            {/* API */}
+            {w.api && (
+              <p className="text-sm text-gray-700 mt-1">
+                API: <span className="font-mono">{w.api}</span>
+              </p>
+            )}
+
+            {/* Well Head GPS just under API */}
+            {w.wellhead_coords && (
+              <p className="text-sm text-gray-700 mt-1">
+                Well Head GPS:{" "}
+                <a
+                  href={`https://maps.google.com/?q=${encodeURIComponent(
+                    w.wellhead_coords
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline"
+                >
+                  {w.wellhead_coords}
+                </a>
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-2 shrink-0">
+            <Link
+              href={`/admin/wells?api=${encodeURIComponent(w.api)}&edit=1`}
+              className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
+            >
+              Edit
+            </Link>
+            <Link
+              href="/admin/wells"
+              className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+            >
+              All Wells
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -94,7 +134,9 @@ export default async function WellDetail({ params }) {
           </div>
           <div>
             <div className="text-sm text-gray-600">Email</div>
-            <div className="font-medium">{w.company_email ?? "—"}</div>
+            <div className="font-medium break-words">
+              {w.company_email ?? "—"}
+            </div>
           </div>
           <div className="md:col-span-2">
             <div className="text-sm text-gray-600">Address</div>
@@ -119,7 +161,9 @@ export default async function WellDetail({ params }) {
           </div>
           <div>
             <div className="text-sm text-gray-600">Email</div>
-            <div className="font-medium">{w.company_man_email ?? "—"}</div>
+            <div className="font-medium break-words">
+              {w.company_man_email ?? "—"}
+            </div>
           </div>
         </div>
       </div>
@@ -133,32 +177,44 @@ export default async function WellDetail({ params }) {
           <div className="space-y-3">
             <div>
               <div className="text-sm text-gray-600">NE Coords</div>
-              <div className="font-medium break-words">{w.anchor_ne ?? "—"}</div>
-              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_ne)}</div>
+              <GpsLink coords={w.anchor_ne} />
+              <div className="text-xs text-gray-500">
+                Expires: {fmtDate(w.expires_ne)}
+              </div>
             </div>
             <div>
               <div className="text-sm text-gray-600">NW Coords</div>
-              <div className="font-medium break-words">{w.anchor_nw ?? "—"}</div>
-              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_nw)}</div>
+              <GpsLink coords={w.anchor_nw} />
+              <div className="text-xs text-gray-500">
+                Expires: {fmtDate(w.expires_nw)}
+              </div>
             </div>
           </div>
           <div className="space-y-3">
             <div>
               <div className="text-sm text-gray-600">SE Coords</div>
-              <div className="font-medium break-words">{w.anchor_se ?? "—"}</div>
-              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_se)}</div>
+              <GpsLink coords={w.anchor_se} />
+              <div className="text-xs text-gray-500">
+                Expires: {fmtDate(w.expires_se)}
+              </div>
             </div>
             <div>
               <div className="text-sm text-gray-600">SW Coords</div>
-              <div className="font-medium break-words">{w.anchor_sw ?? "—"}</div>
-              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_sw)}</div>
+              <GpsLink coords={w.anchor_sw} />
+              <div className="text-xs text-gray-500">
+                Expires: {fmtDate(w.expires_sw)}
+              </div>
             </div>
           </div>
+
           <div className="md:col-span-2 grid md:grid-cols-3 gap-4">
             <div>
               <div className="text-sm text-gray-600">Last Test Date</div>
               <div className="font-medium">{fmtDate(w.last_test_date)}</div>
             </div>
+            {/* Placeholder cells if you later add more key dates */}
+            <div />
+            <div />
           </div>
         </div>
       </div>
