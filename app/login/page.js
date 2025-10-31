@@ -1,51 +1,44 @@
-import AuthLayout from "../components/AuthLayout";
+"use client";
+import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
-export default function Login() {
+export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [err, setErr] = useState("");
+  const router = useRouter();
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    setErr("");
+    const res = await signIn("credentials", {
+      redirect: false,
+      email,
+      password
+    });
+    if (res?.error) setErr(res.error);
+    else router.push("/dashboard");
+  }
+
   return (
-    <AuthLayout>
-      <div className="bg-white rounded-2xl shadow-md p-8 sm:p-10">
-        <h1 className="text-2xl font-bold text-center text-brand-green">
-          Client Login
-        </h1>
-        <p className="text-center text-gray-600 text-sm mt-2">
-          Access your well and anchor test records
-        </p>
-
-        <form className="mt-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Email
-            </label>
-            <input
-              type="email"
-              placeholder="you@example.com"
-              className="w-full mt-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-green"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Password
-            </label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              className="w-full mt-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-green"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-brand-green text-white py-2 rounded-lg font-semibold hover:bg-green-700"
-          >
-            Sign in
-          </button>
-
-          <p className="text-xs text-gray-600 text-center mt-3">
-            By signing in, you agree to allow SMS notifications.
-          </p>
-        </form>
-      </div>
-    </AuthLayout>
+    <div className="container py-10">
+      <form onSubmit={onSubmit} className="max-w-md space-y-4">
+        <h1 className="text-2xl font-bold">Sign in</h1>
+        {err && <div className="text-red-600">{err}</div>}
+        <div>
+          <label>Email</label>
+          <input className="w-full" value={email} onChange={(e)=>setEmail(e.target.value)} />
+        </div>
+        <div>
+          <label>Password</label>
+          <input type="password" className="w-full" value={password} onChange={(e)=>setPassword(e.target.value)} />
+        </div>
+        <div className="flex justify-between items-center">
+          <button className="btn">Sign in</button>
+          <a href="/forgot" className="text-sm underline">Forgot password?</a>
+        </div>
+      </form>
+    </div>
   );
 }
