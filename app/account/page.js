@@ -1,74 +1,67 @@
-export default function Account() {
-  // Demo user values — swap with real data later
-  const user = {
-    name: "Chris Haggard",
-    email: "selectanchors@gmail.com",
-    phone: "575-552-1733",
-    smsOptIn: true,
-  };
+"use client";
+
+export const dynamic = "force-dynamic";
+
+import { signOut, useSession } from "next-auth/react";
+import { useState } from "react";
+
+export default function AccountPage() {
+  const { data: session, status } = useSession();
+  const [msg, setMsg] = useState("");
+
+  if (status === "loading") return <div className="container py-10">Loading…</div>;
+  if (!session) return <div className="container py-10">Please log in.</div>;
+
+  const user = session.user;
+
+  async function sendReset() {
+    setMsg("");
+    try {
+      const res = await fetch("/api/auth/forgot", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: user.email }),
+      });
+      if (!res.ok) throw new Error("Failed to send reset email");
+      setMsg("If your email is on file, a reset link was sent.");
+    } catch (e) {
+      setMsg(e.message);
+    }
+  }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
+    <div className="container py-8 space-y-6">
       <h1 className="text-2xl font-bold">Account</h1>
-      <p className="text-sm text-gray-600 mt-1">
-        Update your profile and notification preferences.
-      </p>
 
-      {/* Card */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mt-6 overflow-hidden">
-        {/* Profile */}
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm text-gray-700">Name</label>
-            <input
-              defaultValue={user.name}
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-300"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-700">Email</label>
-            <input
-              type="email"
-              defaultValue={user.email}
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-300"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-700">Phone</label>
-            <input
-              type="tel"
-              defaultValue={user.phone}
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-300"
-            />
-            {/* SMS opt-in */}
-            <label className="flex items-start gap-2 mt-3 select-none">
-              <input
-                type="checkbox"
-                defaultChecked={user.smsOptIn}
-                className="mt-0.5"
-              />
-              <span className="text-sm text-gray-800 leading-5">
-                Allow SMS notifications
-              </span>
-            </label>
-          </div>
+      <div className="bg-white border rounded-2xl p-6 grid md:grid-cols-2 gap-6">
+        <div>
+          <div className="text-sm text-gray-600">Name</div>
+          <div className="font-medium">{user.name || "—"}</div>
         </div>
-
-        {/* Divider */}
-        <div className="border-t border-gray-200" />
-
-        {/* Actions */}
-        <div className="p-6 flex flex-wrap gap-2">
-          {/* White-outline buttons keep readable text on hover */}
-          <button className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100 hover:text-gray-800">
-            Cancel
-          </button>
-          <button className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90">
-            Save changes
-          </button>
+        <div>
+          <div className="text-sm text-gray-600">Email</div>
+          <div className="font-medium break-all">{user.email}</div>
         </div>
+        <div>
+          <div className="text-sm text-gray-600">Role</div>
+          <div className="font-medium">{user.role}</div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <button
+          onClick={sendReset}
+          className="px-4 py-2 rounded-xl border border-gray-400 bg-white hover:bg-gray-50"
+        >
+          Email me a password reset link
+        </button>
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+        >
+          Sign out
+        </button>
+        {msg && <div className="text-sm self-center">{msg}</div>}
       </div>
     </div>
   );
