@@ -1,120 +1,105 @@
-// app/wells/[api]/page.js
-import { q } from "@/lib/db";
+"use client";
+
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 
 function fmtDate(d) {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-function GpsLink({ coords }) {
-  if (!coords) return <span className="font-medium">—</span>;
-  const url = `https://maps.google.com/?q=${encodeURIComponent(coords)}`;
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="font-medium text-blue-600 underline break-words"
-    >
-      {coords}
-    </a>
-  );
-}
+export default function WellDetailPage({ params }) {
+  const { data: session, status } = useSession();
+  const apiParam = decodeURIComponent(params.api);
+  const [well, setWell] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-export default async function WellDetail({ params }) {
-  const api = decodeURIComponent(params.api);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        // Use the “view” on the server to keep columns stable
+        const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("Not found");
+        const j = await res.json();
+        if (mounted) setWell(j?.well || null);
+      } catch {
+        if (mounted) setWell(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => (mounted = false);
+  }, [apiParam]);
 
-  // Use the view so we’re insulated from underlying column name changes
-  const { rows } = await q(
-    `SELECT *
-       FROM wells_view
-      WHERE api = $1
-      LIMIT 1`,
-    [api]
-  );
+  if (status === "loading") return <div className="container py-10">Loading…</div>;
+  if (!session) return <div className="container py-10">Please log in.</div>;
 
-  if (!rows?.length) {
+  if (loading) return <div className="container py-10">Loading well…</div>;
+  if (!well)
     return (
       <div className="container py-10">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
-          <h1 className="text-xl font-semibold">Well not found</h1>
-          <p className="text-gray-600">
-            API: <span className="font-mono">{api}</span>
-          </p>
-          <div className="flex gap-3">
-            <Link href="/admin/wells" className="underline text-[#2f4f4f]">
-              ← Back to All Wells
-            </Link>
-            <Link
-              href="/admin/wells/new"
-              className="underline text-blue-700"
-            >
-              + Create New Well
-            </Link>
-          </div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h1 className="text-xl font-semibold mb-2">Well not found</h1>
+          <p className="text-gray-600 mb-4">API: {apiParam}</p>
+          <Link href="/admin/wells" className="underline text-[#2f4f4f]">
+            ← Back to All Wells
+          </Link>
         </div>
       </div>
     );
-  }
 
-  const w = rows[0];
+  const w = well; // alias
+  const isStaff = session?.user?.role === "admin" || session?.user?.role === "employee";
 
   return (
     <div className="container py-10 space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">
-              {w.lease_well_name ?? "Untitled Well"}
-            </h1>
+      {/* Title */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">{w.lease_well_name ?? "Untitled Well"}</h1>
+          <div className="mt-1 space-y-1">
+            <p className="text-sm text-gray-700">
+              <span className="text-gray-600">API:</span>{" "}
+              <span className="font-mono">{w.api}</span>
+            </p>
 
-            {/* API */}
-            {w.api && (
-              <p className="text-sm text-gray-700 mt-1">
-                API: <span className="font-mono">{w.api}</span>
-              </p>
-            )}
-
-            {/* Well Head GPS just under API */}
             {w.wellhead_coords && (
-              <p className="text-sm text-gray-700 mt-1">
-                Well Head GPS:{" "}
+              <p className="text-sm text-gray-700">
+                <span className="text-gray-600">Well Head GPS:</span>{" "}
                 <a
-                  href={`https://maps.google.com/?q=${encodeURIComponent(
-                    w.wellhead_coords
-                  )}`}
+                  className="text-blue-600 underline break-all"
+                  href={`https://maps.google.com/?q=${encodeURIComponent(w.wellhead_coords)}`}
                   target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 underline"
+                  rel="noreferrer"
                 >
                   {w.wellhead_coords}
                 </a>
               </p>
             )}
           </div>
+        </div>
 
-          <div className="flex gap-2 shrink-0">
+        <div className="flex flex-wrap gap-2">
+          {isStaff && (
             <Link
               href={`/admin/wells?api=${encodeURIComponent(w.api)}&edit=1`}
               className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
             >
               Edit
             </Link>
-            <Link
-              href="/admin/wells"
-              className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
-            >
-              All Wells
-            </Link>
-          </div>
+          )}
+          <Link
+            href={isStaff ? "/admin/wells" : "/wells"}
+            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+          >
+            All Wells
+          </Link>
         </div>
       </div>
 
@@ -134,9 +119,7 @@ export default async function WellDetail({ params }) {
           </div>
           <div>
             <div className="text-sm text-gray-600">Email</div>
-            <div className="font-medium break-words">
-              {w.company_email ?? "—"}
-            </div>
+            <div className="font-medium">{w.company_email ?? "—"}</div>
           </div>
           <div className="md:col-span-2">
             <div className="text-sm text-gray-600">Address</div>
@@ -161,9 +144,7 @@ export default async function WellDetail({ params }) {
           </div>
           <div>
             <div className="text-sm text-gray-600">Email</div>
-            <div className="font-medium break-words">
-              {w.company_man_email ?? "—"}
-            </div>
+            <div className="font-medium break-all">{w.company_man_email ?? "—"}</div>
           </div>
         </div>
       </div>
@@ -177,44 +158,32 @@ export default async function WellDetail({ params }) {
           <div className="space-y-3">
             <div>
               <div className="text-sm text-gray-600">NE Coords</div>
-              <GpsLink coords={w.anchor_ne} />
-              <div className="text-xs text-gray-500">
-                Expires: {fmtDate(w.expires_ne)}
-              </div>
+              <div className="font-medium break-words">{w.anchor_ne ?? "—"}</div>
+              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_ne)}</div>
             </div>
             <div>
               <div className="text-sm text-gray-600">NW Coords</div>
-              <GpsLink coords={w.anchor_nw} />
-              <div className="text-xs text-gray-500">
-                Expires: {fmtDate(w.expires_nw)}
-              </div>
+              <div className="font-medium break-words">{w.anchor_nw ?? "—"}</div>
+              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_nw)}</div>
             </div>
           </div>
           <div className="space-y-3">
             <div>
               <div className="text-sm text-gray-600">SE Coords</div>
-              <GpsLink coords={w.anchor_se} />
-              <div className="text-xs text-gray-500">
-                Expires: {fmtDate(w.expires_se)}
-              </div>
+              <div className="font-medium break-words">{w.anchor_se ?? "—"}</div>
+              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_se)}</div>
             </div>
             <div>
               <div className="text-sm text-gray-600">SW Coords</div>
-              <GpsLink coords={w.anchor_sw} />
-              <div className="text-xs text-gray-500">
-                Expires: {fmtDate(w.expires_sw)}
-              </div>
+              <div className="font-medium break-words">{w.anchor_sw ?? "—"}</div>
+              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_sw)}</div>
             </div>
           </div>
-
           <div className="md:col-span-2 grid md:grid-cols-3 gap-4">
             <div>
               <div className="text-sm text-gray-600">Last Test Date</div>
               <div className="font-medium">{fmtDate(w.last_test_date)}</div>
             </div>
-            {/* Placeholder cells if you later add more key dates */}
-            <div />
-            <div />
           </div>
         </div>
       </div>
