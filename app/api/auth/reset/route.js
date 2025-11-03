@@ -1,31 +1,36 @@
-// app/api/auth/reset/route.js
+// /app/api/auth/reset/route.js
+import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { q } from "@/lib/db";
-import bcrypt from "bcrypt";
 
 export async function POST(req) {
-  const { email, token, newPassword } = await req.json();
-  if (!email || !token || !newPassword) {
-    return new Response(JSON.stringify({ error: "Missing" }), { status: 400 });
+  try {
+    const { token, password } = await req.json();
+    if (!token || !password)
+      return NextResponse.json({ error: "Missing token or password" }, { status: 400 });
+
+    // Lookup valid token
+    const { rows } = await q(
+      `SELECT r.user_id, u.email
+         FROM password_resets r
+         JOIN users u ON r.user_id = u.id
+        WHERE r.token = $1
+          AND r.expires_at > NOW()`,
+      [token]
+    );
+
+    if (!rows.length)
+      return NextResponse.json({ error: "Invalid or expired reset link" }, { status: 400 });
+
+    const userId = rows[0].user_id;
+    const hash = await bcrypt.hash(password, 10);
+
+    await q(`UPDATE users SET password = $1 WHERE id = $2`, [hash, userId]);
+    await q(`DELETE FROM password_resets WHERE user_id = $1`, [userId]);
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
-
-  const { rows } = await q(
-    `SELECT id, reset_expires FROM users WHERE email = $1 AND reset_token = $2 LIMIT 1`,
-    [email.toLowerCase(), token]
-  );
-
-  const user = rows[0];
-  if (!user) return new Response(JSON.stringify({ error: "Invalid token" }), { status: 400 });
-
-  if (new Date(user.reset_expires) < new Date()) {
-    return new Response(JSON.stringify({ error: "Token expired" }), { status: 400 });
-  }
-
-  const hash = await bcrypt.hash(newPassword, 10);
-
-  await q(
-    `UPDATE users SET password_hash = $1, reset_token = NULL, reset_expires = NULL, updated_at = now() WHERE id = $2`,
-    [hash, user.id]
-  );
-
-  return new Response(JSON.stringify({ ok: true }));
 }
