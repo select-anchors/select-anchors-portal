@@ -1,57 +1,57 @@
 "use client";
+
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 
 export default function Header() {
-  const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  const { data } = useSession();
+  const role = data?.user?.role; // "admin" | "employee" | "customer" | undefined
 
-  const linkCls = (href) =>
-    `hover:opacity-80 ${pathname === href ? "font-semibold text-black" : ""}`;
+  const isAdmin = role === "admin";
+  const isEmployee = role === "employee";
+  const isCustomer = role === "customer";
 
   return (
-    <header className="site-header">
-      <div className="container h-14 flex items-center justify-between">
-        {/* Logo + Title -> always to /dashboard */}
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-brand-green/90 flex items-center justify-center text-white font-bold">SA</div>
-          <div className="tracking-wide text-xl font-bold">SELECT ANCHORS</div>
+    <header className="border-b bg-white">
+      <div className="container flex items-center justify-between h-14">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="rounded-full bg-[#2f4f4f] text-white w-7 h-7 grid place-items-center text-sm font-bold">SA</div>
+          <span className="font-semibold">SELECT ANCHORS</span>
         </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-6">
-          <Link href="/dashboard" className={linkCls("/dashboard")}>Dashboard</Link>
-          <Link href="/driver/my-day" className={linkCls("/driver/my-day")}>My Day</Link>
-          <Link href="/admin/wells" className={linkCls("/admin/wells")}>All Wells</Link>
-          <Link href="/account" className={linkCls("/account")}>Account</Link>
-          <Link href="/login" className="btn btn-secondary">Client Login</Link>
+        <nav className="flex items-center gap-4 text-sm">
+          {/* Everyone sees Dashboard */}
+          <Link href="/dashboard" className="hover:underline">Dashboard</Link>
+
+          {/* Replace “Well Detail” with All Wells (visible to admins & employees; optional for customers) */}
+          {(isAdmin || isEmployee) && (
+            <Link href="/admin/wells" className="hover:underline">All Wells</Link>
+          )}
+          {isCustomer && (
+            <Link href="/wells" className="hover:underline">All Wells</Link> // or a customer-scoped list you add later
+          )}
+
+          {/* My Day only for staff */}
+          {(isAdmin || isEmployee) && (
+            <Link href="/driver/my-day" className="hover:underline">My Day</Link>
+          )}
+
+          {/* Account visible to any signed-in user */}
+          {data?.user ? (
+            <>
+              <Link href="/account" className="hover:underline">Account</Link>
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="rounded-xl border px-3 py-1"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <Link href="/login" className="rounded-xl border px-3 py-1">Client Login</Link>
+          )}
         </nav>
-
-        {/* Mobile menu button */}
-        <button
-          className="md:hidden p-2 rounded-lg border border-gray-300"
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Open menu"
-        >
-          <div className="w-5 h-[2px] bg-black mb-1"></div>
-          <div className="w-5 h-[2px] bg-black mb-1"></div>
-          <div className="w-5 h-[2px] bg-black"></div>
-        </button>
       </div>
-
-      {/* Mobile menu */}
-      {open && (
-        <div className="md:hidden border-t border-gray-200">
-          <div className="container py-3 flex flex-col gap-3">
-            <Link href="/dashboard" onClick={() => setOpen(false)}>Dashboard</Link>
-            <Link href="/driver/my-day" onClick={() => setOpen(false)}>My Day</Link>
-            <Link href="/admin/wells" onClick={() => setOpen(false)}>All Wells</Link>
-            <Link href="/account" onClick={() => setOpen(false)}>Account</Link>
-            <Link href="/login" className="btn btn-secondary w-fit" onClick={() => setOpen(false)}>Client Login</Link>
-          </div>
-        </div>
-      )}
     </header>
   );
 }
