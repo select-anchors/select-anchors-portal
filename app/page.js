@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { authOptions } from "./api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/nextauth-options";
 
 export default async function Home() {
   // Be defensive: don't crash build if something throws
