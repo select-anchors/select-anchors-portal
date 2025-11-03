@@ -1,69 +1,107 @@
-// app/admin/wells/pending/page.js
+"use client";
+
 export const dynamic = "force-dynamic";
 
-async function getPending() {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/wells?status=pending`, {
-    cache: "no-store",
-  });
-  if (!res.ok) return [];
-  return res.json();
-}
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 
-export default async function PendingWellsPage() {
-  const wells = await getPending();
+export default function PendingWellsPage() {
+  const { data: session, status } = useSession();
+  const [rows, setRows] = useState([]);
+  const [mode, setMode] = useState("changes"); // "changes" | "wells"
+  const [loading, setLoading] = useState(true);
+
+  const isAdmin = session?.user?.role === "admin";
+
+  async function load() {
+    setLoading(true);
+    try {
+      // Try the changes queue first
+      let res = await fetch("/api/admin/changes", { cache: "no-store" });
+      if (res.ok) {
+        const j = await res.json();
+        setRows(j?.changes ?? []);
+        setMode("changes");
+      } else {
+        // Fallback to pending wells listing
+        res = await fetch("/api/wells?status=pending", { cache: "no-store" });
+        const j = res.ok ? await res.json() : { wells: [] };
+        setRows(j?.wells ?? []);
+        setMode("wells");
+      }
+    } catch {
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function act(id, action) {
+    if (mode !== "changes") return;
+    const url = `/api/admin/changes/${id}/${action}`;
+    await fetch(url, { method: "POST" });
+    await load();
+  }
+
+  if (status === "loading") return <div className="container py-10">Loading…</div>;
+  if (!session) return <div className="container py-10">Please log in.</div>;
+  if (!isAdmin) return <div className="container py-10">Not authorized.</div>;
 
   return (
     <div className="container py-8 space-y-6">
-      <h1 className="text-2xl font-bold">Pending Wells</h1>
+      <h1 className="text-2xl font-bold">Pending Approvals</h1>
 
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto">
+      <div className="bg-white border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="text-left text-gray-600 border-b">
+          <thead className="bg-gray-50 text-gray-600">
             <tr>
-              <th className="py-3 pl-5 pr-4">Lease / Well Name</th>
-              <th className="py-3 pr-4">API</th>
-              <th className="py-3 pr-4">Company</th>
-              <th className="py-3 pr-4">Submitted</th>
-              <th className="py-3 pr-5 text-right">Actions</th>
+              <th className="text-left p-3">When</th>
+              <th className="text-left p-3">API</th>
+              <th className="text-left p-3">Submitted By</th>
+              <th className="text-left p-3">{mode === "changes" ? "Diff" : "Lease/Well"}</th>
+              <th className="text-left p-3">Action</th>
             </tr>
           </thead>
           <tbody>
-            {wells.map((w) => (
-              <tr key={w.api} className="border-b last:border-0">
-                <td className="py-3 pl-5 pr-4">{w.lease_name || "-"}</td>
-                <td className="py-3 pr-4">{w.api}</td>
-                <td className="py-3 pr-4">{w.company || "-"}</td>
-                <td className="py-3 pr-4">
-                  {new Date(w.created_at).toLocaleDateString()}
-                </td>
-                <td className="py-3 pr-5 text-right">
-                  <form
-                    action={`/admin/wells/pending/approve?api=${encodeURIComponent(w.api)}`}
-                    method="post"
-                    className="inline"
-                  >
-                    <button className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:opacity-90">
-                      Approve
-                    </button>
-                  </form>
-                  <form
-                    action={`/admin/wells/pending/delete?api=${encodeURIComponent(w.api)}`}
-                    method="post"
-                    className="inline ml-2"
-                  >
-                    <button className="px-3 py-1.5 rounded-lg border border-gray-400 bg-white text-gray-800 hover:bg-gray-100">
-                      Delete
-                    </button>
-                  </form>
-                </td>
-              </tr>
-            ))}
-            {wells.length === 0 && (
-              <tr>
-                <td className="py-6 text-center text-gray-500" colSpan={5}>
-                  Nothing pending right now.
-                </td>
-              </tr>
+            {loading ? (
+              <tr><td className="p-4" colSpan={5}>Loading…</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td className="p-4" colSpan={5}>Nothing pending.</td></tr>
+            ) : mode === "changes" ? (
+              rows.map((c) => (
+                <tr key={c.id} className="border-t align-top">
+                  <td className="p-3">{c.created_at ? new Date(c.created_at).toLocaleString() : "—"}</td>
+                  <td className="p-3 font-mono">{c.api}</td>
+                  <td className="p-3">{c.submitted_by || "—"}</td>
+                  <td className="p-3">
+                    <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(c.diff || {}, null, 2)}</pre>
+                  </td>
+                  <td className="p-3">
+                    <div className="flex flex-col gap-2">
+                      <button onClick={() => act(c.id, "approve")} className="px-3 py-1 rounded-xl border border-green-600 text-green-700">
+                        Approve
+                      </button>
+                      <button onClick={() => act(c.id, "reject")} className="px-3 py-1 rounded-xl border border-red-600 text-red-700">
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              rows.map((w) => (
+                <tr key={w.api} className="border-t">
+                  <td className="p-3">—</td>
+                  <td className="p-3 font-mono">{w.api}</td>
+                  <td className="p-3">{w.submitted_by || "—"}</td>
+                  <td className="p-3">{w.lease_well_name || "—"}</td>
+                  <td className="p-3">Approve/Reject from Changes page</td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
