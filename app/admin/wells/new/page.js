@@ -1,211 +1,217 @@
-// app/admin/wells/new/page.js
 "use client";
+
+import { useSession } from "next-auth/react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function NewWellPage() {
-  const router = useRouter();
+  const { data: session, status } = useSession();
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
   const [form, setForm] = useState({
-    company: "",
-    company_email: "",
+    lease_well_name: "",
+    api: "",
+    company_name: "",
     company_phone: "",
+    company_email: "",
     company_address: "",
     company_man_name: "",
-    company_man_email: "",
     company_man_phone: "",
-    lease_name: "",
-    api: "",
-    previous_anchor_work: "",
+    company_man_email: "",
+    wellhead_coords: "",
+    anchor_ne: "",
+    anchor_nw: "",
+    anchor_se: "",
+    anchor_sw: "",
+    prev_anchor_work: "",
     directions_notes: "",
-    anchor1_coords: "",
-    anchor2_coords: "",
-    anchor3_coords: "",
-    anchor4_coords: "",
     last_test_date: "",
-    expiration_date: "",
-    status: "Pending",
+    expires_ne: "",
+    expires_nw: "",
+    expires_se: "",
+    expires_sw: "",
   });
 
-  function setField(k, v) {
-    setForm((f) => ({ ...f, [k]: v }));
+  function upd(k, v) {
+    setForm((p) => ({ ...p, [k]: v }));
   }
 
-  async function onSubmit(e) {
+  async function submit(e) {
     e.preventDefault();
     setSaving(true);
     setMsg("");
-
     try {
       const res = await fetch("/api/wells", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setMsg(data?.error || "Failed to save.");
-        setSaving(false);
-        return;
-      }
-
-      setMsg("Well saved!");
-      router.push(`/wells/${encodeURIComponent(data.api)}`);
-    } catch (err) {
-      console.error(err);
-      setMsg("Server error.");
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || "Failed to save");
+      setMsg("Submitted for approval.");
+      setForm({
+        lease_well_name: "",
+        api: "",
+        company_name: "",
+        company_phone: "",
+        company_email: "",
+        company_address: "",
+        company_man_name: "",
+        company_man_phone: "",
+        company_man_email: "",
+        wellhead_coords: "",
+        anchor_ne: "",
+        anchor_nw: "",
+        anchor_se: "",
+        anchor_sw: "",
+        prev_anchor_work: "",
+        directions_notes: "",
+        last_test_date: "",
+        expires_ne: "",
+        expires_nw: "",
+        expires_se: "",
+        expires_sw: "",
+      });
+    } catch (e2) {
+      setMsg(e2.message);
     } finally {
       setSaving(false);
     }
   }
 
+  if (status === "loading") return <div className="p-8">Loading…</div>;
+  if (!session) return <div className="p-8">Please log in.</div>;
+  const role = session?.user?.role;
+  if (role !== "admin" && role !== "employee") return <div className="p-8">Not authorized.</div>;
+
   return (
     <div className="container py-8">
-      <h1 className="text-2xl font-bold mb-6">New Well</h1>
+      <h1 className="text-2xl font-bold mb-4">New Well</h1>
+      {msg && <div className="mb-4 text-sm">{msg}</div>}
 
-      <form onSubmit={onSubmit} className="bg-white border border-gray-200 rounded-2xl p-6 space-y-6">
-        {/* Company */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Company</label>
-            <input className="w-full border rounded-xl px-3 py-2" value={form.company}
-              onChange={(e)=>setField("company", e.target.value)} placeholder="Company name" />
+      <form onSubmit={submit} className="space-y-8">
+        {/* Company / Company Man */}
+        <div className="bg-white border rounded-2xl shadow-sm">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold">Company</h2>
           </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Company Email</label>
-            <input type="email" className="w-full border rounded-xl px-3 py-2" value={form.company_email}
-              onChange={(e)=>setField("company_email", e.target.value)} placeholder="ops@company.com" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Company Phone</label>
-            <input className="w-full border rounded-xl px-3 py-2" value={form.company_phone}
-              onChange={(e)=>setField("company_phone", e.target.value)} placeholder="575-555-0100" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Company Address</label>
-            <input className="w-full border rounded-xl px-3 py-2" value={form.company_address}
-              onChange={(e)=>setField("company_address", e.target.value)} placeholder="Street, City, ST" />
+          <div className="p-6 grid md:grid-cols-2 gap-4">
+            <label className="block">
+              <div className="text-sm text-gray-600">Company</div>
+              <input value={form.company_name} onChange={(e)=>upd("company_name", e.target.value)} className="w-full" />
+            </label>
+            <label className="block">
+              <div className="text-sm text-gray-600">Company Phone</div>
+              <input value={form.company_phone} onChange={(e)=>upd("company_phone", e.target.value)} className="w-full" />
+            </label>
+            <label className="block">
+              <div className="text-sm text-gray-600">Company Email</div>
+              <input value={form.company_email} onChange={(e)=>upd("company_email", e.target.value)} className="w-full" />
+            </label>
+            <label className="block md:col-span-2">
+              <div className="text-sm text-gray-600">Company Address</div>
+              <input value={form.company_address} onChange={(e)=>upd("company_address", e.target.value)} className="w-full" />
+            </label>
           </div>
         </div>
 
-        {/* Company Man */}
-        <div className="grid md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Company Man Name</label>
-            <input className="w-full border rounded-xl px-3 py-2" value={form.company_man_name}
-              onChange={(e)=>setField("company_man_name", e.target.value)} placeholder="Full name" />
+        <div className="bg-white border rounded-2xl shadow-sm">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold">Company Man</h2>
           </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Company Man Email</label>
-            <input type="email" className="w-full border rounded-xl px-3 py-2" value={form.company_man_email}
-              onChange={(e)=>setField("company_man_email", e.target.value)} placeholder="name@company.com" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Company Man Phone</label>
-            <input className="w-full border rounded-xl px-3 py-2" value={form.company_man_phone}
-              onChange={(e)=>setField("company_man_phone", e.target.value)} placeholder="575-555-0101" />
-          </div>
-        </div>
-
-        {/* Break → Lease/Well Name + Well API */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Lease/Well Name</label>
-            <input className="w-full border rounded-xl px-3 py-2" value={form.lease_name}
-              onChange={(e)=>setField("lease_name", e.target.value)} placeholder="Palo Duro 12 #3" required />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Well API</label>
-            <input className="w-full border rounded-xl px-3 py-2" value={form.api}
-              onChange={(e)=>setField("api", e.target.value)} placeholder="30-025-123456" required />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-  {/* API field …already present… */}
-
-  {/* Well Head GPS (single paste field) */}
-  <div>
-    <label className="block text-sm font-medium mb-1">Well Head GPS</label>
-    <input
-      name="wellhead_coords"
-      type="text"
-      placeholder="32.702981,-103.136790"
-      className="w-full rounded-md border px-3 py-2"
-    />
-    <p className="text-xs text-gray-500 mt-1">Paste from Google Maps (lat,lng)</p>
-  </div>
-</div>        </div>
-
-        {/* Coordinates (single fields) */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Anchor #1 Coordinates</label>
-            <input className="w-full border rounded-xl px-3 py-2" value={form.anchor1_coords}
-              onChange={(e)=>setField("anchor1_coords", e.target.value)}
-              placeholder="32.987654, -103.456789" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Anchor #2 Coordinates</label>
-            <input className="w-full border rounded-xl px-3 py-2" value={form.anchor2_coords}
-              onChange={(e)=>setField("anchor2_coords", e.target.value)}
-              placeholder="32.987654, -103.456789" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Anchor #3 Coordinates</label>
-            <input className="w-full border rounded-xl px-3 py-2" value={form.anchor3_coords}
-              onChange={(e)=>setField("anchor3_coords", e.target.value)}
-              placeholder="32.987654, -103.456789" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Anchor #4 Coordinates</label>
-            <input className="w-full border rounded-xl px-3 py-2" value={form.anchor4_coords}
-              onChange={(e)=>setField("anchor4_coords", e.target.value)}
-              placeholder="32.987654, -103.456789" />
+          <div className="p-6 grid md:grid-cols-3 gap-4">
+            <label className="block">
+              <div className="text-sm text-gray-600">Name</div>
+              <input value={form.company_man_name} onChange={(e)=>upd("company_man_name", e.target.value)} className="w-full" />
+            </label>
+            <label className="block">
+              <div className="text-sm text-gray-600">Phone</div>
+              <input value={form.company_man_phone} onChange={(e)=>upd("company_man_phone", e.target.value)} className="w-full" />
+            </label>
+            <label className="block">
+              <div className="text-sm text-gray-600">Email</div>
+              <input value={form.company_man_email} onChange={(e)=>upd("company_man_email", e.target.value)} className="w-full" />
+            </label>
           </div>
         </div>
 
-        {/* Dates */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Last Test Date</label>
-            <input type="date" className="w-full border rounded-xl px-3 py-2" value={form.last_test_date}
-              onChange={(e)=>setField("last_test_date", e.target.value)} />
+        {/* Well Header */}
+        <div className="bg-white border rounded-2xl shadow-sm">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold">Well Header</h2>
           </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Expiration Date</label>
-            <input type="date" className="w-full border rounded-xl px-3 py-2" value={form.expiration_date}
-              onChange={(e)=>setField("expiration_date", e.target.value)} />
+          <div className="p-6 grid md:grid-cols-2 gap-4">
+            <label className="block md:col-span-2">
+              <div className="text-sm text-gray-600">Lease / Well Name</div>
+              <input value={form.lease_well_name} onChange={(e)=>upd("lease_well_name", e.target.value)} className="w-full" />
+            </label>
+
+            <label className="block">
+              <div className="text-sm text-gray-600">API</div>
+              <input value={form.api} onChange={(e)=>upd("api", e.target.value)} className="w-full font-mono" />
+            </label>
+
+            <label className="block">
+              <div className="text-sm text-gray-600">Well Head GPS (paste from Maps)</div>
+              <input value={form.wellhead_coords} onChange={(e)=>upd("wellhead_coords", e.target.value)} className="w-full" placeholder="32.12345, -103.12345" />
+            </label>
           </div>
         </div>
 
-        {/* Textareas */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Previous Anchor Work</label>
-            <textarea rows={4} className="w-full border rounded-xl px-3 py-2" value={form.previous_anchor_work}
-              onChange={(e)=>setField("previous_anchor_work", e.target.value)}
-              placeholder="Notes on prior installations, repairs, dates, vendors…" />
+        {/* Anchors & Expiration */}
+        <div className="bg-white border rounded-2xl shadow-sm">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold">Anchors & Expiration</h2>
           </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Directions &amp; Other Notes</label>
-            <textarea rows={4} className="w-full border rounded-xl px-3 py-2" value={form.directions_notes}
-              onChange={(e)=>setField("directions_notes", e.target.value)}
-              placeholder="Gate code, driving notes, hazards, yard return, etc." />
+          <div className="p-6 grid md:grid-cols-2 gap-6">
+            {[
+              ["anchor_ne", "NE Coords"],
+              ["anchor_nw", "NW Coords"],
+              ["anchor_se", "SE Coords"],
+              ["anchor_sw", "SW Coords"],
+            ].map(([key, label]) => (
+              <label key={key} className="block">
+                <div className="text-sm text-gray-600">{label}</div>
+                <input value={form[key]} onChange={(e)=>upd(key, e.target.value)} className="w-full" placeholder="32.12345, -103.12345" />
+              </label>
+            ))}
+
+            {[
+              ["last_test_date", "Last Test Date"],
+              ["expires_ne", "NE Expires"],
+              ["expires_nw", "NW Expires"],
+              ["expires_se", "SE Expires"],
+              ["expires_sw", "SW Expires"],
+            ].map(([key, label]) => (
+              <label key={key} className="block">
+                <div className="text-sm text-gray-600">{label}</div>
+                <input type="date" value={form[key]} onChange={(e)=>upd(key, e.target.value)} className="w-full" />
+              </label>
+            ))}
           </div>
         </div>
 
-        {/* Actions */}
+        {/* History & Notes */}
+        <div className="bg-white border rounded-2xl shadow-sm">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold">History & Notes</h2>
+          </div>
+          <div className="p-6 grid md:grid-cols-2 gap-6">
+            <label className="block">
+              <div className="text-sm text-gray-600">Previous Anchor Work</div>
+              <textarea rows={6} value={form.prev_anchor_work} onChange={(e)=>upd("prev_anchor_work", e.target.value)} className="w-full" />
+            </label>
+            <label className="block">
+              <div className="text-sm text-gray-600">Directions & Other Notes</div>
+              <textarea rows={6} value={form.directions_notes} onChange={(e)=>upd("directions_notes", e.target.value)} className="w-full" />
+            </label>
+          </div>
+        </div>
+
         <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 disabled:opacity-60"
-          >
-            {saving ? "Saving..." : "Save Well"}
+          <button disabled={saving} className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90">
+            {saving ? "Saving…" : "Submit for Approval"}
           </button>
-          {msg && <div className="self-center text-sm text-gray-700">{msg}</div>}
         </div>
       </form>
     </div>
