@@ -1,29 +1,29 @@
-// /app/page.js
+// app/page.js
+export const dynamic = "force-dynamic";
+
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "./api/auth/[...nextauth]/route";
 
 export default async function Home() {
-  const session = await getServerSession(authOptions);
+  // Be defensive: don't crash build if something throws
+  const session = await getServerSession(authOptions).catch(() => null);
 
-  // If not signed in, go to login
-  if (!session) {
+  if (!session?.user?.role) {
     redirect("/login");
   }
 
-  const role = session.user?.role;
-
-  // Role-based redirect
-  if (role === "admin") {
-    redirect("/dashboard");
-  } else if (role === "employee") {
-    redirect("/driver/my-day");
-  } else if (role === "customer") {
-    redirect("/wells");
-  } else {
-    redirect("/login");
+  switch (session.user.role) {
+    case "admin":
+      redirect("/dashboard");
+    case "employee":
+      redirect("/driver/my-day");
+    case "customer":
+      redirect("/wells");
+    default:
+      redirect("/login");
   }
 
-  // Fallback
+  // Should never hit, but keeps the function well-formed
   return null;
 }
