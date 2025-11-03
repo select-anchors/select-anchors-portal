@@ -1,7 +1,7 @@
 // /app/api/admin/users/route.js
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/nextauth-options";
 import { q } from "@/lib/db";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
