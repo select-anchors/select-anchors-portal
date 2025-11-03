@@ -1,79 +1,79 @@
 // app/api/auth/[...nextauth]/route.js
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import bcrypt from "bcrypt";
 import { q } from "@/lib/db";
+import bcrypt from "bcryptjs";
 
-// If you see "Edge runtime" errors, we force Node so bcrypt works:
-export const runtime = "nodejs";
-// Avoid static optimization so NextAuth can read cookies each request:
-export const dynamic = "force-dynamic";
-
-const authOptions = {
-  // IMPORTANT: set NEXTAUTH_SECRET in Vercel env vars
-  secret: process.env.NEXTAUTH_SECRET,
+// Make this a named export so other files can `import { authOptions } ...`
+export const authOptions = {
   session: { strategy: "jwt" },
 
   providers: [
     CredentialsProvider({
       name: "Email & Password",
       credentials: {
-        email: { label: "Email", type: "text" },
+        email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        const email =
-          credentials?.email?.toString().trim().toLowerCase() ?? "";
-        const password = credentials?.password?.toString() ?? "";
+        const email = credentials?.email?.trim().toLowerCase();
+        const password = credentials?.password || "";
 
         if (!email || !password) return null;
 
-        // Fetch user record
         const { rows } = await q(
-          `SELECT id, email, password_hash, role
+          `SELECT id, email, name, role, password_hash
              FROM users
-            WHERE lower(email)=lower($1)
+            WHERE LOWER(email) = $1
             LIMIT 1`,
           [email]
         );
+
         const user = rows?.[0];
         if (!user?.password_hash) return null;
 
-        // Validate password
         const ok = await bcrypt.compare(password, user.password_hash);
         if (!ok) return null;
 
-        // What gets merged into the JWT / session
-        return { id: user.id, email: user.email, role: user.role };
-      }
-    })
+        // Return minimal user object for JWT
+        return {
+          id: String(user.id),
+          email: user.email,
+          name: user.name || "",
+          role: user.role || "customer",
+        };
+      },
+    }),
   ],
 
   callbacks: {
     async jwt({ token, user }) {
-      // On first sign-in, copy role/id from user into the token
+      // On login, merge user fields into token
       if (user) {
+        token.id = user.id;
         token.role = user.role;
-        token.uid = user.id;
+        token.email = user.email;
+        token.name = user.name;
       }
       return token;
     },
     async session({ session, token }) {
-      // Expose role/id to the client
-      if (session?.user) {
-        session.user.role = token.role;
-        session.user.id = token.uid;
-      }
+      // Expose role/id on session
+      session.user = session.user || {};
+      session.user.id = token.id;
+      session.user.role = token.role;
+      session.user.email = token.email;
+      session.user.name = token.name;
       return session;
-    }
+    },
   },
 
-  // Optional: use your custom pages (already in your repo)
   pages: {
     signIn: "/login",
-    error: "/login"
-  }
+  },
 };
 
 const handler = NextAuth(authOptions);
+
+// Required exports for App Router
 export { handler as GET, handler as POST };
