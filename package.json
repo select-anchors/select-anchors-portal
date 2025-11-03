@@ -2,29 +2,28 @@
   "name": "select-anchors-portal",
   "private": true,
   "version": "0.2.0",
+  "engines": { "node": "20.x" },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start"
   },
   "dependencies": {
-  "next": "14.2.5",
-  "react": "18.2.0",
-  "react-dom": "18.2.0",
-  "next-auth": "4.24.13",
-  "nodemailer": "^7.0.7",
-  "bcrypt": "^5.1.1",
-  "bcryptjs": "^2.4.3",
-  "pg": "^8.11.3",
-  "tailwindcss": "3.4.4",
-  "autoprefixer": "10.4.14",
-  "postcss": "8.4.24",
-  "@vercel/postgres": "^0.8.0"
-},
+    "next": "14.2.5",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "next-auth": "4.24.13",
+    "nodemailer": "^7.0.7",
+    "bcryptjs": "^2.4.3",
+    "pg": "^8.11.3",
+    "tailwindcss": "3.4.4",
+    "autoprefixer": "10.4.14",
+    "postcss": "8.4.24",
+    "@vercel/postgres": "^0.8.0"
+  },
   "devDependencies": {
-  "@types/node": "^20.11.30",
-  "@types/react": "^18.3.3",
-  "typescript": "^5.6.3"
-}
-"engines": { "node": "20.x" }
+    "@types/node": "^20.11.30",
+    "@types/react": "^18.3.3",
+    "typescript": "^5.6.3"
+  }
 }
