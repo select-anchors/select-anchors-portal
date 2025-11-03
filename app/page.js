@@ -7,7 +7,7 @@ import { authOptions } from "@/lib/nextauth-options";
 
 export default async function Home() {
   // Be defensive: don't crash build if something throws
-  const session = await getServerSession(authOptions).catch(() => null);
+  const session = await getServerSession(authOptions);
 
   if (!session?.user?.role) {
     redirect("/login");
