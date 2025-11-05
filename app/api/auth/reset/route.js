@@ -1,44 +1,44 @@
-// app/api/auth/reset/route.js
+import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { q } from "@/lib/db";
+import { sql } from "@vercel/postgres";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
     const { token, password } = await req.json();
+    if (!token || !password) return NextResponse.json({ error: "Bad request." }, { status: 400 });
 
-    if (!token || typeof token !== "string") {
-      return Response.json({ error: "Invalid or expired token." }, { status: 400 });
-    }
-    if (!password || password.length < 8) {
-      return Response.json({ error: "Password must be at least 8 characters." }, { status: 400 });
-    }
+    // find valid token
+    const { rows } = await sql`
+      SELECT email, expires_at
+      FROM reset_tokens
+      WHERE token = ${token}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
 
-    const { rows } = await q(
-      `SELECT id FROM users
-        WHERE reset_token = $1
-          AND (reset_token_expires IS NULL OR reset_token_expires > NOW())
-        LIMIT 1`,
-      [token]
-    );
-
-    if (!rows?.length) {
-      return Response.json({ error: "Invalid or expired token." }, { status: 400 });
+    const row = rows[0];
+    if (!row) {
+      console.warn("[RESET] Token not found");
+      return NextResponse.json({ error: "Invalid or expired token." }, { status: 400 });
     }
 
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      console.warn("[RESET] Token expired");
+      return NextResponse.json({ error: "Invalid or expired token." }, { status: 400 });
+    }
+
+    // update password
     const hash = await bcrypt.hash(password, 10);
+    await sql`UPDATE users SET password_hash = ${hash} WHERE email = ${row.email}`;
 
-    await q(
-      `UPDATE users
-          SET password_hash = $1,
-              reset_token = NULL,
-              reset_token_expires = NULL
-        WHERE id = $2`,
-      [hash, rows[0].id]
-    );
+    // burn token
+    await sql`DELETE FROM reset_tokens WHERE token = ${token}`;
 
-    return Response.json({ ok: true });
+    return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("RESET ERROR:", err);
-    return Response.json({ error: "Could not reset password." }, { status: 500 });
+    console.error("[RESET] Error:", err);
+    return NextResponse.json({ error: "Could not reset password." }, { status: 500 });
   }
 }
