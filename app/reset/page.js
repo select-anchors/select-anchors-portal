@@ -8,22 +8,31 @@ export default function ResetPage() {
   const router = useRouter();
 
   const [password, setPassword] = useState("");
-  const [token, setToken] = useState("");
+  const [tokenState, setTokenState] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Pull token from ?token=...
+  // On mount, read ?token=... from URL and store it
   useEffect(() => {
     const t = searchParams.get("token");
-    if (t) setToken(t);
+    if (t) setTokenState(t);
   }, [searchParams]);
 
   async function submit(e) {
     e.preventDefault();
     setMsg("");
 
+    // Belt + suspenders: read token again from URL on submit
+    const tokenFromUrl = searchParams.get("token");
+    const token = tokenState || tokenFromUrl;
+
     if (!token) {
       setMsg("Missing reset token in URL.");
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setMsg("Please enter a password of at least 6 characters.");
       return;
     }
 
@@ -36,7 +45,12 @@ export default function ResetPage() {
         body: JSON.stringify({ token, password })
       });
 
-      const j = await res.json();
+      let j = {};
+      try {
+        j = await res.json();
+      } catch (err) {
+        // If it wasn't valid JSON, just leave j empty
+      }
 
       if (!res.ok) {
         setMsg(j.error || "Unable to reset password.");
@@ -45,19 +59,21 @@ export default function ResetPage() {
         setTimeout(() => router.push("/login"), 1500);
       }
     } catch (e) {
-      setMsg("Unexpected error.");
+      setMsg("Unexpected error while contacting the server.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
+
+  const displayToken = tokenState || searchParams.get("token");
 
   return (
     <div className="container py-10 max-w-md">
       <h1 className="text-2xl font-bold mb-4">Reset Password</h1>
 
-      {!token ? (
+      {!displayToken ? (
         <div className="text-red-600">
-          Missing or invalid reset token. Please check your email link again.
+          Missing or invalid reset token. Please open the reset link from your email again.
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4">
