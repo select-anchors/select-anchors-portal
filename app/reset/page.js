@@ -1,18 +1,17 @@
-// /app/reset/page.js
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
-export default function ResetPasswordPage() {
+export default function ResetPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // token from the URL: /reset?token=xxxx
+  // Grab token from URL (?token=...)
   const token = searchParams.get("token") || "";
 
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
+  const [password2, setPassword2] = useState("");
   const [error, setError] = useState("");
   const [ok, setOk] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -20,18 +19,16 @@ export default function ResetPasswordPage() {
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
-    setOk(false);
 
     if (!token) {
-      setError("Missing or invalid reset token. Please request a new link.");
+      setError("Reset token is missing. Please request a new reset link.");
       return;
     }
-
     if (!password || password.length < 8) {
       setError("Password must be at least 8 characters.");
       return;
     }
-    if (password !== confirm) {
+    if (password !== password2) {
       setError("Passwords do not match.");
       return;
     }
@@ -47,106 +44,94 @@ export default function ResetPasswordPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(data?.error || "Could not reset password.");
-      } else {
-        setOk(true);
-        // optional: after a couple seconds, go back to login
-        setTimeout(() => router.push("/login"), 2000);
+        setError(data.error || "Could not reset password.");
+        return;
       }
+
+      setOk(true);
+
+      // small redirect delay so user sees success
+      setTimeout(() => {
+        router.push("/login");
+      }, 1500);
     } catch (err) {
-      console.error("[RESET][CLIENT] Error:", err);
-      setError("Unexpected error. Please try again.");
+      console.error("[RESET][ERROR] Client error:", err);
+      setError("Could not reset password.");
     } finally {
       setLoading(false);
     }
   }
 
-  if (!token) {
-    // If someone visits /reset without ?token=...
+  if (ok) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f3f5f7]">
-        <div className="w-full max-w-lg bg-white rounded-3xl shadow-sm p-10">
-          <h1 className="text-3xl font-bold text-[#123524] mb-4">
-            Reset Password
-          </h1>
-          <div className="text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm">
-            This reset link is missing a token or is invalid. Please go back to
-            the login page and request a new reset email.
-          </div>
-          <div className="mt-6">
-            <a href="/login" className="text-sm text-[#123524] underline">
-              Back to Login
-            </a>
-          </div>
+      <div className="container py-10">
+        <div className="max-w-md bg-white border rounded-2xl p-6 space-y-3">
+          <h1 className="text-2xl font-bold text-green-700">Password updated</h1>
+          <p>You can now sign in with your new password.</p>
+          <button
+            onClick={() => router.push("/login")}
+            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+          >
+            Go to Login
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f3f5f7]">
-      <div className="w-full max-w-lg bg-white rounded-3xl shadow-sm p-10">
-        <h1 className="text-3xl font-bold text-[#123524] mb-6">
-          Reset Password
-        </h1>
+    <div className="container py-10">
+      <form
+        onSubmit={onSubmit}
+        className="max-w-md bg-white border rounded-2xl p-6 space-y-4"
+      >
+        <h1 className="text-2xl font-bold">Reset Password</h1>
 
         {error && (
-          <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 px-3 py-2 text-sm">
             {error}
           </div>
         )}
 
-        {ok && (
-          <div className="mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-            Password updated. Redirecting you to login…
-          </div>
-        )}
+        <div className="space-y-1">
+          <label className="text-sm font-medium">New Password</label>
+          <input
+            type="password"
+            className="w-full border rounded-xl px-3 py-2"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
 
-        <form onSubmit={onSubmit} className="space-y-4">
-          {/* Hidden field just so we can visually confirm token exists if needed */}
-          <input type="hidden" value={token} readOnly />
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Confirm Password</label>
+          <input
+            type="password"
+            className="w-full border rounded-xl px-3 py-2"
+            value={password2}
+            onChange={(e) => setPassword2(e.target.value)}
+          />
+        </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">
-              New Password
-            </label>
-            <input
-              type="password"
-              className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#123524]/40"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-          </div>
+        {/* not required for the user, but if you want to visually confirm: */}
+        {/* <div className="text-xs text-gray-500 break-all">
+          Token: {token || "missing"}
+        </div> */}
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#123524]/40"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              autoComplete="new-password"
-            />
-          </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 disabled:opacity-60"
+        >
+          {loading ? "Updating..." : "Update Password"}
+        </button>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full mt-4 bg-[#123524] text-white rounded-2xl py-2.5 text-sm font-medium hover:bg-[#0f2a1d] disabled:opacity-60"
-          >
-            {loading ? "Updating…" : "Update Password"}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <a href="/login" className="text-sm text-[#123524] underline">
+        <div className="pt-2 text-sm">
+          <a href="/login" className="underline">
             Back to Login
           </a>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
