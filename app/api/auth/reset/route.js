@@ -1,14 +1,14 @@
-// /app/api/auth/reset/route.js
+// app/api/auth/reset/route.js
 import { NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 export async function POST(req) {
   try {
     const { token, password } = await req.json();
 
     if (!token) {
-      console.error("[RESET][ERROR] Missing token in body");
       return NextResponse.json(
         { error: "Missing token." },
         { status: 400 }
@@ -22,11 +22,23 @@ export async function POST(req) {
       );
     }
 
-    // 1) Find a valid reset token row – match directly on the plain token
-    const { rows } =
-      await sql`SELECT * FROM reset_tokens WHERE token = ${token} AND used_at IS NULL AND expires_at > NOW() LIMIT 1`;
+    const nowIso = new Date().toISOString();
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
-    if (!rows.length) {
+    // Find matching reset token (new or legacy)
+    const { rows } = await sql`
+      SELECT *
+      FROM reset_tokens
+      WHERE (token_hash = ${tokenHash} OR token = ${token})
+        AND used_at IS NULL
+        AND expires_at > ${nowIso}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    const row = rows[0];
+
+    if (!row) {
       console.warn("[RESET][WARN] Token not found or expired:", token);
       return NextResponse.json(
         { error: "Invalid or expired token." },
@@ -34,35 +46,30 @@ export async function POST(req) {
       );
     }
 
-    const resetRow = rows[0];
+    const email = row.email;
 
-    // 2) Hash the new password
-    const hash = await bcrypt.hash(password, 10);
+    // Hash new password
+    const passwordHash = await bcrypt.hash(password, 10);
 
-    // 3) Update the user's password
+    // Update user record
     await sql`
       UPDATE users
-      SET password_hash = ${hash}
-      WHERE email = ${resetRow.email}
+      SET password_hash = ${passwordHash}
+      WHERE email = ${email}
     `;
 
-    // 4) Mark this reset token as used so it can't be reused
+    // Mark token used
     await sql`
       UPDATE reset_tokens
-      SET used_at = NOW()
-      WHERE id = ${resetRow.id}
+      SET used_at = ${nowIso}
+      WHERE id = ${row.id}
     `;
 
-    console.log(
-      "[RESET][INFO] Password updated for",
-      resetRow.email,
-      "via token",
-      resetRow.id
-    );
+    console.log("[RESET][DEBUG] Password updated for", email);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[RESET][ERROR] Unexpected error:", err);
+    console.error("[RESET][ERROR] Unexpected error in /api/auth/reset:", err);
     return NextResponse.json(
       { error: "Could not reset password." },
       { status: 500 }
