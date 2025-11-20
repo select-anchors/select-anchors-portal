@@ -1,19 +1,20 @@
-// app/api/auth/reset/route.js
+// /app/api/auth/reset/route.js
 import { NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
-import crypto from "crypto";
 import bcrypt from "bcryptjs";
 
 export async function POST(req) {
   try {
-    const { searchParams } = new URL(req.url);
-    const token = searchParams.get("token") || "";
-
-    const { password } = await req.json();
+    const { token, password } = await req.json();
 
     if (!token) {
-      return NextResponse.json({ error: "Missing token." }, { status: 400 });
+      console.error("[RESET][ERROR] Missing token in body");
+      return NextResponse.json(
+        { error: "Missing token." },
+        { status: 400 }
+      );
     }
+
     if (!password || password.length < 8) {
       return NextResponse.json(
         { error: "Password must be at least 8 characters." },
@@ -21,56 +22,47 @@ export async function POST(req) {
       );
     }
 
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    // 1) Find a valid reset token row – match directly on the plain token
+    const { rows } =
+      await sql`SELECT * FROM reset_tokens WHERE token = ${token} AND used_at IS NULL AND expires_at > NOW() LIMIT 1`;
 
-    const { rows } = await sql`
-      SELECT id, email, expires_at, used_at
-      FROM reset_tokens
-      WHERE token_hash = ${tokenHash}
-      ORDER BY created_at DESC
-      LIMIT 1
-    `;
-
-    const row = rows[0];
-
-    if (!row) {
+    if (!rows.length) {
+      console.warn("[RESET][WARN] Token not found or expired:", token);
       return NextResponse.json(
         { error: "Invalid or expired token." },
         { status: 400 }
       );
     }
 
-    if (row.used_at) {
-      return NextResponse.json(
-        { error: "Invalid or expired token." },
-        { status: 400 }
-      );
-    }
+    const resetRow = rows[0];
 
-    if (new Date(row.expires_at) < new Date()) {
-      return NextResponse.json(
-        { error: "Invalid or expired token." },
-        { status: 400 }
-      );
-    }
+    // 2) Hash the new password
+    const hash = await bcrypt.hash(password, 10);
 
-    const passwordHash = await bcrypt.hash(password, 10);
-
+    // 3) Update the user's password
     await sql`
       UPDATE users
-      SET password_hash = ${passwordHash}
-      WHERE email = ${row.email}
+      SET password_hash = ${hash}
+      WHERE email = ${resetRow.email}
     `;
 
+    // 4) Mark this reset token as used so it can't be reused
     await sql`
       UPDATE reset_tokens
-      SET used_at = now()
-      WHERE id = ${row.id}
+      SET used_at = NOW()
+      WHERE id = ${resetRow.id}
     `;
+
+    console.log(
+      "[RESET][INFO] Password updated for",
+      resetRow.email,
+      "via token",
+      resetRow.id
+    );
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[RESET][ERROR]", err);
+    console.error("[RESET][ERROR] Unexpected error:", err);
     return NextResponse.json(
       { error: "Could not reset password." },
       { status: 500 }
