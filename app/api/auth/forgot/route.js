@@ -4,70 +4,107 @@ import { sql } from "@vercel/postgres";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 
-function getBaseUrl() {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-}
-
 export async function POST(req) {
   try {
-    const { email } = await req.json();
+    const body = await req.json();
+    const email = body?.email?.trim();
 
     if (!email) {
+      console.error("[FORGOT][ERROR] No email provided");
       return NextResponse.json(
         { error: "Email is required." },
         { status: 400 }
       );
     }
 
-    // Optional: ensure user exists, but don't leak existence in response
-    const { rows: users } = await sql`
-      SELECT id, email FROM users WHERE email = ${email} LIMIT 1
-    `;
-    if (users.length === 0) {
-      // Respond with success anyway
-      return NextResponse.json({ ok: true });
+    // 1) Create token + hash
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // 2) Store reset token
+    try {
+      await sql`
+        INSERT INTO reset_tokens (email, token_hash, expires_at)
+        VALUES (${email}, ${tokenHash}, ${expiresAt.toISOString()})
+      `;
+      console.log("[FORGOT][INFO] Stored reset token for", email);
+    } catch (dbErr) {
+      console.error("[FORGOT][ERROR] DB insert failed:", dbErr);
+      return NextResponse.json(
+        { error: "Could not create reset token." },
+        { status: 500 }
+      );
     }
 
-    // Generate token & hash
-    const token = crypto.randomBytes(32).toString("hex"); // 64-char hex
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+    // 3) Build reset URL
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000");
 
-    await sql`
-      INSERT INTO reset_tokens (email, token_hash, expires_at)
-      VALUES (${email}, ${tokenHash}, ${expiresAt})
-    `;
+    const resetUrl = `${baseUrl}/reset?token=${token}`;
+    console.log("[FORGOT][DEBUG] Generated reset URL:", resetUrl);
 
-    const resetUrl = `${getBaseUrl()}/reset?token=${token}`;
+    // 4) Configure Nodemailer transport
+    const host = process.env.SMTP_HOST;
+    const port = Number(process.env.SMTP_PORT || 587);
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASS;
+    const from = process.env.EMAIL_FROM || user;
 
-    // Send email
+    console.log("[FORGOT][DEBUG] SMTP settings preview:", {
+      host,
+      port,
+      hasUser: !!user,
+      hasPass: !!pass,
+      from,
+    });
+
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: false,
+      host,
+      port,
+      secure: port === 465, // true for 465, false for 587/25
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user,
+        pass,
       },
     });
 
-    await transporter.sendMail({
-      to: email,
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      subject: "Reset your Select Anchors password",
-      text: `Click this link to reset your password: ${resetUrl}`,
-      html: `<p>Click this link to reset your password:</p><p><a href="${resetUrl}">${resetUrl}</a></p>`,
-    });
+    // 5) Actually send email
+    try {
+      const info = await transporter.sendMail({
+        from,
+        to: email,
+        subject: "Select Anchors — password reset",
+        text: `Click the link below to reset your password:\n\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
+        html: `
+          <p>Click the button below to reset your password:</p>
+          <p><a href="${resetUrl}" style="padding:10px 16px;background:#23443c;color:#fff;border-radius:6px;text-decoration:none;">Reset Password</a></p>
+          <p>Or copy and paste this link into your browser:</p>
+          <p><code>${resetUrl}</code></p>
+        `,
+      });
 
-    console.log("[FORGOT][DEBUG] Generated reset URL:", resetUrl);
+      console.log("[FORGOT][INFO] sendMail success:", {
+        messageId: info.messageId,
+        accepted: info.accepted,
+        rejected: info.rejected,
+      });
+    } catch (mailErr) {
+      console.error("[FORGOT][ERROR] sendMail failed:", mailErr);
+      return NextResponse.json(
+        { error: "Failed to send reset email." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[FORGOT][ERROR]", err);
+    console.error("[FORGOT][ERROR] Unhandled:", err);
     return NextResponse.json(
-      { error: "Unable to send reset link. Please try again later." },
+      { error: "Something went wrong." },
       { status: 500 }
     );
   }
