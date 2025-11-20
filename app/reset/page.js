@@ -1,52 +1,86 @@
-// app/reset/page.js
 "use client";
+
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 
 export default function ResetPage() {
-  const search = useSearchParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const token = useMemo(() => search.get("token") || "", [search]);
+
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [err, setErr] = useState("");
-  const [ok, setOk] = useState(false);
+  const [token, setToken] = useState("");
+  const [msg, setMsg] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Pull token from ?token=...
+  useEffect(() => {
+    const t = searchParams.get("token");
+    if (t) setToken(t);
+  }, [searchParams]);
 
   async function submit(e) {
     e.preventDefault();
-    setErr("");
-    if (!token) return setErr("Invalid or expired token.");
-    if (password !== confirm) return setErr("Passwords do not match.");
-    const res = await fetch("/api/auth/reset", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token, password }),
-    });
-    const j = await res.json();
-    if (!res.ok) return setErr(j.error || "Could not reset password.");
-    setOk(true);
-    setTimeout(() => router.push("/login"), 1200);
+    setMsg("");
+
+    if (!token) {
+      setMsg("Missing reset token in URL.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token, password })
+      });
+
+      const j = await res.json();
+
+      if (!res.ok) {
+        setMsg(j.error || "Unable to reset password.");
+      } else {
+        setMsg("Password updated successfully! Redirecting…");
+        setTimeout(() => router.push("/login"), 1500);
+      }
+    } catch (e) {
+      setMsg("Unexpected error.");
+    }
+
+    setLoading(false);
   }
 
   return (
-    <div className="container py-10 max-w-lg">
-      <h1 className="text-3xl font-bold mb-6">Reset Password</h1>
-      {err && <div className="mb-4 rounded-md bg-red-50 border border-red-200 p-3 text-red-700">{JSON.stringify({ error: err })}</div>}
-      {ok && <div className="mb-4 rounded-md bg-green-50 border border-green-200 p-3 text-green-700">Password updated. Redirecting…</div>}
-      <form onSubmit={submit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium">New Password</label>
-          <input type="password" className="w-full border rounded-md p-2" value={password} onChange={e=>setPassword(e.target.value)} />
+    <div className="container py-10 max-w-md">
+      <h1 className="text-2xl font-bold mb-4">Reset Password</h1>
+
+      {!token ? (
+        <div className="text-red-600">
+          Missing or invalid reset token. Please check your email link again.
         </div>
-        <div>
-          <label className="block text-sm font-medium">Confirm Password</label>
-          <input type="password" className="w-full border rounded-md p-2" value={confirm} onChange={e=>setConfirm(e.target.value)} />
-        </div>
-        <button className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white">Update Password</button>
-      </form>
-      <div className="mt-4">
-        <a href="/login" className="underline">Back to Login</a>
-      </div>
+      ) : (
+        <form onSubmit={submit} className="space-y-4">
+          {msg && <div className="text-sm">{msg}</div>}
+
+          <div>
+            <label className="block mb-1">New Password</label>
+            <input
+              type="password"
+              className="w-full border rounded p-2"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          <button
+            disabled={loading}
+            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {loading ? "Updating…" : "Reset Password"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }
