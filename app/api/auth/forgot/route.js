@@ -6,105 +6,94 @@ import nodemailer from "nodemailer";
 
 export async function POST(req) {
   try {
-    const body = await req.json();
-    const email = body?.email?.trim();
+    const { email } = await req.json();
 
     if (!email) {
-      console.error("[FORGOT][ERROR] No email provided");
       return NextResponse.json(
         { error: "Email is required." },
         { status: 400 }
       );
     }
 
-    // 1) Create token + hash
-    const token = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    // 1) Generate token + hash
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
 
-    // 2) Store reset token
-    try {
-      await sql`
-        INSERT INTO reset_tokens (email, token_hash, expires_at)
-        VALUES (${email}, ${tokenHash}, ${expiresAt.toISOString()})
-      `;
-      console.log("[FORGOT][INFO] Stored reset token for", email);
-    } catch (dbErr) {
-      console.error("[FORGOT][ERROR] DB insert failed:", dbErr);
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+
+    // 2) Store in reset_tokens
+    await sql`
+      INSERT INTO reset_tokens (email, token_hash, expires_at)
+      VALUES (${email}, ${tokenHash}, ${expiresAt.toISOString()})
+    `;
+
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+
+    const resetUrl = `${baseUrl.replace(/\/$/, "")}/reset?token=${rawToken}`;
+
+    console.log("[FORGOT][DEBUG] Generated reset URL:", resetUrl);
+
+    // 3) Check SMTP env vars
+    const {
+      SMTP_HOST,
+      SMTP_PORT,
+      SMTP_USER,
+      SMTP_PASS,
+      SMTP_FROM,
+    } = process.env;
+
+    if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) {
+      console.error("[FORGOT][ERROR] Missing SMTP env vars", {
+        hasHost: !!SMTP_HOST,
+        hasPort: !!SMTP_PORT,
+        hasUser: !!SMTP_USER,
+        hasPass: !!SMTP_PASS,
+        hasFrom: !!SMTP_FROM,
+      });
+
       return NextResponse.json(
-        { error: "Could not create reset token." },
+        { error: "Email is not configured on the server." },
         { status: 500 }
       );
     }
 
-    // 3) Build reset URL
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000");
-
-    const resetUrl = `${baseUrl}/reset?token=${token}`;
-    console.log("[FORGOT][DEBUG] Generated reset URL:", resetUrl);
-
-    // 4) Configure Nodemailer transport
-    const host = process.env.SMTP_HOST;
-    const port = Number(process.env.SMTP_PORT || 587);
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
-    const from = process.env.EMAIL_FROM || user;
-
-    console.log("[FORGOT][DEBUG] SMTP settings preview:", {
-      host,
-      port,
-      hasUser: !!user,
-      hasPass: !!pass,
-      from,
-    });
-
+    // 4) Create transporter
     const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465, // true for 465, false for 587/25
+      host: SMTP_HOST,
+      port: Number(SMTP_PORT),
+      secure: Number(SMTP_PORT) === 465, // true for 465, false for 587, 25, etc.
       auth: {
-        user,
-        pass,
+        user: SMTP_USER,
+        pass: SMTP_PASS,
       },
     });
 
-    // 5) Actually send email
-    try {
-      const info = await transporter.sendMail({
-        from,
-        to: email,
-        subject: "Select Anchors — password reset",
-        text: `Click the link below to reset your password:\n\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
-        html: `
-          <p>Click the button below to reset your password:</p>
-          <p><a href="${resetUrl}" style="padding:10px 16px;background:#23443c;color:#fff;border-radius:6px;text-decoration:none;">Reset Password</a></p>
-          <p>Or copy and paste this link into your browser:</p>
-          <p><code>${resetUrl}</code></p>
-        `,
-      });
+    console.log("[FORGOT][DEBUG] About to send mail to:", email);
 
-      console.log("[FORGOT][INFO] sendMail success:", {
-        messageId: info.messageId,
-        accepted: info.accepted,
-        rejected: info.rejected,
-      });
-    } catch (mailErr) {
-      console.error("[FORGOT][ERROR] sendMail failed:", mailErr);
-      return NextResponse.json(
-        { error: "Failed to send reset email." },
-        { status: 500 }
-      );
-    }
+    // 5) Actually send the email (must await!)
+    const info = await transporter.sendMail({
+      from: SMTP_FROM,
+      to: email,
+      subject: "Select Anchors – Reset your password",
+      text: `Click the link below to reset your password:\n\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
+      html: `
+        <p>Click the link below to reset your password:</p>
+        <p><a href="${resetUrl}">${resetUrl}</a></p>
+        <p>If you did not request this, you can ignore this email.</p>
+      `,
+    });
+
+    console.log("[FORGOT][DEBUG] sendMail result:", info?.messageId || info);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[FORGOT][ERROR] Unhandled:", err);
+    console.error("[FORGOT][ERROR] Unexpected error in /api/auth/forgot:", err);
     return NextResponse.json(
-      { error: "Something went wrong." },
+      { error: "Unable to send reset link. Please try again later." },
       { status: 500 }
     );
   }
