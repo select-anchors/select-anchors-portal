@@ -1,6 +1,6 @@
 // app/api/auth/signup/route.js
 import { q } from "@/lib/db";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 export async function POST(req) {
   const body = await req.json();
