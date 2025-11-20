@@ -15,6 +15,9 @@ export async function POST(req) {
       );
     }
 
+    // ⭐ NEW: normalize email
+    const normalizedEmail = email.toLowerCase().trim();
+
     // 1) Generate token + hash
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto
@@ -24,14 +27,16 @@ export async function POST(req) {
 
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
 
-    // 2) Store in reset_tokens
+    // 2) Store in reset_tokens (use normalized email)
     await sql`
       INSERT INTO reset_tokens (email, token_hash, expires_at)
-      VALUES (${email}, ${tokenHash}, ${expiresAt.toISOString()})
+      VALUES (${normalizedEmail}, ${tokenHash}, ${expiresAt.toISOString()})
     `;
 
     const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.NEXTAUTH_URL ||
+      "http://localhost:3000";
 
     const resetUrl = `${baseUrl.replace(/\/$/, "")}/reset?token=${rawToken}`;
 
@@ -65,19 +70,19 @@ export async function POST(req) {
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
       port: Number(SMTP_PORT),
-      secure: Number(SMTP_PORT) === 465, // true for 465, false for 587, 25, etc.
+      secure: Number(SMTP_PORT) === 465,
       auth: {
         user: SMTP_USER,
         pass: SMTP_PASS,
       },
     });
 
-    console.log("[FORGOT][DEBUG] About to send mail to:", email);
+    console.log("[FORGOT][DEBUG] About to send mail to:", normalizedEmail);
 
-    // 5) Actually send the email (must await!)
+    // 5) Send email
     const info = await transporter.sendMail({
       from: SMTP_FROM,
-      to: email,
+      to: normalizedEmail,
       subject: "Select Anchors – Reset your password",
       text: `Click the link below to reset your password:\n\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
       html: `
