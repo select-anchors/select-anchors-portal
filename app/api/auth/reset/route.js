@@ -46,7 +46,7 @@ export async function POST(req) {
       );
     }
 
-    const email = row.email;
+    const email = row.email.toLowerCase();
 
     // Hash new password
     const passwordHash = await bcrypt.hash(password, 10);
