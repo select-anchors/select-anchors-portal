@@ -1,4 +1,4 @@
-// app/api/auth/forgot/route.js
+// /app/api/auth/forgot/route.js
 import { NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
 import crypto from "crypto";
@@ -15,8 +15,8 @@ export async function POST(req) {
       );
     }
 
-    // ⭐ NEW: normalize email
-    const normalizedEmail = email.toLowerCase().trim();
+    // Normalize email
+    const normalizedEmail = email.trim().toLowerCase();
 
     // 1) Generate token + hash
     const rawToken = crypto.randomBytes(32).toString("hex");
@@ -27,15 +27,15 @@ export async function POST(req) {
 
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
 
-    // 2) Store in reset_tokens (use normalized email)
+    // 2) Store in reset_tokens
     await sql`
       INSERT INTO reset_tokens (email, token_hash, expires_at)
       VALUES (${normalizedEmail}, ${tokenHash}, ${expiresAt.toISOString()})
     `;
 
     const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.NEXTAUTH_URL ||
+      process.env.NEXT_PUBLIC_APP_URL || 
+      process.env.NEXTAUTH_URL || 
       "http://localhost:3000";
 
     const resetUrl = `${baseUrl.replace(/\/$/, "")}/reset?token=${rawToken}`;
