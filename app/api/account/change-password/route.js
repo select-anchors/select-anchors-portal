@@ -1,4 +1,4 @@
-// app/api/account/change-password/route.js
+// /app/api/account/change-password/route.js
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/nextauth-options";
@@ -8,12 +8,8 @@ import bcrypt from "bcrypt";
 export async function POST(req) {
   try {
     const session = await getServerSession(authOptions);
-
-    if (!session || !session.user?.email) {
-      return NextResponse.json(
-        { error: "Unauthorized." },
-        { status: 401 }
-      );
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { currentPassword, newPassword } = await req.json();
@@ -34,25 +30,26 @@ export async function POST(req) {
 
     const email = session.user.email.toLowerCase();
 
-    // 1) Fetch user from DB
     const { rows } = await sql`
-      SELECT id, email, password_hash
+      SELECT id, password_hash
       FROM users
       WHERE email = ${email}
       LIMIT 1
     `;
 
     const user = rows[0];
-
-    if (!user || !user.password_hash) {
+    if (!user) {
       return NextResponse.json(
         { error: "User not found." },
         { status: 404 }
       );
     }
 
-    // 2) Check current password
-    const ok = await bcrypt.compare(currentPassword, user.password_hash || "");
+    const ok = await bcrypt.compare(
+      currentPassword,
+      user.password_hash || ""
+    );
+
     if (!ok) {
       return NextResponse.json(
         { error: "Current password is incorrect." },
@@ -60,7 +57,6 @@ export async function POST(req) {
       );
     }
 
-    // 3) Hash & update new password
     const newHash = await bcrypt.hash(newPassword, 10);
 
     await sql`
@@ -69,13 +65,11 @@ export async function POST(req) {
       WHERE id = ${user.id}
     `;
 
-    console.log("[ACCOUNT][CHANGE-PASSWORD] Password updated for", email);
-
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[ACCOUNT][CHANGE-PASSWORD][ERROR]", err);
+    console.error("[ACCOUNT][CHANGE_PASSWORD][ERROR]", err);
     return NextResponse.json(
-      { error: "Could not change password. Please try again." },
+      { error: "Could not change password." },
       { status: 500 }
     );
   }
