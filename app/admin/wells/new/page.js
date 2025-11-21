@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useState } from "react";
+import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function NewWellPage() {
   const { data: session, status } = useSession();
@@ -79,10 +80,12 @@ export default function NewWellPage() {
     }
   }
 
-  if (status === "loading") return <div className="p-8">Loading…</div>;
-  if (!session) return <div className="p-8">Please log in.</div>;
+  if (status === "loading") return <div className="container py-8">Loading…</div>;
+  if (!session) return <NotLoggedIn />;
   const role = session?.user?.role;
-  if (role !== "admin" && role !== "employee") return <div className="p-8">Not authorized.</div>;
+  if (role !== "admin" && role !== "employee") {
+    return <div className="container py-8">Not authorized.</div>;
+  }
 
   return (
     <div className="container py-8">
@@ -98,19 +101,35 @@ export default function NewWellPage() {
           <div className="p-6 grid md:grid-cols-2 gap-4">
             <label className="block">
               <div className="text-sm text-gray-600">Company</div>
-              <input value={form.company_name} onChange={(e)=>upd("company_name", e.target.value)} className="w-full" />
+              <input
+                value={form.company_name}
+                onChange={(e) => upd("company_name", e.target.value)}
+                className="w-full"
+              />
             </label>
             <label className="block">
               <div className="text-sm text-gray-600">Company Phone</div>
-              <input value={form.company_phone} onChange={(e)=>upd("company_phone", e.target.value)} className="w-full" />
+              <input
+                value={form.company_phone}
+                onChange={(e) => upd("company_phone", e.target.value)}
+                className="w-full"
+              />
             </label>
             <label className="block">
               <div className="text-sm text-gray-600">Company Email</div>
-              <input value={form.company_email} onChange={(e)=>upd("company_email", e.target.value)} className="w-full" />
+              <input
+                value={form.company_email}
+                onChange={(e) => upd("company_email", e.target.value)}
+                className="w-full"
+              />
             </label>
             <label className="block md:col-span-2">
               <div className="text-sm text-gray-600">Company Address</div>
-              <input value={form.company_address} onChange={(e)=>upd("company_address", e.target.value)} className="w-full" />
+              <input
+                value={form.company_address}
+                onChange={(e) => upd("company_address", e.target.value)}
+                className="w-full"
+              />
             </label>
           </div>
         </div>
@@ -122,15 +141,27 @@ export default function NewWellPage() {
           <div className="p-6 grid md:grid-cols-3 gap-4">
             <label className="block">
               <div className="text-sm text-gray-600">Name</div>
-              <input value={form.company_man_name} onChange={(e)=>upd("company_man_name", e.target.value)} className="w-full" />
+              <input
+                value={form.company_man_name}
+                onChange={(e) => upd("company_man_name", e.target.value)}
+                className="w-full"
+              />
             </label>
             <label className="block">
               <div className="text-sm text-gray-600">Phone</div>
-              <input value={form.company_man_phone} onChange={(e)=>upd("company_man_phone", e.target.value)} className="w-full" />
+              <input
+                value={form.company_man_phone}
+                onChange={(e) => upd("company_man_phone", e.target.value)}
+                className="w-full"
+              />
             </label>
             <label className="block">
               <div className="text-sm text-gray-600">Email</div>
-              <input value={form.company_man_email} onChange={(e)=>upd("company_man_email", e.target.value)} className="w-full" />
+              <input
+                value={form.company_man_email}
+                onChange={(e) => upd("company_man_email", e.target.value)}
+                className="w-full"
+              />
             </label>
           </div>
         </div>
@@ -143,17 +174,32 @@ export default function NewWellPage() {
           <div className="p-6 grid md:grid-cols-2 gap-4">
             <label className="block md:col-span-2">
               <div className="text-sm text-gray-600">Lease / Well Name</div>
-              <input value={form.lease_well_name} onChange={(e)=>upd("lease_well_name", e.target.value)} className="w-full" />
+              <input
+                value={form.lease_well_name}
+                onChange={(e) => upd("lease_well_name", e.target.value)}
+                className="w-full"
+              />
             </label>
 
             <label className="block">
               <div className="text-sm text-gray-600">API</div>
-              <input value={form.api} onChange={(e)=>upd("api", e.target.value)} className="w-full font-mono" />
+              <input
+                value={form.api}
+                onChange={(e) => upd("api", e.target.value)}
+                className="w-full font-mono"
+              />
             </label>
 
             <label className="block">
-              <div className="text-sm text-gray-600">Well Head GPS (paste from Maps)</div>
-              <input value={form.wellhead_coords} onChange={(e)=>upd("wellhead_coords", e.target.value)} className="w-full" placeholder="32.12345, -103.12345" />
+              <div className="text-sm text-gray-600">
+                Well Head GPS (paste from Maps)
+              </div>
+              <input
+                value={form.wellhead_coords}
+                onChange={(e) => upd("wellhead_coords", e.target.value)}
+                className="w-full"
+                placeholder="32.12345, -103.12345"
+              />
             </label>
           </div>
         </div>
@@ -172,7 +218,12 @@ export default function NewWellPage() {
             ].map(([key, label]) => (
               <label key={key} className="block">
                 <div className="text-sm text-gray-600">{label}</div>
-                <input value={form[key]} onChange={(e)=>upd(key, e.target.value)} className="w-full" placeholder="32.12345, -103.12345" />
+                <input
+                  value={form[key]}
+                  onChange={(e) => upd(key, e.target.value)}
+                  className="w-full"
+                  placeholder="32.12345, -103.12345"
+                />
               </label>
             ))}
 
@@ -185,7 +236,12 @@ export default function NewWellPage() {
             ].map(([key, label]) => (
               <label key={key} className="block">
                 <div className="text-sm text-gray-600">{label}</div>
-                <input type="date" value={form[key]} onChange={(e)=>upd(key, e.target.value)} className="w-full" />
+                <input
+                  type="date"
+                  value={form[key]}
+                  onChange={(e) => upd(key, e.target.value)}
+                  className="w-full"
+                />
               </label>
             ))}
           </div>
@@ -199,17 +255,32 @@ export default function NewWellPage() {
           <div className="p-6 grid md:grid-cols-2 gap-6">
             <label className="block">
               <div className="text-sm text-gray-600">Previous Anchor Work</div>
-              <textarea rows={6} value={form.prev_anchor_work} onChange={(e)=>upd("prev_anchor_work", e.target.value)} className="w-full" />
+              <textarea
+                rows={6}
+                value={form.prev_anchor_work}
+                onChange={(e) => upd("prev_anchor_work", e.target.value)}
+                className="w-full"
+              />
             </label>
             <label className="block">
-              <div className="text-sm text-gray-600">Directions & Other Notes</div>
-              <textarea rows={6} value={form.directions_notes} onChange={(e)=>upd("directions_notes", e.target.value)} className="w-full" />
+              <div className="text-sm text-gray-600">
+                Directions & Other Notes
+              </div>
+              <textarea
+                rows={6}
+                value={form.directions_notes}
+                onChange={(e) => upd("directions_notes", e.target.value)}
+                className="w-full"
+              />
             </label>
           </div>
         </div>
 
         <div className="flex gap-3">
-          <button disabled={saving} className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90">
+          <button
+            disabled={saving}
+            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+          >
             {saving ? "Saving…" : "Submit for Approval"}
           </button>
         </div>
