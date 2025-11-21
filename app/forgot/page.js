@@ -1,92 +1,82 @@
-// /app/forgot/page.js
 "use client";
 
 import { useState } from "react";
 
-export default function Forgot() {
+export default function ForgotPage() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | loading | success | error
+  const [message, setMessage] = useState("");
 
-  async function submit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
-    setError("");
-    setLoading(true);
+    setStatus("loading");
+    setMessage("");
+
+    if (!email.trim()) {
+      setStatus("error");
+      setMessage("Please enter your email address.");
+      return;
+    }
 
     try {
       const res = await fetch("/api/auth/forgot", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ email }),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        throw new Error("Unable to send reset link. Please try again later.");
+        throw new Error(data?.error || "Unable to send reset link.");
       }
 
-      setSent(true);
+      setStatus("success");
+      setMessage(
+        "If that email exists in our system, a reset link has been sent."
+      );
     } catch (err) {
-      setError(err.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
+      setStatus("error");
+      setMessage(err.message || "Something went wrong. Please try again.");
     }
   }
 
-  if (sent)
-    return (
-      <div className="container py-10 max-w-md mx-auto text-center">
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <h1 className="text-xl font-semibold mb-3">Check your email</h1>
-          <p className="text-gray-600">
-            If the email address exists, a reset link has been sent to{" "}
-            <span className="font-medium">{email}</span>.
-          </p>
-        </div>
-      </div>
-    );
-
   return (
     <div className="container py-10">
-      <form
-        onSubmit={submit}
-        className="max-w-md mx-auto space-y-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-6"
-      >
-        <h1 className="text-2xl font-bold">Forgot Password</h1>
+      <form onSubmit={onSubmit} className="max-w-md space-y-4">
+        <h1 className="text-2xl font-bold">Forgot password</h1>
 
-        {error && (
-          <div className="text-sm border border-red-200 bg-red-50 text-red-700 rounded-lg px-3 py-2">
-            {error}
+        {message && (
+          <div
+            className={
+              status === "error"
+                ? "text-sm text-red-600"
+                : "text-sm text-green-700"
+            }
+          >
+            {message}
           </div>
         )}
 
-        <div className="space-y-1">
-          <label className="text-sm text-gray-700">Email</label>
+        <div>
+          <label className="block text-sm text-gray-700 mb-1">Email</label>
           <input
+            className="w-full border rounded-md px-3 py-2"
             type="email"
-            inputMode="email"
             autoComplete="email"
-            required
-            className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#2f4f4f]/40"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@company.com"
+            disabled={status === "loading" || status === "success"}
           />
         </div>
 
         <button
           type="submit"
-          disabled={loading}
-          className="rounded-xl bg-[#2f4f4f] text-white px-4 py-2 hover:opacity-90 disabled:opacity-50 w-full"
+          disabled={status === "loading" || status === "success"}
+          className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 disabled:opacity-60"
         >
-          {loading ? "Sending..." : "Send Reset Link"}
+          {status === "loading" ? "Sending…" : "Send reset link"}
         </button>
-
-        <div className="text-sm text-center text-gray-600">
-          <a href="/login" className="underline">
-            Back to Login
-          </a>
-        </div>
       </form>
     </div>
   );
