@@ -1,9 +1,9 @@
-// app/admin/users/page.js
 "use client";
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function AdminUsersPage() {
   const { data: session, status } = useSession();
@@ -61,7 +61,7 @@ export default function AdminUsersPage() {
     return <div className="container py-8">Loading…</div>;
   }
   if (!session) {
-    return <div className="container py-8">Please log in.</div>;
+    return <NotLoggedIn />;
   }
   if (session.user.role !== "admin") {
     return <div className="container py-8">Not authorized.</div>;
