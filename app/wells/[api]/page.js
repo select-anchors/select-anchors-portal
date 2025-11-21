@@ -5,12 +5,17 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 function fmtDate(d) {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export default function WellDetailPage({ params }) {
@@ -23,8 +28,10 @@ export default function WellDetailPage({ params }) {
     let mounted = true;
     (async () => {
       try {
-        // Use the “view” on the server to keep columns stable
-        const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, { cache: "no-store" });
+        const res = await fetch(
+          `/api/wells/${encodeURIComponent(apiParam)}`,
+          { cache: "no-store" }
+        );
         if (!res.ok) throw new Error("Not found");
         const j = await res.json();
         if (mounted) setWell(j?.well || null);
@@ -38,7 +45,7 @@ export default function WellDetailPage({ params }) {
   }, [apiParam]);
 
   if (status === "loading") return <div className="container py-10">Loading…</div>;
-  if (!session) return <div className="container py-10">Please log in.</div>;
+  if (!session) return <NotLoggedIn />;
 
   if (loading) return <div className="container py-10">Loading well…</div>;
   if (!well)
@@ -54,15 +61,18 @@ export default function WellDetailPage({ params }) {
       </div>
     );
 
-  const w = well; // alias
-  const isStaff = session?.user?.role === "admin" || session?.user?.role === "employee";
+  const w = well;
+  const isStaff =
+    session?.user?.role === "admin" || session?.user?.role === "employee";
 
   return (
     <div className="container py-10 space-y-6">
       {/* Title */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{w.lease_well_name ?? "Untitled Well"}</h1>
+          <h1 className="text-2xl font-bold">
+            {w.lease_well_name ?? "Untitled Well"}
+          </h1>
           <div className="mt-1 space-y-1">
             <p className="text-sm text-gray-700">
               <span className="text-gray-600">API:</span>{" "}
@@ -74,7 +84,9 @@ export default function WellDetailPage({ params }) {
                 <span className="text-gray-600">Well Head GPS:</span>{" "}
                 <a
                   className="text-blue-600 underline break-all"
-                  href={`https://maps.google.com/?q=${encodeURIComponent(w.wellhead_coords)}`}
+                  href={`https://maps.google.com/?q=${encodeURIComponent(
+                    w.wellhead_coords
+                  )}`}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -88,7 +100,9 @@ export default function WellDetailPage({ params }) {
         <div className="flex flex-wrap gap-2">
           {isStaff && (
             <Link
-              href={`/admin/wells?api=${encodeURIComponent(w.api)}&edit=1`}
+              href={`/admin/wells?api=${encodeURIComponent(
+                w.api
+              )}&edit=1`}
               className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
             >
               Edit
@@ -144,7 +158,9 @@ export default function WellDetailPage({ params }) {
           </div>
           <div>
             <div className="text-sm text-gray-600">Email</div>
-            <div className="font-medium break-all">{w.company_man_email ?? "—"}</div>
+            <div className="font-medium break-all">
+              {w.company_man_email ?? "—"}
+            </div>
           </div>
         </div>
       </div>
@@ -158,25 +174,41 @@ export default function WellDetailPage({ params }) {
           <div className="space-y-3">
             <div>
               <div className="text-sm text-gray-600">NE Coords</div>
-              <div className="font-medium break-words">{w.anchor_ne ?? "—"}</div>
-              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_ne)}</div>
+              <div className="font-medium break-words">
+                {w.anchor_ne ?? "—"}
+              </div>
+              <div className="text-xs text-gray-500">
+                Expires: {fmtDate(w.expires_ne)}
+              </div>
             </div>
             <div>
               <div className="text-sm text-gray-600">NW Coords</div>
-              <div className="font-medium break-words">{w.anchor_nw ?? "—"}</div>
-              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_nw)}</div>
+              <div className="font-medium break-words">
+                {w.anchor_nw ?? "—"}
+              </div>
+              <div className="text-xs text-gray-500">
+                Expires: {fmtDate(w.expires_nw)}
+              </div>
             </div>
           </div>
           <div className="space-y-3">
             <div>
               <div className="text-sm text-gray-600">SE Coords</div>
-              <div className="font-medium break-words">{w.anchor_se ?? "—"}</div>
-              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_se)}</div>
+              <div className="font-medium break-words">
+                {w.anchor_se ?? "—"}
+              </div>
+              <div className="text-xs text-gray-500">
+                Expires: {fmtDate(w.expires_se)}
+              </div>
             </div>
             <div>
               <div className="text-sm text-gray-600">SW Coords</div>
-              <div className="font-medium break-words">{w.anchor_sw ?? "—"}</div>
-              <div className="text-xs text-gray-500">Expires: {fmtDate(w.expires_sw)}</div>
+              <div className="font-medium break-words">
+                {w.anchor_sw ?? "—"}
+              </div>
+              <div className="text-xs text-gray-500">
+                Expires: {fmtDate(w.expires_sw)}
+              </div>
             </div>
           </div>
           <div className="md:col-span-2 grid md:grid-cols-3 gap-4">
