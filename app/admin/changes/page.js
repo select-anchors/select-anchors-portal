@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function AdminChangesPage() {
   const { data: session, status } = useSession();
@@ -31,9 +32,11 @@ export default function AdminChangesPage() {
     await load();
   }
 
-  if (status === "loading") return <div className="p-8">Loading…</div>;
-  if (!session) return <div className="p-8">Please log in.</div>;
-  if (session.user.role !== "admin") return <div className="p-8">Not authorized.</div>;
+  if (status === "loading") return <div className="container py-8">Loading…</div>;
+  if (!session) return <NotLoggedIn />;
+  if (session.user.role !== "admin") {
+    return <div className="container py-8">Not authorized.</div>;
+  }
 
   return (
     <div className="container py-8 space-y-6">
@@ -52,14 +55,24 @@ export default function AdminChangesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="p-4" colSpan={5}>Loading…</td></tr>
+              <tr>
+                <td className="p-4" colSpan={5}>
+                  Loading…
+                </td>
+              </tr>
             ) : rows.length === 0 ? (
-              <tr><td className="p-4" colSpan={5}>No pending changes.</td></tr>
+              <tr>
+                <td className="p-4" colSpan={5}>
+                  No pending changes.
+                </td>
+              </tr>
             ) : (
               rows.map((c) => (
                 <tr key={c.id} className="border-t align-top">
                   <td className="p-3">
-                    {c.created_at ? new Date(c.created_at).toLocaleString() : "—"}
+                    {c.created_at
+                      ? new Date(c.created_at).toLocaleString()
+                      : "—"}
                   </td>
                   <td className="p-3 font-mono">{c.api}</td>
                   <td className="p-3">{c.submitted_by || "—"}</td>
