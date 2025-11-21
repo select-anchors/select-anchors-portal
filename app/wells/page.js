@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function CustomerWellsPage() {
   const { data: session, status } = useSession();
@@ -26,8 +27,8 @@ export default function CustomerWellsPage() {
     return () => (mounted = false);
   }, []);
 
-  if (status === "loading") return <div className="p-8">Loading…</div>;
-  if (!session) return <div className="p-8">Please log in.</div>;
+  if (status === "loading") return <div className="container py-8">Loading…</div>;
+  if (!session) return <NotLoggedIn />;
 
   return (
     <div className="container py-8 space-y-6">
@@ -46,9 +47,17 @@ export default function CustomerWellsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="p-4" colSpan={5}>Loading…</td></tr>
+              <tr>
+                <td className="p-4" colSpan={5}>
+                  Loading…
+                </td>
+              </tr>
             ) : wells.length === 0 ? (
-              <tr><td className="p-4" colSpan={5}>No wells found.</td></tr>
+              <tr>
+                <td className="p-4" colSpan={5}>
+                  No wells found.
+                </td>
+              </tr>
             ) : (
               wells.map((w) => (
                 <tr key={w.api} className="border-t">
