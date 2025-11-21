@@ -5,19 +5,20 @@ export const dynamic = "force-dynamic";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function MyDayPage() {
   const { data: session, status } = useSession();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const isStaff = session?.user?.role === "admin" || session?.user?.role === "employee";
+  const isStaff =
+    session?.user?.role === "admin" || session?.user?.role === "employee";
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        // Back this with your jobs endpoint when ready
         const res = await fetch("/api/driver/my-day", { cache: "no-store" });
         const j = res.ok ? await res.json() : { jobs: [] };
         if (mounted) setJobs(j.jobs ?? []);
@@ -31,7 +32,7 @@ export default function MyDayPage() {
   }, []);
 
   if (status === "loading") return <div className="container py-10">Loading…</div>;
-  if (!session) return <div className="container py-10">Please log in.</div>;
+  if (!session) return <NotLoggedIn />;
   if (!isStaff) return <div className="container py-10">Not authorized.</div>;
 
   return (
@@ -51,9 +52,17 @@ export default function MyDayPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="p-4" colSpan={6}>Loading…</td></tr>
+              <tr>
+                <td className="p-4" colSpan={6}>
+                  Loading…
+                </td>
+              </tr>
             ) : jobs.length === 0 ? (
-              <tr><td className="p-4" colSpan={6}>No jobs assigned.</td></tr>
+              <tr>
+                <td className="p-4" colSpan={6}>
+                  No jobs assigned.
+                </td>
+              </tr>
             ) : (
               jobs.map((j) => (
                 <tr key={j.id} className="border-t">
@@ -66,10 +75,15 @@ export default function MyDayPage() {
                   <td className="p-3">{j.task || "—"}</td>
                   <td className="p-3">
                     {j.api ? (
-                      <Link className="underline" href={`/wells/${encodeURIComponent(j.api)}`}>
+                      <Link
+                        className="underline"
+                        href={`/wells/${encodeURIComponent(j.api)}`}
+                      >
                         Open
                       </Link>
-                    ) : "—"}
+                    ) : (
+                      "—"
+                    )}
                   </td>
                 </tr>
               ))
