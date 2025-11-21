@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function AdminWellsPage() {
   const { data: session, status } = useSession();
@@ -26,12 +27,12 @@ export default function AdminWellsPage() {
     return () => (mounted = false);
   }, []);
 
-  if (status === "loading") return <div className="p-8">Loading…</div>;
-  if (!session) return <div className="p-8">Please log in.</div>;
+  if (status === "loading") return <div className="container py-8">Loading…</div>;
+  if (!session) return <NotLoggedIn />;
 
   const role = session?.user?.role;
   const canSee = role === "admin" || role === "employee";
-  if (!canSee) return <div className="p-8">Not authorized.</div>;
+  if (!canSee) return <div className="container py-8">Not authorized.</div>;
 
   const filtered = q
     ? wells.filter(
@@ -77,9 +78,17 @@ export default function AdminWellsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="p-4" colSpan={6}>Loading…</td></tr>
+              <tr>
+                <td className="p-4" colSpan={6}>
+                  Loading…
+                </td>
+              </tr>
             ) : filtered.length === 0 ? (
-              <tr><td className="p-4" colSpan={6}>No wells found.</td></tr>
+              <tr>
+                <td className="p-4" colSpan={6}>
+                  No wells found.
+                </td>
+              </tr>
             ) : (
               filtered.map((w) => (
                 <tr key={w.api} className="border-t">
@@ -101,7 +110,9 @@ export default function AdminWellsPage() {
                         View
                       </Link>
                       <Link
-                        href={`/admin/wells?api=${encodeURIComponent(w.api)}&edit=1`}
+                        href={`/admin/wells?api=${encodeURIComponent(
+                          w.api
+                        )}&edit=1`}
                         className="underline"
                       >
                         Edit
