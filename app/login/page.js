@@ -10,26 +10,41 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   async function onSubmit(e) {
     e.preventDefault();
     setErr("");
+    setLoading(true);
+
     const res = await signIn("credentials", {
-      redirect: false,
+      redirect: false,          // MUST be false so we can handle redirect manually
       email,
       password,
     });
-    if (res?.error) setErr(res.error);
-    else router.push("/dashboard");
+
+    setLoading(false);
+
+    if (res?.error) {
+      setErr("Invalid email or password.");
+      return;
+    }
+
+    // SUCCESS → we do a clean client-side redirect
+    router.push("/dashboard");
   }
 
   return (
     <div className="container py-10">
-      <form onSubmit={onSubmit} className="max-w-md space-y-4">
-        <h1 className="text-2xl font-bold">Sign in</h1>
+      <form onSubmit={onSubmit} className="max-w-md space-y-5">
+        <h1 className="text-2xl font-bold">Login</h1>
 
-        {err && <div className="text-red-600 text-sm">{err}</div>}
+        {err && (
+          <div className="text-red-600 text-sm border border-red-300 bg-red-50 p-2 rounded-md">
+            {err}
+          </div>
+        )}
 
         <div>
           <label className="block text-sm text-gray-700 mb-1">Email</label>
@@ -38,6 +53,7 @@ export default function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
+            required
           />
         </div>
 
@@ -50,11 +66,13 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
+              required
             />
             <button
               type="button"
               className="absolute inset-y-0 right-2 text-xs px-2 rounded-md border bg-white hover:bg-gray-50"
               onClick={() => setShowPassword((v) => !v)}
+              tabIndex={-1}
             >
               {showPassword ? "Hide" : "Show"}
             </button>
@@ -62,9 +80,13 @@ export default function LoginPage() {
         </div>
 
         <div className="flex justify-between items-center">
-          <button className="btn px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90">
-            Sign in
+          <button
+            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 disabled:opacity-40"
+            disabled={loading}
+          >
+            {loading ? "Signing in…" : "Login"}
           </button>
+
           <a href="/forgot" className="text-sm underline">
             Forgot password?
           </a>
