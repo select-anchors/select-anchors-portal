@@ -2,6 +2,7 @@
 
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
+import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function AccountPage() {
   const { data: session, status } = useSession();
@@ -21,7 +22,7 @@ export default function AccountPage() {
     return <div className="container py-10">Loading…</div>;
   }
   if (!session) {
-    return <div className="container py-10">Please log in.</div>;
+    return <NotLoggedIn />;
   }
 
   const user = session.user;
