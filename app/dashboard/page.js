@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -27,11 +28,13 @@ export default function DashboardPage() {
         if (isMounted) setLoadingStats(false);
       }
     })();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  if (status === "loading") return <div className="p-10">Loading...</div>;
-  if (!session) return <div className="p-10">Please log in.</div>;
+  if (status === "loading") return <div className="container py-10">Loading...</div>;
+  if (!session) return <NotLoggedIn />;
 
   const role = session?.user?.role || "customer";
   const isAdmin = role === "admin";
@@ -65,13 +68,17 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          <div className="text-xs uppercase text-gray-500 tracking-wider">Upcoming Tests (≤30d)</div>
+          <div className="text-xs uppercase text-gray-500 tracking-wider">
+            Upcoming Tests (≤30d)
+          </div>
           <div className="mt-1 text-2xl font-semibold">
             {loadingStats ? "—" : stats.upcomingTests}
           </div>
         </div>
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          <div className="text-xs uppercase text-gray-500 tracking-wider">Pending Changes</div>
+          <div className="text-xs uppercase text-gray-500 tracking-wider">
+            Pending Changes
+          </div>
           <div className="mt-1 text-2xl font-semibold">
             {loadingStats ? "—" : stats.pendingChanges}
           </div>
@@ -85,9 +92,7 @@ export default function DashboardPage() {
             href="/driver/my-day"
             className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
           >
-            <h2 className="text-xl font-semibold mb-2">
-              My Day
-            </h2>
+            <h2 className="text-xl font-semibold mb-2">My Day</h2>
             <p className="text-sm text-gray-600">
               View and update today’s job details, routes, and well site work.
             </p>
