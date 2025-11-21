@@ -10,8 +10,7 @@ export default function NotLoggedIn() {
       </h1>
 
       <p className="text-gray-600 max-w-lg">
-        This portal gives you access to well data, anchor tests, daily routes,
-        admin tools, and customer resources.  
+        This portal gives you access to well data, anchor tests, and test history.  
         Please sign in to continue.
       </p>
 
