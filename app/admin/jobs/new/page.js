@@ -1,278 +1,333 @@
+// /app/admin/jobs/new/page.js
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import NotLoggedIn from "@/app/components/NotLoggedIn";
 
-export default function AdminNewJobPage() {
+export default function NewJobPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  const [drivers, setDrivers] = useState([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(true);
+
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+
   const [form, setForm] = useState({
-    well_api: "",
     company_name: "",
     lease_well_name: "",
+    well_api: "",
     state: "",
     county: "",
-
     job_type: "test_existing",
     priority: "normal",
     customer_deadline_date: "",
-
     requires_811: false,
-    one_call_state: "",
     requires_white_flags: false,
     select_anchors_installs_flags: false,
-    mileage_multiplier: 1.0,
-
+    mileage_multiplier: 1,
     scheduled_date: "",
+    driver_user_id: "",
   });
 
-  function upd(k, v) {
-    setForm((p) => ({ ...p, [k]: v }));
-    if (k === "select_anchors_installs_flags") {
-      setForm((p) => ({
-        ...p,
-        mileage_multiplier: v ? 2.0 : 1.0,
-      }));
-    }
+  function upd(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function submit(e) {
+  useEffect(() => {
+    async function loadDrivers() {
+      setLoadingDrivers(true);
+      try {
+        const res = await fetch("/api/admin/users", { cache: "no-store" });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || "Failed to load users.");
+
+        const driverCandidates = (json.users || []).filter((u) =>
+          ["employee", "admin"].includes(u.role)
+        );
+        setDrivers(driverCandidates);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingDrivers(false);
+      }
+    }
+
+    if (status === "authenticated" && session?.user?.role === "admin") {
+      loadDrivers();
+    }
+  }, [status, session?.user?.role]);
+
+  if (status === "loading") {
+    return <div className="container py-8">Loading…</div>;
+  }
+  if (!session) {
+    return <NotLoggedIn />;
+  }
+  if (session.user.role !== "admin") {
+    return <div className="container py-8">Not authorized.</div>;
+  }
+
+  async function onSubmit(e) {
     e.preventDefault();
     setSaving(true);
     setMsg("");
+    setError("");
 
     try {
+      const payload = {
+        ...form,
+        mileage_multiplier: Number(form.mileage_multiplier) || 1,
+        driver_user_id: form.driver_user_id || null,
+        customer_deadline_date:
+          form.priority === "deadline" && form.customer_deadline_date
+            ? form.customer_deadline_date
+            : null,
+      };
+
       const res = await fetch("/api/admin/jobs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || "Failed to create job");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to create job.");
+      }
 
-      router.push("/admin/jobs");
-    } catch (e) {
-      setMsg(e.message);
+      setMsg("Job created successfully.");
+      router.push(`/admin/jobs/${data.id}`);
+    } catch (err) {
+      setError(err.message || "Failed to create job.");
     } finally {
       setSaving(false);
     }
   }
 
-  if (status === "loading") return <div className="p-8">Loading…</div>;
-
-  if (!session) return <NotLoggedIn />;
-
-  if (session.user.role !== "admin")
-    return <div className="p-8">Not authorized</div>;
-
   return (
-    <div className="container py-8 space-y-6 max-w-3xl">
+    <div className="container py-8 max-w-4xl space-y-6">
       <h1 className="text-2xl font-bold">New Job</h1>
 
-      {msg && <div className="text-red-600 text-sm">{msg}</div>}
+      {error && <div className="text-sm text-red-600">{error}</div>}
+      {msg && <div className="text-sm text-green-700">{msg}</div>}
 
-      <form onSubmit={submit} className="space-y-6">
-        {/* ────────────────────────────────
-            WELL & CUSTOMER INFO
-        ──────────────────────────────── */}
-        <div className="space-y-4">
-          <h2 className="font-semibold text-lg">Location / Customer</h2>
-
-          <TextField
-            label="Company Name"
-            value={form.company_name}
-            onChange={(v) => upd("company_name", v)}
-          />
-
-          <TextField
-            label="Lease + Well Name"
-            value={form.lease_well_name}
-            onChange={(v) => upd("lease_well_name", v)}
-          />
-
-          <TextField
-            label="API Number"
-            value={form.well_api}
-            onChange={(v) => upd("well_api", v)}
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <TextField
-              label="State"
-              value={form.state}
-              onChange={(v) => upd("state", v)}
-            />
-            <TextField
-              label="County"
-              value={form.county}
-              onChange={(v) => upd("county", v)}
-            />
+      <form onSubmit={onSubmit} className="space-y-8">
+        {/* Company / Location */}
+        <div className="bg-white border rounded-2xl shadow-sm">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold">Company & Location</h2>
+          </div>
+          <div className="p-6 grid md:grid-cols-2 gap-4">
+            <label className="block">
+              <div className="text-sm text-gray-600">Company</div>
+              <input
+                className="w-full"
+                value={form.company_name}
+                onChange={(e) => upd("company_name", e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <div className="text-sm text-gray-600">Lease / Well Name</div>
+              <input
+                className="w-full"
+                value={form.lease_well_name}
+                onChange={(e) => upd("lease_well_name", e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <div className="text-sm text-gray-600">API</div>
+              <input
+                className="w-full font-mono"
+                value={form.well_api}
+                onChange={(e) => upd("well_api", e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <div className="text-sm text-gray-600">State</div>
+              <input
+                className="w-full"
+                value={form.state}
+                onChange={(e) => upd("state", e.target.value)}
+                placeholder="TX / NM"
+              />
+            </label>
+            <label className="block">
+              <div className="text-sm text-gray-600">County</div>
+              <input
+                className="w-full"
+                value={form.county}
+                onChange={(e) => upd("county", e.target.value)}
+              />
+            </label>
           </div>
         </div>
 
-        {/* ────────────────────────────────
-            JOB TYPE & PRIORITY
-        ──────────────────────────────── */}
-        <div className="space-y-4">
-          <h2 className="font-semibold text-lg">Job Details</h2>
+        {/* Job Details */}
+        <div className="bg-white border rounded-2xl shadow-sm">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold">Job Details</h2>
+          </div>
+          <div className="p-6 grid md:grid-cols-2 gap-4">
+            <label className="block">
+              <div className="text-sm text-gray-600">Job Type</div>
+              <select
+                className="w-full border rounded-md px-3 py-2"
+                value={form.job_type}
+                onChange={(e) => upd("job_type", e.target.value)}
+              >
+                <option value="test_existing">Test existing anchors</option>
+                <option value="install_new">Install new anchors</option>
+                <option value="both">Test + Install</option>
+              </select>
+            </label>
 
-          <SelectField
-            label="Job Type"
-            value={form.job_type}
-            onChange={(v) => upd("job_type", v)}
-            options={[
-              ["test_existing", "Test Existing Anchors"],
-              ["install_new", "Install New Anchor"],
-              ["both", "Test + Install"],
-            ]}
-          />
+            <label className="block">
+              <div className="text-sm text-gray-600">Priority</div>
+              <select
+                className="w-full border rounded-md px-3 py-2"
+                value={form.priority}
+                onChange={(e) => upd("priority", e.target.value)}
+              >
+                <option value="asap">ASAP</option>
+                <option value="normal">Normal</option>
+                <option value="deadline">Customer deadline / date</option>
+              </select>
+            </label>
 
-          <SelectField
-            label="Priority"
-            value={form.priority}
-            onChange={(v) => upd("priority", v)}
-            options={[
-              ["normal", "Normal"],
-              ["asap", "ASAP"],
-              ["deadline", "Customer Deadline"],
-            ]}
-          />
+            {form.priority === "deadline" && (
+              <label className="block">
+                <div className="text-sm text-gray-600">Customer deadline</div>
+                <input
+                  type="date"
+                  className="w-full border rounded-md px-3 py-2"
+                  value={form.customer_deadline_date}
+                  onChange={(e) =>
+                    upd("customer_deadline_date", e.target.value)
+                  }
+                />
+              </label>
+            )}
 
-          {form.priority === "deadline" && (
-            <TextField
-              label="Customer Deadline Date"
-              type="date"
-              value={form.customer_deadline_date}
-              onChange={(v) => upd("customer_deadline_date", v)}
-            />
-          )}
+            <label className="block">
+              <div className="text-sm text-gray-600">Scheduled date (optional)</div>
+              <input
+                type="date"
+                className="w-full border rounded-md px-3 py-2"
+                value={form.scheduled_date}
+                onChange={(e) => upd("scheduled_date", e.target.value)}
+              />
+            </label>
+          </div>
         </div>
 
-        {/* ────────────────────────────────
-            811 / ONE CALL
-        ──────────────────────────────── */}
-        <div className="space-y-4">
-          <h2 className="font-semibold text-lg flex items-center">
-            811 / One Call
-          </h2>
-
-          <Checkbox
-            label="This job requires 811 / One Call"
-            checked={form.requires_811}
-            onChange={(v) => upd("requires_811", v)}
-          />
-
-          {form.requires_811 && (
-            <>
-              <SelectField
-                label="One Call State"
-                value={form.one_call_state}
-                onChange={(v) => upd("one_call_state", v)}
-                options={[
-                  ["TX", "Texas (Texas811)"],
-                  ["NM", "New Mexico (NM811)"],
-                ]}
+        {/* 811 & Flags */}
+        <div className="bg-white border rounded-2xl shadow-sm">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold">811 & White-Flag</h2>
+          </div>
+          <div className="p-6 space-y-3">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.requires_811}
+                onChange={(e) => upd("requires_811", e.target.checked)}
               />
+              <span className="text-sm text-gray-700">
+                811 One Call is required for this job
+              </span>
+            </label>
 
-              <Checkbox
-                label="This location is within city limits (requires white flags)"
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
                 checked={form.requires_white_flags}
-                onChange={(v) => upd("requires_white_flags", v)}
+                onChange={(e) => upd("requires_white_flags", e.target.checked)}
               />
+              <span className="text-sm text-gray-700">
+                Location is inside city limits and white flags must be placed
+              </span>
+            </label>
 
-              <Checkbox
-                label="Select Anchors will install white-flags (double mileage)"
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
                 checked={form.select_anchors_installs_flags}
-                onChange={(v) => upd("select_anchors_installs_flags", v)}
+                onChange={(e) =>
+                  upd("select_anchors_installs_flags", e.target.checked)
+                }
               />
+              <span className="text-sm text-gray-700">
+                Select Anchors will be responsible to install white flags
+                (additional mileage charge applies)
+              </span>
+            </label>
 
-              <TextField
-                label="Mileage Multiplier"
+            <label className="block">
+              <div className="text-sm text-gray-600">
+                Mileage multiplier (1 = normal, 2 = double trip)
+              </div>
+              <input
                 type="number"
-                disabled
+                step="0.1"
+                min="0"
+                className="w-full border rounded-md px-3 py-2"
                 value={form.mileage_multiplier}
+                onChange={(e) => upd("mileage_multiplier", e.target.value)}
               />
-            </>
-          )}
+            </label>
+          </div>
         </div>
 
-        {/* ────────────────────────────────
-            SCHEDULING
-        ──────────────────────────────── */}
-        <div className="space-y-4">
-          <h2 className="font-semibold text-lg">Scheduling</h2>
-
-          <TextField
-            label="Scheduled Date"
-            type="date"
-            value={form.scheduled_date}
-            onChange={(v) => upd("scheduled_date", v)}
-          />
+        {/* Driver assignment */}
+        <div className="bg-white border rounded-2xl shadow-sm">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-semibold">Driver Assignment</h2>
+          </div>
+          <div className="p-6 grid md:grid-cols-2 gap-4">
+            <label className="block">
+              <div className="text-sm text-gray-600">Driver (optional)</div>
+              <select
+                className="w-full border rounded-md px-3 py-2"
+                value={form.driver_user_id}
+                onChange={(e) => upd("driver_user_id", e.target.value)}
+              >
+                <option value="">Unassigned</option>
+                {loadingDrivers ? (
+                  <option>Loading…</option>
+                ) : (
+                  drivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name || d.email} ({d.role})
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
+          </div>
         </div>
 
-        <button
-          disabled={saving}
-          className="px-6 py-3 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
-        >
-          {saving ? "Creating…" : "Create Job"}
-        </button>
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 disabled:opacity-60"
+          >
+            {saving ? "Saving…" : "Create Job"}
+          </button>
+          <button
+            type="button"
+            className="px-4 py-2 rounded-xl border"
+            onClick={() => router.push("/admin/jobs")}
+          >
+            Cancel
+          </button>
+        </div>
       </form>
     </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   REUSABLE COMPONENTS
-────────────────────────────────────────────── */
-
-function TextField({ label, value, onChange, type = "text", disabled = false }) {
-  return (
-    <label className="block">
-      <div className="text-sm text-gray-600 mb-1">{label}</div>
-      <input
-        type={type}
-        disabled={disabled}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full border px-3 py-2 rounded-md"
-      />
-    </label>
-  );
-}
-
-function SelectField({ label, value, onChange, options }) {
-  return (
-    <label className="block">
-      <div className="text-sm text-gray-600 mb-1">{label}</div>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full border px-3 py-2 rounded-md"
-      >
-        {options.map(([v, label]) => (
-          <option key={v} value={v}>
-            {label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function Checkbox({ label, checked, onChange }) {
-  return (
-    <label className="flex items-center space-x-3">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span className="text-sm text-gray-700">{label}</span>
-    </label>
   );
 }
