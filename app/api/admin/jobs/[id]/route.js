@@ -7,34 +7,24 @@ import { q } from "@/lib/db";
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
   if (!session || session.user?.role !== "admin") {
-    return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-      session: null,
-    };
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
   return { session };
 }
 
-export async function GET(_req, { params }) {
+export async function GET(req, { params }) {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
 
   const id = Number(params.id);
-  if (!id) {
-    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
-  }
+  if (!id) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
   try {
     const { rows } = await q(
-      `
-      SELECT
-        j.*,
-        u.name AS driver_name
-      FROM jobs j
-      LEFT JOIN users u ON j.driver_user_id = u.id
-      WHERE j.id = $1
-      LIMIT 1
-      `,
+      `SELECT j.*, u.name AS driver_name
+       FROM jobs j
+       LEFT JOIN users u ON j.driver_user_id = u.id
+       WHERE j.id = $1`,
       [id]
     );
 
@@ -44,11 +34,8 @@ export async function GET(_req, { params }) {
 
     return NextResponse.json({ job: rows[0] });
   } catch (err) {
-    console.error("[ADMIN/JOBS/ID][GET] Error:", err);
-    return NextResponse.json(
-      { error: "Failed to load job." },
-      { status: 500 }
-    );
+    console.error("[ADMIN/JOBS][GET ONE]", err);
+    return NextResponse.json({ error: "Failed to load job." }, { status: 500 });
   }
 }
 
@@ -57,17 +44,15 @@ export async function PATCH(req, { params }) {
   if (gate.error) return gate.error;
 
   const id = Number(params.id);
-  if (!id) {
-    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
-  }
+  if (!id) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
   try {
     const body = await req.json();
 
-    const allowedFields = [
+    const fields = [
+      "well_api",
       "company_name",
       "lease_well_name",
-      "well_api",
       "state",
       "county",
       "job_type",
@@ -91,61 +76,44 @@ export async function PATCH(req, { params }) {
     const values = [];
     let idx = 1;
 
-    for (const field of allowedFields) {
-      if (field in body) {
-        updates.push(`${field} = $${idx++}`);
-        if (field === "driver_user_id") {
-          values.push(body[field] ? Number(body[field]) : null);
-        } else if (field === "mileage_multiplier") {
-          values.push(Number(body[field]) || 1);
-        } else {
-          values.push(body[field]);
-        }
+    for (const f of fields) {
+      if (body[f] !== undefined) {
+        updates.push(`${f} = $${idx}`);
+        values.push(body[f]);
+        idx++;
       }
     }
 
     if (!updates.length) {
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
     }
 
     values.push(id);
 
     await q(
-      `
-      UPDATE jobs
-         SET ${updates.join(", ")}
-       WHERE id = $${values.length}
-      `,
+      `UPDATE jobs SET ${updates.join(", ")} WHERE id = $${idx}`,
       values
     );
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[ADMIN/JOBS/ID][PATCH] Error:", err);
-    return NextResponse.json(
-      { error: "Failed to update job." },
-      { status: 500 }
-    );
+    console.error("[ADMIN/JOBS][PATCH]", err);
+    return NextResponse.json({ error: "Failed to update job." }, { status: 500 });
   }
 }
 
-export async function DELETE(_req, { params }) {
+export async function DELETE(req, { params }) {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
 
   const id = Number(params.id);
-  if (!id) {
-    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
-  }
+  if (!id) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
   try {
     await q(`DELETE FROM jobs WHERE id = $1`, [id]);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[ADMIN/JOBS/ID][DELETE] Error:", err);
-    return NextResponse.json(
-      { error: "Failed to delete job." },
-      { status: 500 }
-    );
+    console.error("[ADMIN/JOBS][DELETE]", err);
+    return NextResponse.json({ error: "Failed to delete job." }, { status: 500 });
   }
 }
