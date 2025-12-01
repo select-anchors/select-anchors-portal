@@ -1,3 +1,4 @@
+// app/admin/changes/page.js
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,7 +11,6 @@ export default function AdminChangesPage() {
   const [loading, setLoading] = useState(true);
 
   async function load() {
-    setLoading(true);
     try {
       const res = await fetch("/api/admin/changes", { cache: "no-store" });
       const j = await res.json();
@@ -23,24 +23,46 @@ export default function AdminChangesPage() {
   }
 
   useEffect(() => {
-    load();
-  }, []);
+    let mounted = true;
+    let intervalId;
 
-  async function act(id, action) {
-    const url = `/api/admin/changes/${id}/${action}`;
-    await fetch(url, { method: "POST" });
-    await load();
-  }
+    async function loadSafe() {
+      if (!mounted) return;
+      setLoading(true);
+      await load();
+    }
 
-  if (status === "loading") return <div className="container py-8">Loading…</div>;
+    if (status === "authenticated" && session?.user?.role === "admin") {
+      // Initial load
+      loadSafe();
+      // Auto-refresh every 2 minutes
+      intervalId = setInterval(loadSafe, 120000);
+    }
+
+    return () => {
+      mounted = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [status, session?.user?.role]);
+
+  if (status === "loading") return <div className="p-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
-  if (session.user.role !== "admin") {
-    return <div className="container py-8">Not authorized.</div>;
-  }
+  if (session.user.role !== "admin")
+    return (
+      <div className="container py-8">
+        Not authorized. Please contact your Select Anchors admin if you believe
+        this is an error.
+      </div>
+    );
 
   return (
     <div className="container py-8 space-y-6">
-      <h1 className="text-2xl font-bold">Pending Changes</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">Pending Changes</h1>
+        <p className="text-xs text-gray-500">
+          This list refreshes automatically every 2 minutes.
+        </p>
+      </div>
 
       <div className="bg-white border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
@@ -105,4 +127,10 @@ export default function AdminChangesPage() {
       </div>
     </div>
   );
+
+  async function act(id, action) {
+    const url = `/api/admin/changes/${id}/${action}`;
+    await fetch(url, { method: "POST" });
+    await load();
+  }
 }
