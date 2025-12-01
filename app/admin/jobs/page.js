@@ -31,6 +31,15 @@ function formatPriority(p) {
   return p || "—";
 }
 
+function StatusBadge({ status }) {
+  const label = status || "pending";
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full border text-xs capitalize">
+      {label.replace(/_/g, " ")}
+    </span>
+  );
+}
+
 export default function AdminJobsPage() {
   const { data: session, status } = useSession();
   const [jobs, setJobs] = useState([]);
@@ -76,13 +85,12 @@ export default function AdminJobsPage() {
     <div className="container py-8 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Jobs</h1>
-        {/* We can wire this later to /admin/jobs/new */}
-        {/* <Link
+        <Link
           href="/admin/jobs/new"
           className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
         >
           New Job
-        </Link> */}
+        </Link>
       </div>
 
       {error && <div className="text-sm text-red-600">{error}</div>}
@@ -100,18 +108,19 @@ export default function AdminJobsPage() {
               <th className="text-left p-3">Priority</th>
               <th className="text-left p-3">Status</th>
               <th className="text-left p-3">State / County</th>
+              <th className="text-left p-3">Action</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td className="p-4" colSpan={9}>
+                <td className="p-4" colSpan={10}>
                   Loading…
                 </td>
               </tr>
             ) : jobs.length === 0 ? (
               <tr>
-                <td className="p-4" colSpan={9}>
+                <td className="p-4" colSpan={10}>
                   No jobs found.
                 </td>
               </tr>
@@ -123,31 +132,26 @@ export default function AdminJobsPage() {
                       ? formatDate(job.scheduled_date)
                       : "Not scheduled"}
                   </td>
+                  <td className="p-3">{job.driver_name || "Unassigned"}</td>
+                  <td className="p-3">{job.company_name || "—"}</td>
+                  <td className="p-3">{job.lease_well_name || "—"}</td>
+                  <td className="p-3 font-mono">{job.well_api || "—"}</td>
+                  <td className="p-3">{formatJobType(job.job_type)}</td>
+                  <td className="p-3">{formatPriority(job.priority)}</td>
                   <td className="p-3">
-                    {job.driver_name || "Unassigned"}
+                    <StatusBadge status={job.status} />
                   </td>
                   <td className="p-3">
-                    {job.company_name || "—"}
+                    {[job.state, job.county].filter(Boolean).join(" / ") ||
+                      "—"}
                   </td>
                   <td className="p-3">
-                    {job.lease_well_name || "—"}
-                  </td>
-                  <td className="p-3 font-mono">
-                    {job.well_api || "—"}
-                  </td>
-                  <td className="p-3">
-                    {formatJobType(job.job_type)}
-                  </td>
-                  <td className="p-3">
-                    {formatPriority(job.priority)}
-                  </td>
-                  <td className="p-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full border text-xs">
-                      {job.status || "pending"}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    {[job.state, job.county].filter(Boolean).join(" / ") || "—"}
+                    <Link
+                      href={`/admin/jobs/${job.id}`}
+                      className="underline text-[#2f4f4f]"
+                    >
+                      Open
+                    </Link>
                   </td>
                 </tr>
               ))
