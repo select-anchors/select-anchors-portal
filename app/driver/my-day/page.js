@@ -1,3 +1,4 @@
+// app/driver/my-day/page.js
 "use client";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,9 @@ export default function MyDayPage() {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    let intervalId;
+
+    async function load() {
       try {
         const res = await fetch("/api/driver/my-day", { cache: "no-store" });
         const j = res.ok ? await res.json() : { jobs: [] };
@@ -27,17 +30,47 @@ export default function MyDayPage() {
       } finally {
         if (mounted) setLoading(false);
       }
-    })();
-    return () => (mounted = false);
-  }, []);
+    }
 
-  if (status === "loading") return <div className="container py-10">Loading…</div>;
-  if (!session) return <NotLoggedIn />;
-  if (!isStaff) return <div className="container py-10">Not authorized.</div>;
+    if (status === "authenticated" && isStaff) {
+      // Initial load
+      load();
+      // Auto-refresh every 2 minutes (120000 ms)
+      intervalId = setInterval(load, 120000);
+    }
+
+    return () => {
+      mounted = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [status, isStaff]);
+
+  if (status === "loading") {
+    return <div className="container py-10">Loading…</div>;
+  }
+
+  if (!session) {
+    return <NotLoggedIn />;
+  }
+
+  if (!isStaff) {
+    return (
+      <div className="container py-10">
+        Not authorized. Please contact your Select Anchors admin if you believe
+        this is an error.
+      </div>
+    );
+  }
 
   return (
     <div className="container py-8 space-y-6">
-      <h1 className="text-2xl font-bold">My Day</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">My Day</h1>
+        <p className="text-xs text-gray-500">
+          This page refreshes automatically every 2 minutes.
+        </p>
+      </div>
+
       <div className="bg-white border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
