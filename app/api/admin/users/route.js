@@ -10,17 +10,27 @@ async function requireAdmin() {
   const session = await getServerSession(authOptions);
   if (!session || session.user?.role !== "admin") {
     console.warn("[ADMIN_USERS][AUTH] Unauthorized access attempt");
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
   }
   return { session };
 }
 
+// GET /api/admin/users
 export async function GET() {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
 
   const { rows } = await q(
-    `SELECT id, name, email, role, is_active, created_at
+    `SELECT id,
+            name,
+            email,
+            role,
+            is_active,
+            phone,
+            company_name,
+            created_at
        FROM users
       ORDER BY created_at DESC`
   );
@@ -28,6 +38,8 @@ export async function GET() {
   return NextResponse.json({ users: rows });
 }
 
+// POST /api/admin/users
+// Create a new user and (optionally) send them a password setup/reset email.
 export async function POST(req) {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
@@ -39,17 +51,25 @@ export async function POST(req) {
     const role = body.role || "customer";
     const is_active = body.is_active ?? true;
     const sendReset = body.sendReset ?? true;
+    const phone = body.phone || null;
+    const company_name = body.company_name || null;
 
-    // 🔒 Normalize email
+    // Normalize email
     const email = rawEmail.trim().toLowerCase();
 
     if (!email) {
       return NextResponse.json({ error: "Email required" }, { status: 400 });
     }
 
-    console.log("[ADMIN_USERS][POST] Creating user:", { email, role, is_active });
+    console.log("[ADMIN_USERS][POST] Creating user:", {
+      email,
+      role,
+      is_active,
+      phone,
+      company_name,
+    });
 
-    // Optional basic email shape check
+    // Basic email shape check
     if (!email.includes("@") || !email.includes(".")) {
       return NextResponse.json(
         { error: "Email format looks invalid." },
@@ -57,7 +77,7 @@ export async function POST(req) {
       );
     }
 
-    // Validate role (optional but nice)
+    // Validate role
     const allowedRoles = ["admin", "employee", "customer"];
     if (!allowedRoles.includes(role)) {
       return NextResponse.json(
@@ -66,7 +86,7 @@ export async function POST(req) {
       );
     }
 
-    // 🔍 Check for existing user (case-insensitive)
+    // Check for existing user (case-insensitive)
     const { rows: existing } = await q(
       `SELECT id FROM users WHERE LOWER(email) = $1`,
       [email]
@@ -74,20 +94,23 @@ export async function POST(req) {
 
     if (existing.length) {
       console.warn("[ADMIN_USERS][POST] Email already exists:", email);
-      return NextResponse.json({ error: "Email already exists" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Email already exists" },
+        { status: 400 }
+      );
     }
 
-    // ✅ Insert new user with normalized email
+    // Insert new user
     const { rows } = await q(
-      `INSERT INTO users (name, email, role, is_active)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users (name, email, role, is_active, phone, company_name)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, email`,
-      [rawName || null, email, role, !!is_active]
+      [rawName || null, email, role, !!is_active, phone, company_name]
     );
 
     const user = rows[0];
 
-    // 🔐 Send reset/setup email (using reset_tokens, same as Forgot flow)
+    // Send reset/setup email (optional)
     if (sendReset) {
       const rawToken = crypto.randomBytes(32).toString("hex");
       const tokenHash = crypto
@@ -96,7 +119,6 @@ export async function POST(req) {
         .digest("hex");
       const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
 
-      // Store reset token
       await q(
         `INSERT INTO reset_tokens (email, token_hash, expires_at)
          VALUES ($1, $2, $3)`,
@@ -113,29 +135,26 @@ export async function POST(req) {
       console.log("[ADMIN_USERS][POST] Created reset token for:", email);
       console.log("[ADMIN_USERS][POST] Reset URL:", resetLink);
 
-      // SMTP config (same style as /api/auth/forgot)
-      const {
-        SMTP_HOST,
-        SMTP_PORT,
-        SMTP_USER,
-        SMTP_PASS,
-        SMTP_FROM,
-      } = process.env;
+      const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } =
+        process.env;
 
       if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) {
-        console.error("[ADMIN_USERS][ERROR] Missing SMTP env vars when creating user", {
-          hasHost: !!SMTP_HOST,
-          hasPort: !!SMTP_PORT,
-          hasUser: !!SMTP_USER,
-          hasPass: !!SMTP_PASS,
-          hasFrom: !!SMTP_FROM,
-        });
+        console.error(
+          "[ADMIN_USERS][ERROR] Missing SMTP env vars when creating user",
+          {
+            hasHost: !!SMTP_HOST,
+            hasPort: !!SMTP_PORT,
+            hasUser: !!SMTP_USER,
+            hasPass: !!SMTP_PASS,
+            hasFrom: !!SMTP_FROM,
+          }
+        );
       } else {
         try {
           const transporter = nodemailer.createTransport({
             host: SMTP_HOST,
             port: Number(SMTP_PORT),
-            secure: Number(SMTP_PORT) === 465, // true for 465
+            secure: Number(SMTP_PORT) === 465,
             auth: { user: SMTP_USER, pass: SMTP_PASS },
           });
 
@@ -152,9 +171,15 @@ export async function POST(req) {
             `,
           });
 
-          console.log("[ADMIN_USERS][POST] Reset email sent:", info?.messageId || info);
+          console.log(
+            "[ADMIN_USERS][POST] Reset email sent:",
+            info?.messageId || info
+          );
         } catch (mailErr) {
-          console.error("[ADMIN_USERS][ERROR] Failed to send reset email:", mailErr);
+          console.error(
+            "[ADMIN_USERS][ERROR] Failed to send reset email:",
+            mailErr
+          );
         }
       }
     }
