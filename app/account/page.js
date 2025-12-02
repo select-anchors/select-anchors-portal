@@ -1,255 +1,151 @@
+// /app/account/page.js
 "use client";
 
-import { signOut, useSession } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function AccountPage() {
   const { data: session, status } = useSession();
-  const [resetMsg, setResetMsg] = useState("");
-  const [resetStatus, setResetStatus] = useState("idle");
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    company_name: "",
+  });
 
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [changeStatus, setChangeStatus] = useState("idle"); // idle | loading | success | error
-  const [changeMsg, setChangeMsg] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+
+    async function load() {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await fetch("/api/account", { cache: "no-store" });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || "Failed to load account.");
+
+        setForm({
+          name: json.user.name || "",
+          email: json.user.email || "",
+          phone: json.user.phone || "",
+          company_name: json.user.company_name || "",
+        });
+      } catch (err) {
+        setError(err.message || "Failed to load account.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, [status]);
 
   if (status === "loading") {
-    return <div className="container py-10">Loading…</div>;
+    return <div className="container py-8">Loading…</div>;
   }
+
   if (!session) {
     return <NotLoggedIn />;
   }
 
-  const user = session.user;
-
-  async function sendReset() {
-    setResetMsg("");
-    setResetStatus("loading");
-    try {
-      const res = await fetch("/api/auth/forgot", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: user.email }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || "Failed to send reset email.");
-      }
-      setResetStatus("success");
-      setResetMsg(
-        "If your email is on file, a reset link was sent to your inbox."
-      );
-    } catch (e) {
-      setResetStatus("error");
-      setResetMsg(e.message || "Unable to send reset link.");
-    }
+  function upd(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function onChangePassword(e) {
+  async function onSubmit(e) {
     e.preventDefault();
-    setChangeMsg("");
-    setChangeStatus("idle");
+    setSaving(true);
+    setMsg("");
+    setError("");
 
-    if (!currentPassword || !newPassword || !confirmNewPassword) {
-      setChangeStatus("error");
-      setChangeMsg("Please fill in all password fields.");
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      setChangeStatus("error");
-      setChangeMsg("New password must be at least 8 characters.");
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      setChangeStatus("error");
-      setChangeMsg("New password and confirmation do not match.");
-      return;
-    }
-
-    setChangeStatus("loading");
     try {
-      const res = await fetch("/api/account/change-password", {
-        method: "POST",
+      const res = await fetch("/api/account", {
+        method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+        }),
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || "Could not change password.");
-      }
-
-      setChangeStatus("success");
-      setChangeMsg(
-        "Password updated successfully. You may need to log in again on other devices."
-      );
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmNewPassword("");
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Failed to save changes.");
+      setMsg("Account updated.");
     } catch (err) {
-      setChangeStatus("error");
-      setChangeMsg(err.message || "Could not change password.");
+      setError(err.message || "Failed to save changes.");
+    } finally {
+      setSaving(false);
     }
   }
 
   return (
-    <div className="container py-8 space-y-8">
-      <h1 className="text-2xl font-bold">Account</h1>
+    <div className="container py-8 max-w-2xl space-y-6">
+      <h1 className="text-2xl font-bold">My Account</h1>
 
-      {/* Basic info */}
-      <div className="bg-white border rounded-2xl p-6 grid md:grid-cols-2 gap-6">
-        <div>
-          <div className="text-sm text-gray-600">Name</div>
-          <div className="font-medium">{user.name || "—"}</div>
-        </div>
-        <div>
-          <div className="text-sm text-gray-600">Email</div>
-          <div className="font-medium break-all">{user.email}</div>
-        </div>
-        <div>
-          <div className="text-sm text-gray-600">Role</div>
-          <div className="font-medium">{user.role}</div>
-        </div>
-      </div>
+      {error && <div className="text-sm text-red-600">{error}</div>}
+      {msg && <div className="text-sm text-green-700">{msg}</div>}
 
-      {/* Password tools */}
-      <div className="grid md:grid-cols-2 gap-8 items-start">
-        {/* 1) Email reset link */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Reset link</h2>
-          <p className="text-sm text-gray-600">
-            We can email you a secure link to reset your password if you prefer.
-          </p>
+      {loading ? (
+        <div>Loading account…</div>
+      ) : (
+        <form onSubmit={onSubmit} className="bg-white border rounded-2xl p-6 space-y-4">
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Name</label>
+            <input
+              className="w-full border rounded-md px-3 py-2"
+              value={form.name}
+              onChange={(e) => upd("name", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Email</label>
+            <input
+              type="email"
+              className="w-full border rounded-md px-3 py-2"
+              value={form.email}
+              onChange={(e) => upd("email", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Cell phone</label>
+            <input
+              className="w-full border rounded-md px-3 py-2"
+              value={form.phone}
+              onChange={(e) => upd("phone", e.target.value)}
+              placeholder="e.g. 555-555-5555"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Company</label>
+            <input
+              className="w-full border rounded-md px-3 py-2 bg-gray-50"
+              value={form.company_name}
+              disabled
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              If this company is wrong, contact Select Anchors to update it.
+            </p>
+          </div>
+
           <button
-            onClick={sendReset}
-            disabled={resetStatus === "loading"}
-            className="px-4 py-2 rounded-xl border border-gray-400 bg-white hover:bg-gray-50 disabled:opacity-60"
+            type="submit"
+            disabled={saving}
+            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 disabled:opacity-60"
           >
-            {resetStatus === "loading"
-              ? "Sending…"
-              : "Email me a password reset link"}
+            {saving ? "Saving…" : "Save Changes"}
           </button>
-          {resetMsg && (
-            <div
-              className={
-                resetStatus === "error"
-                  ? "text-sm text-red-600"
-                  : "text-sm text-green-700"
-              }
-            >
-              {resetMsg}
-            </div>
-          )}
-        </div>
-
-        {/* 2) Change password form */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Change password</h2>
-          <form onSubmit={onChangePassword} className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">
-                Current password
-              </label>
-              <div className="relative">
-                <input
-                  type={showCurrent ? "text" : "password"}
-                  className="w-full border rounded-md px-3 py-2 pr-16"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-2 text-xs px-2 rounded-md border bg-white hover:bg-gray-50"
-                  onClick={() => setShowCurrent((v) => !v)}
-                >
-                  {showCurrent ? "Hide" : "Show"}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">
-                New password
-              </label>
-              <div className="relative">
-                <input
-                  type={showNew ? "text" : "password"}
-                  className="w-full border rounded-md px-3 py-2 pr-16"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-2 text-xs px-2 rounded-md border bg-white hover:bg-gray-50"
-                  onClick={() => setShowNew((v) => !v)}
-                >
-                  {showNew ? "Hide" : "Show"}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">
-                Confirm new password
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirm ? "text" : "password"}
-                  className="w-full border rounded-md px-3 py-2 pr-16"
-                  value={confirmNewPassword}
-                  onChange={(e) => setConfirmNewPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-2 text-xs px-2 rounded-md border bg-white hover:bg-gray-50"
-                  onClick={() => setShowConfirm((v) => !v)}
-                >
-                  {showConfirm ? "Hide" : "Show"}
-                </button>
-              </div>
-            </div>
-
-            {changeMsg && (
-              <div
-                className={
-                  changeStatus === "error"
-                    ? "text-sm text-red-600"
-                    : "text-sm text-green-700"
-                }
-              >
-                {changeMsg}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={changeStatus === "loading"}
-              className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 disabled:opacity-60"
-            >
-              {changeStatus === "loading" ? "Saving…" : "Change password"}
-            </button>
-          </form>
-        </div>
-      </div>
-
-      <div>
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          className="px-4 py-2 rounded-xl border border-gray-400 bg-white hover:bg-gray-50"
-        >
-          Sign out
-        </button>
-      </div>
+        </form>
+      )}
     </div>
   );
 }
