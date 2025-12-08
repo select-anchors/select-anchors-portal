@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function AdminWellsPage() {
@@ -11,6 +12,10 @@ export default function AdminWellsPage() {
   const [wells, setWells] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+
+  const searchParams = useSearchParams();
+  const editApi = searchParams.get("api");
+  const isEditing = searchParams.get("edit") === "1";
 
   useEffect(() => {
     let mounted = true;
@@ -28,7 +33,7 @@ export default function AdminWellsPage() {
         if (Array.isArray(json)) {
           data = json;
         }
-        // Future-proof in case we ever return { wells: [...] }
+        // Future-proof: if we ever return { wells: [...] }
         else if (Array.isArray(json?.wells)) {
           data = json.wells;
         }
@@ -47,18 +52,12 @@ export default function AdminWellsPage() {
     };
   }, []);
 
-  if (status === "loading") {
-    return <div className="container py-8">Loading…</div>;
-  }
-  if (!session) {
-    return <NotLoggedIn />;
-  }
+  if (status === "loading") return <div className="container py-8">Loading…</div>;
+  if (!session) return <NotLoggedIn />;
 
   const role = session?.user?.role;
   const canSee = role === "admin" || role === "employee";
-  if (!canSee) {
-    return <div className="container py-8">Not authorized.</div>;
-  }
+  if (!canSee) return <div className="container py-8">Not authorized.</div>;
 
   const filtered = q
     ? wells.filter(
@@ -68,6 +67,11 @@ export default function AdminWellsPage() {
           (w.company_name || "").toLowerCase().includes(q.toLowerCase())
       )
     : wells;
+
+  const editingWell =
+    isEditing && editApi
+      ? wells.find((w) => w.api === editApi) ?? null
+      : null;
 
   return (
     <div className="container py-8 space-y-6">
@@ -80,6 +84,35 @@ export default function AdminWellsPage() {
           New Well
         </Link>
       </div>
+
+      {/* Simple edit banner so the Edit link feels alive */}
+      {isEditing && editApi && (
+        <div className="p-4 rounded-xl border bg-yellow-50 text-sm space-y-1">
+          <div className="font-semibold">
+            Editing well with API: <span className="font-mono">{editApi}</span>
+          </div>
+          {editingWell ? (
+            <div className="text-gray-700">
+              Lease/Well:{" "}
+              <span className="font-medium">
+                {editingWell.lease_well_name || "—"}
+              </span>{" "}
+              &mdash; Company:{" "}
+              <span className="font-medium">
+                {editingWell.company_name || "—"}
+              </span>
+            </div>
+          ) : (
+            <div className="text-gray-700">
+              (This well is not currently in the loaded list.)
+            </div>
+          )}
+          <div className="text-gray-600">
+            You can wire a full edit form here later, or route to a dedicated
+            <code className="px-1">/admin/wells/[api]/edit</code> page.
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-3">
         <input
