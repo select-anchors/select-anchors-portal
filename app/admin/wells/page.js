@@ -169,13 +169,11 @@ export default function AdminWellsPage() {
                         View
                       </Link>
                       <Link
-                        href={`/admin/wells?api=${encodeURIComponent(
-                          w.api
-                        )}&edit=1`}
-                        className="underline"
-                      >
-                        Edit
-                      </Link>
+  href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
+  className="underline"
+>
+  Edit
+</Link>
                     </div>
                   </td>
                 </tr>
