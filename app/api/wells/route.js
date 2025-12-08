@@ -16,7 +16,7 @@ export async function GET() {
         TO_CHAR(expiration_date, 'YYYY-MM-DD') AS expiration_date,
         status
       FROM wells
-      ORDER BY created_at DESC NULLS LAST, lease_well_name ASC
+      ORDER BY id DESC, lease_well_name ASC
       LIMIT 500
     `);
     return NextResponse.json(rows);
