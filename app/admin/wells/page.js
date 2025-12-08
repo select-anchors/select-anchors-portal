@@ -1,3 +1,4 @@
+// app/admin/wells/page.js
 "use client";
 
 import { useEffect, useState } from "react";
@@ -13,26 +14,51 @@ export default function AdminWellsPage() {
 
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
         const res = await fetch("/api/wells", { cache: "no-store" });
         const json = await res.json();
-        if (mounted) setWells(json?.wells ?? []);
-      } catch {
+
+        if (!mounted) return;
+
+        let data = [];
+
+        // Current API shape: plain array
+        if (Array.isArray(json)) {
+          data = json;
+        }
+        // Future-proof in case we ever return { wells: [...] }
+        else if (Array.isArray(json?.wells)) {
+          data = json.wells;
+        }
+
+        setWells(data);
+      } catch (err) {
+        console.error("Error loading wells (admin page):", err);
         if (mounted) setWells([]);
       } finally {
         if (mounted) setLoading(false);
       }
     })();
-    return () => (mounted = false);
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  if (status === "loading") return <div className="container py-8">Loading…</div>;
-  if (!session) return <NotLoggedIn />;
+  if (status === "loading") {
+    return <div className="container py-8">Loading…</div>;
+  }
+  if (!session) {
+    return <NotLoggedIn />;
+  }
 
   const role = session?.user?.role;
   const canSee = role === "admin" || role === "employee";
-  if (!canSee) return <div className="container py-8">Not authorized.</div>;
+  if (!canSee) {
+    return <div className="container py-8">Not authorized.</div>;
+  }
 
   const filtered = q
     ? wells.filter(
