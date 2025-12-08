@@ -1,3 +1,4 @@
+// app/wells/[api]/page.js
 "use client";
 
 export const dynamic = "force-dynamic";
@@ -34,14 +35,21 @@ export default function WellDetailPage({ params }) {
         );
         if (!res.ok) throw new Error("Not found");
         const j = await res.json();
-        if (mounted) setWell(j?.well || null);
-      } catch {
+
+        if (!mounted) return;
+
+        // API returns the well object directly, not { well: { ... } }
+        setWell(j ?? null);
+      } catch (err) {
+        console.error("Error loading well detail:", err);
         if (mounted) setWell(null);
       } finally {
         if (mounted) setLoading(false);
       }
     })();
-    return () => (mounted = false);
+    return () => {
+      mounted = false;
+    };
   }, [apiParam]);
 
   if (status === "loading") return <div className="container py-10">Loading…</div>;
@@ -171,50 +179,17 @@ export default function WellDetailPage({ params }) {
           <h2 className="text-lg font-semibold">Anchors & Expiration</h2>
         </div>
         <div className="p-6 grid md:grid-cols-2 gap-6">
+          {/* NOTE: These fields depend on your schema.
+              Right now the DB returns anchor1_coords... and expiration_date.
+              You can wire those in here later as needed. */}
           <div className="space-y-3">
-            <div>
-              <div className="text-sm text-gray-600">NE Coords</div>
-              <div className="font-medium break-words">
-                {w.anchor_ne ?? "—"}
-              </div>
-              <div className="text-xs text-gray-500">
-                Expires: {fmtDate(w.expires_ne)}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600">NW Coords</div>
-              <div className="font-medium break-words">
-                {w.anchor_nw ?? "—"}
-              </div>
-              <div className="text-xs text-gray-500">
-                Expires: {fmtDate(w.expires_nw)}
-              </div>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <div className="text-sm text-gray-600">SE Coords</div>
-              <div className="font-medium break-words">
-                {w.anchor_se ?? "—"}
-              </div>
-              <div className="text-xs text-gray-500">
-                Expires: {fmtDate(w.expires_se)}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600">SW Coords</div>
-              <div className="font-medium break-words">
-                {w.anchor_sw ?? "—"}
-              </div>
-              <div className="text-xs text-gray-500">
-                Expires: {fmtDate(w.expires_sw)}
-              </div>
-            </div>
-          </div>
-          <div className="md:col-span-2 grid md:grid-cols-3 gap-4">
             <div>
               <div className="text-sm text-gray-600">Last Test Date</div>
               <div className="font-medium">{fmtDate(w.last_test_date)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-600">Expiration Date</div>
+              <div className="font-medium">{fmtDate(w.expiration_date)}</div>
             </div>
           </div>
         </div>
@@ -229,13 +204,13 @@ export default function WellDetailPage({ params }) {
           <div>
             <div className="text-sm text-gray-600">Previous Anchor Work</div>
             <div className="font-medium whitespace-pre-wrap">
-              {w.prev_anchor_work ?? "—"}
+              {w.previous_anchor_work ?? "—"}
             </div>
           </div>
           <div>
             <div className="text-sm text-gray-600">Directions & Other Notes</div>
             <div className="font-medium whitespace-pre-wrap">
-              {w.directions_notes ?? "—"}
+              {w.directions_other_notes ?? "—"}
             </div>
           </div>
         </div>
