@@ -1,29 +1,26 @@
-// /app/api/account/route.js
+// app/api/account/route.js
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/nextauth-options";
 import { q } from "@/lib/db";
 
-// GET – current user profile
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session) {
+  if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userId = Number(session.user.id);
-  if (!userId) {
-    return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
-  }
+  const id = String(session.user.id).trim();
 
   try {
     const { rows } = await q(
       `
-        SELECT id, name, email, phone, company_name
-        FROM users
-        WHERE id = $1
+      SELECT id, name, email, phone, company_name
+      FROM users
+      WHERE id::text = $1
+      LIMIT 1
       `,
-      [userId]
+      [id]
     );
 
     if (!rows.length) {
@@ -32,77 +29,43 @@ export async function GET() {
 
     return NextResponse.json({ user: rows[0] });
   } catch (err) {
-    console.error("[ACCOUNT][GET] Error:", err);
-    return NextResponse.json(
-      { error: "Failed to load account." },
-      { status: 500 }
-    );
+    console.error("GET /api/account error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
 
-// PATCH – update current user (name, email, phone)
 export async function PATCH(req) {
   const session = await getServerSession(authOptions);
-  if (!session) {
+  if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userId = Number(session.user.id);
-  if (!userId) {
-    return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
-  }
+  const id = String(session.user.id).trim();
+  const body = await req.json().catch(() => ({}));
+
+  const { name, email, phone } = body;
 
   try {
-    const body = await req.json();
-    let { name, email, phone } = body;
-
-    email = (email || "").trim().toLowerCase();
-
-    if (!email) {
-      return NextResponse.json(
-        { error: "Email is required." },
-        { status: 400 }
-      );
-    }
-
-    // basic shape check
-    if (!email.includes("@") || !email.includes(".")) {
-      return NextResponse.json(
-        { error: "Email format looks invalid." },
-        { status: 400 }
-      );
-    }
-
-    // ensure email unique (except for this user)
-    const { rows: existing } = await q(
-      `SELECT id FROM users WHERE LOWER(email) = $1 AND id <> $2`,
-      [email, userId]
-    );
-    if (existing.length) {
-      return NextResponse.json(
-        { error: "Another account already uses that email." },
-        { status: 400 }
-      );
-    }
-
-    await q(
+    const { rows } = await q(
       `
-        UPDATE users
-        SET name = $1,
-            email = $2,
-            phone = $3
-        WHERE id = $4
+      UPDATE users
+      SET
+        name  = COALESCE($1, name),
+        email = COALESCE($2, email),
+        phone = COALESCE($3, phone)
+      WHERE id::text = $4
+      RETURNING id, name, email, phone, company_name
       `,
-      [name || null, email, phone || null, userId]
+      [name ?? null, email ?? null, phone ?? null, id]
     );
 
-    // Note: session still has old email/name until they sign out/in again.
-    return NextResponse.json({ ok: true });
+    if (!rows.length) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ user: rows[0] });
   } catch (err) {
-    console.error("[ACCOUNT][PATCH] Error:", err);
-    return NextResponse.json(
-      { error: "Failed to update account." },
-      { status: 500 }
-    );
+    console.error("PATCH /api/account error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
