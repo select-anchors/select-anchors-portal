@@ -5,11 +5,12 @@ import { q } from "@/lib/db";
 // GET /api/admin/users/:id  -> fetch single user
 export async function GET(_req, { params }) {
   try {
-    const id = Number(params.id);
-    if (!id || Number.isNaN(id)) {
+    const id = String(params.id || "").trim();
+    if (!id) {
       return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
     }
 
+    // Works whether id is UUID or int, because we compare as text
     const { rows } = await q(
       `
       SELECT
@@ -20,7 +21,7 @@ export async function GET(_req, { params }) {
         is_active,
         created_at
       FROM users
-      WHERE id = $1
+      WHERE id::text = $1
       LIMIT 1
       `,
       [id]
@@ -40,19 +41,14 @@ export async function GET(_req, { params }) {
 // PUT /api/admin/users/:id  -> update user fields
 export async function PUT(req, { params }) {
   try {
-    const id = Number(params.id);
-    if (!id || Number.isNaN(id)) {
+    const id = String(params.id || "").trim();
+    if (!id) {
       return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
     }
 
     const body = await req.json();
 
-    const {
-      name,
-      email,
-      role,
-      is_active,
-    } = body;
+    const { name, email, role, is_active } = body;
 
     const { rows } = await q(
       `
@@ -62,7 +58,7 @@ export async function PUT(req, { params }) {
         email     = COALESCE($2, email),
         role      = COALESCE($3, role),
         is_active = COALESCE($4, is_active)
-      WHERE id = $5
+      WHERE id::text = $5
       RETURNING
         id,
         name,
