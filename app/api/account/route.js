@@ -1,26 +1,38 @@
 // app/api/account/route.js
+
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/nextauth-options";
 import { q } from "@/lib/db";
 
+/**
+ * GET /api/account
+ * Fetch the currently logged-in user's account info
+ */
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
+
+  if (!session || !session.user || !session.user.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const id = String(session.user.id).trim();
+  // IMPORTANT: users.id is UUID → treat as string, not number
+  const userId = session.user.id;
 
   try {
     const { rows } = await q(
       `
-      SELECT id, name, email, phone, company_name
+      SELECT
+        id,
+        name,
+        email,
+        phone,
+        company_name
       FROM users
-      WHERE id::text = $1
+      WHERE id = $1
       LIMIT 1
       `,
-      [id]
+      [userId]
     );
 
     if (!rows.length) {
@@ -29,19 +41,33 @@ export async function GET() {
 
     return NextResponse.json({ user: rows[0] });
   } catch (err) {
-    console.error("GET /api/account error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("[GET /api/account] Error:", err);
+    return NextResponse.json(
+      { error: "Failed to load account." },
+      { status: 500 }
+    );
   }
 }
 
+/**
+ * PATCH /api/account
+ * Update name / email / phone for the current user
+ */
 export async function PATCH(req) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
+
+  if (!session || !session.user || !session.user.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const id = String(session.user.id).trim();
-  const body = await req.json().catch(() => ({}));
+  const userId = session.user.id;
+
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    body = {};
+  }
 
   const { name, email, phone } = body;
 
@@ -53,10 +79,15 @@ export async function PATCH(req) {
         name  = COALESCE($1, name),
         email = COALESCE($2, email),
         phone = COALESCE($3, phone)
-      WHERE id::text = $4
-      RETURNING id, name, email, phone, company_name
+      WHERE id = $4
+      RETURNING
+        id,
+        name,
+        email,
+        phone,
+        company_name
       `,
-      [name ?? null, email ?? null, phone ?? null, id]
+      [name ?? null, email ?? null, phone ?? null, userId]
     );
 
     if (!rows.length) {
@@ -65,7 +96,10 @@ export async function PATCH(req) {
 
     return NextResponse.json({ user: rows[0] });
   } catch (err) {
-    console.error("PATCH /api/account error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("[PATCH /api/account] Error:", err);
+    return NextResponse.json(
+      { error: "Failed to update account." },
+      { status: 500 }
+    );
   }
 }
