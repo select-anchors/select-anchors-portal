@@ -410,8 +410,7 @@ export default function AdminJobDetailPage() {
                 value={job.driver_user_id || ""}
                 onChange={(e) =>
                   upd(
-                    "driver_user_id",
-                    e.target.value ? Number(e.target.value) : null
+                    "driver_user_id", e.target.value || null
                   )
                 }
               >
