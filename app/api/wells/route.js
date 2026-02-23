@@ -1,11 +1,42 @@
 // app/api/wells/route.js
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/nextauth-options";
 import { q } from "@/lib/db";
 
-// GET /api/wells  -> list wells (minimal fields for table)
+// GET /api/wells  -> list wells
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const role = session.user.role || "customer";
+  const userId = session.user.id; // UUID string
+
   try {
-    const { rows } = await q(`
+    // Admin/employee: all wells
+    if (role === "admin" || role === "employee") {
+      const { rows } = await q(`
+        SELECT
+          id,
+          lease_well_name,
+          api,
+          wellhead_coords,
+          company_name,
+          TO_CHAR(last_test_date, 'YYYY-MM-DD') AS last_test_date,
+          TO_CHAR(expiration_date, 'YYYY-MM-DD') AS expiration_date,
+          status
+        FROM wells
+        ORDER BY id DESC, lease_well_name ASC
+        LIMIT 500
+      `);
+      return NextResponse.json(rows);
+    }
+
+    // Customer: only their wells
+    const { rows } = await q(
+      `
       SELECT
         id,
         lease_well_name,
@@ -16,9 +47,13 @@ export async function GET() {
         TO_CHAR(expiration_date, 'YYYY-MM-DD') AS expiration_date,
         status
       FROM wells
+      WHERE customer_id = $1
       ORDER BY id DESC, lease_well_name ASC
       LIMIT 500
-    `);
+      `,
+      [userId]
+    );
+
     return NextResponse.json(rows);
   } catch (err) {
     console.error("GET /api/wells error:", err);
@@ -26,7 +61,7 @@ export async function GET() {
   }
 }
 
-// POST /api/wells -> create (kept simple; approve flow can wrap later)
+// POST /api/wells -> create (kept as-is)
 export async function POST(req) {
   try {
     const body = await req.json();
