@@ -15,8 +15,8 @@ export async function GET(_req, { params }) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const userId = String(session.user.id); // UUID string
-  const role = session.user.role;
+  const role = session.user.role || "customer";
+  const userId = session.user.id; // UUID string
 
   try {
     const { rows } = await q(
@@ -35,24 +35,23 @@ export async function GET(_req, { params }) {
 
     const job = rows[0];
 
-    // staff can see all
+    // Staff can see all jobs
     if (role === "admin" || role === "employee") {
       return NextResponse.json({ job });
     }
 
-    // customers can only see their jobs
+    // Customers can only see their own jobs
     if (role === "customer") {
-      const ok =
-        (job.customer_id && String(job.customer_id) === userId) ||
-        (job.created_by && String(job.created_by) === userId);
-
-      if (ok) return NextResponse.json({ job });
+      // job.customer_id is UUID
+      if (job.customer_id && String(job.customer_id) === String(userId)) {
+        return NextResponse.json({ job });
+      }
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   } catch (err) {
-    console.error("[PUBLIC JOB][GET] Error:", err);
+    console.error("[GET /api/jobs/[id]] Error:", err);
     return NextResponse.json({ error: "Failed to load job." }, { status: 500 });
   }
 }
