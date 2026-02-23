@@ -1,15 +1,17 @@
-// /app/api/admin/jobs/route.js
+// app/api/admin/jobs/route.js
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/nextauth-options";
 import { q } from "@/lib/db";
 
+function isUuid(v) {
+  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
   if (!session || session.user?.role !== "admin") {
-    return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
   return { session };
 }
@@ -24,6 +26,7 @@ export async function GET() {
       `
       SELECT
         j.id,
+        j.title,
         j.well_api,
         j.company_name,
         j.lease_well_name,
@@ -50,8 +53,8 @@ export async function GET() {
       LEFT JOIN users u ON j.driver_user_id = u.id
       ORDER BY
         j.scheduled_date NULLS LAST,
-        j.priority,
-        j.sort_order,
+        j.priority NULLS LAST,
+        j.sort_order NULLS LAST,
         j.created_at DESC
       `
     );
@@ -69,10 +72,11 @@ export async function POST(req) {
   if (gate.error) return gate.error;
 
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
 
     const {
-      customer_id, // <-- optional for now (but your DB currently requires it unless you DROP NOT NULL)
+      customer_id,
+      title,
       well_api,
       company_name,
       lease_well_name,
@@ -90,9 +94,18 @@ export async function POST(req) {
       select_anchors_installs_flags = false,
       mileage_multiplier = 1.0,
       scheduled_date,
-      driver_user_id, // UUID string or null
+      driver_user_id,
+      sort_order = 0,
       status = "pending",
+      notes,
     } = body || {};
+
+    if (!customer_id || !isUuid(customer_id)) {
+      return NextResponse.json(
+        { error: "customer_id (uuid) is required." },
+        { status: 400 }
+      );
+    }
 
     if (!job_type) {
       return NextResponse.json({ error: "job_type is required." }, { status: 400 });
@@ -101,13 +114,27 @@ export async function POST(req) {
       return NextResponse.json({ error: "priority is required." }, { status: 400 });
     }
 
-    // IMPORTANT: session.user.id is UUID string
-    const createdBy = String(gate.session.user.id);
+    const createdBy = gate.session.user.id; // UUID string
+
+    const computedTitle =
+      (title && String(title).trim()) ||
+      [company_name, lease_well_name, well_api].filter(Boolean).join(" • ") ||
+      "Job";
+
+    const driverUuid = driver_user_id ? String(driver_user_id).trim() : null;
+    if (driverUuid && !isUuid(driverUuid)) {
+      return NextResponse.json({ error: "driver_user_id must be a uuid." }, { status: 400 });
+    }
 
     const { rows } = await q(
       `
       INSERT INTO jobs (
         customer_id,
+        title,
+        scheduled_date,
+        created_by,
+        notes,
+        status,
         well_api,
         company_name,
         lease_well_name,
@@ -124,24 +151,23 @@ export async function POST(req) {
         requires_white_flags,
         select_anchors_installs_flags,
         mileage_multiplier,
-        scheduled_date,
         driver_user_id,
-        sort_order,
-        status,
-        created_by
+        sort_order
       )
       VALUES (
         $1,$2,$3,$4,$5,$6,
-        $7,$8,$9,
-        $10,$11,$12,$13,$14,
-        $15,$16,$17,
-        $18,$19,$20,
-        $21,$22
+        $7,$8,$9,$10,$11,$12,$13,$14,
+        $15,$16,$17,$18,$19,$20,$21,$22,$23,$24
       )
       RETURNING id
       `,
       [
-        customer_id ?? null,
+        customer_id,
+        computedTitle,
+        scheduled_date || null,
+        createdBy,
+        notes || null,
+        status || "pending",
         well_api || null,
         company_name || null,
         lease_well_name || null,
@@ -158,20 +184,14 @@ export async function POST(req) {
         !!requires_white_flags,
         !!select_anchors_installs_flags,
         Number(mileage_multiplier) || 1.0,
-        scheduled_date || null,
-        driver_user_id || null,
-        0,
-        status,
-        createdBy,
+        driverUuid,
+        Number(sort_order) || 0,
       ]
     );
 
     return NextResponse.json({ ok: true, id: rows[0].id }, { status: 201 });
   } catch (err) {
     console.error("[ADMIN/JOBS][POST] Error:", err);
-    return NextResponse.json(
-      { error: err?.message || "Failed to create job." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create job." }, { status: 500 });
   }
 }
