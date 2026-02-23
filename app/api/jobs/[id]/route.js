@@ -1,4 +1,4 @@
-// /app/api/jobs/[id]/route.js
+// app/api/jobs/[id]/route.js
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/nextauth-options";
@@ -15,8 +15,7 @@ export async function GET(_req, { params }) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  // NOTE: users.id is UUID string — do NOT cast to number
-  const userId = String(session.user.id);
+  const userId = String(session.user.id); // UUID string
   const role = session.user.role;
 
   try {
@@ -36,18 +35,18 @@ export async function GET(_req, { params }) {
 
     const job = rows[0];
 
-    // Staff can see everything
+    // staff can see all
     if (role === "admin" || role === "employee") {
       return NextResponse.json({ job });
     }
 
-    // Customers: only see jobs they created (for now)
+    // customers can only see their jobs
     if (role === "customer") {
-      const createdBy = job.created_by_user_id ? String(job.created_by_user_id) : null;
+      const ok =
+        (job.customer_id && String(job.customer_id) === userId) ||
+        (job.created_by && String(job.created_by) === userId);
 
-      if (createdBy && createdBy === userId) {
-        return NextResponse.json({ job });
-      }
+      if (ok) return NextResponse.json({ job });
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
