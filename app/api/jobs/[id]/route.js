@@ -6,7 +6,6 @@ import { q } from "@/lib/db";
 
 export async function GET(_req, { params }) {
   const session = await getServerSession(authOptions);
-
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -16,7 +15,7 @@ export async function GET(_req, { params }) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  // IMPORTANT: users.id is UUID → treat as string, never Number()
+  // NOTE: users.id is UUID string — do NOT cast to number
   const userId = String(session.user.id);
   const role = session.user.role;
 
@@ -37,20 +36,16 @@ export async function GET(_req, { params }) {
 
     const job = rows[0];
 
-    // Staff can view any job
+    // Staff can see everything
     if (role === "admin" || role === "employee") {
       return NextResponse.json({ job });
     }
 
-    // Customers: allow access if they are the customer OR creator
-    // (You can tighten this later when workflow is finalized)
-    const isCustomerMatch = job.customer_id && String(job.customer_id) === userId;
-    const isCreatorMatch = job.created_by && String(job.created_by) === userId;
-    const isCreatorUserIdMatch =
-      job.created_by_user_id && String(job.created_by_user_id) === userId;
-
+    // Customers: only see jobs they created (for now)
     if (role === "customer") {
-      if (isCustomerMatch || isCreatorMatch || isCreatorUserIdMatch) {
+      const createdBy = job.created_by_user_id ? String(job.created_by_user_id) : null;
+
+      if (createdBy && createdBy === userId) {
         return NextResponse.json({ job });
       }
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -59,9 +54,6 @@ export async function GET(_req, { params }) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   } catch (err) {
     console.error("[PUBLIC JOB][GET] Error:", err);
-    return NextResponse.json(
-      { error: "Failed to load job." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to load job." }, { status: 500 });
   }
 }
