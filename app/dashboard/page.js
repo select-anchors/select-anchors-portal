@@ -1,12 +1,52 @@
+// app/dashboard/page.js
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "@/app/components/NotLoggedIn";
+import WellsMap from "@/app/components/WellsMap";
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function statusFromExpiration(expirationDate, windowDays = 90) {
+  const d = daysUntil(expirationDate);
+  if (d === null) return "unknown";
+  if (d < 0) return "expired";
+  if (d <= windowDays) return "expiring";
+  return "good";
+}
+
+function StatusPill({ status }) {
+  const s = status || "unknown";
+  const cls =
+    s === "expired"
+      ? "bg-red-50 text-red-700 border-red-200"
+      : s === "expiring"
+        ? "bg-amber-50 text-amber-800 border-amber-200"
+        : s === "good"
+          ? "bg-green-50 text-green-700 border-green-200"
+          : "bg-gray-50 text-gray-600 border-gray-200";
+
+  const label =
+    s === "expired" ? "Expired" : s === "expiring" ? "Expiring Soon" : s === "good" ? "Good" : "Unknown";
+
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full border ${cls}`}>
+      {label}
+    </span>
+  );
+}
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
+
   const [stats, setStats] = useState({
     wells: 0,
     users: 0,
@@ -14,6 +54,12 @@ export default function DashboardPage() {
     upcomingTests: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
+
+  const [wells, setWells] = useState([]);
+  const [loadingWells, setLoadingWells] = useState(true);
+
+  const [expiringOnly, setExpiringOnly] = useState(false);
+  const EXPIRING_WINDOW_DAYS = 90;
 
   useEffect(() => {
     let isMounted = true;
@@ -33,6 +79,24 @@ export default function DashboardPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/wells", { cache: "no-store" });
+        const json = await res.json();
+        if (mounted) setWells(Array.isArray(json) ? json : []);
+      } catch {
+        if (mounted) setWells([]);
+      } finally {
+        if (mounted) setLoadingWells(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   if (status === "loading") return <div className="container py-10">Loading...</div>;
   if (!session) return <NotLoggedIn />;
 
@@ -47,11 +111,35 @@ export default function DashboardPage() {
     </span>
   );
 
+  const wellsWithStatus = useMemo(() => {
+    return (wells || []).map((w) => ({
+      ...w,
+      _status: statusFromExpiration(w.expiration_date, EXPIRING_WINDOW_DAYS),
+    }));
+  }, [wells]);
+
+  const filteredWells = useMemo(() => {
+    if (!expiringOnly) return wellsWithStatus;
+    return wellsWithStatus.filter((w) => w._status === "expiring" || w._status === "expired");
+  }, [wellsWithStatus, expiringOnly]);
+
   return (
     <div className="container py-10 space-y-6">
-      <h1 className="text-3xl font-bold">
-        Welcome, {session.user.name || "User"}!
-      </h1>
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="text-3xl font-bold">
+          Welcome, {session.user.name || "User"}!
+        </h1>
+
+        {/* Expiring-only toggle (esp. useful for customers) */}
+        <label className="flex items-center gap-2 text-sm bg-white border rounded-2xl px-4 py-2">
+          <input
+            type="checkbox"
+            checked={expiringOnly}
+            onChange={(e) => setExpiringOnly(e.target.checked)}
+          />
+          <span>Expiring Soon Only (≤{EXPIRING_WINDOW_DAYS}d)</span>
+        </label>
+      </div>
 
       {/* Quick metrics row */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -61,20 +149,23 @@ export default function DashboardPage() {
             {loadingStats ? "—" : stats.wells}
           </div>
         </div>
+
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
           <div className="text-xs uppercase text-gray-500 tracking-wider">Users</div>
           <div className="mt-1 text-2xl font-semibold">
             {loadingStats ? "—" : stats.users}
           </div>
         </div>
+
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
           <div className="text-xs uppercase text-gray-500 tracking-wider">
-            Upcoming Tests (≤30d)
+            Upcoming Tests (≤{EXPIRING_WINDOW_DAYS}d)
           </div>
           <div className="mt-1 text-2xl font-semibold">
             {loadingStats ? "—" : stats.upcomingTests}
           </div>
         </div>
+
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
           <div className="text-xs uppercase text-gray-500 tracking-wider">
             Pending Changes
@@ -84,6 +175,83 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Customer “wow” section: Map + Wells list */}
+      {isCustomer && (
+        <div className="space-y-4">
+          <WellsMap
+            wells={wells}
+            expiringWindowDays={EXPIRING_WINDOW_DAYS}
+            expiringOnly={expiringOnly}
+          />
+
+          <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
+            <div className="p-4 border-b flex items-center justify-between gap-4">
+              <div>
+                <div className="font-semibold">My Wells</div>
+                <div className="text-xs text-gray-500">
+                  Click a well to view details, or request a test in one click.
+                </div>
+              </div>
+              <Link
+                href="/wells"
+                className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
+              >
+                Open Wells Page →
+              </Link>
+            </div>
+
+            <div className="p-4">
+              {loadingWells ? (
+                <div className="text-sm text-gray-600">Loading wells…</div>
+              ) : filteredWells.length === 0 ? (
+                <div className="text-sm text-gray-600">
+                  {expiringOnly
+                    ? `No wells expiring within ${EXPIRING_WINDOW_DAYS} days.`
+                    : "No wells found."}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredWells.map((w) => (
+                    <div key={w.api} className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="font-semibold">{w.lease_well_name || "—"}</div>
+                        <div className="text-xs text-gray-600">
+                          API: <span className="font-mono">{w.api || "—"}</span>
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          Last test: {w.last_test_date || "—"} • Expires: {w.expiration_date || "—"}
+                        </div>
+                        <div className="mt-1">
+                          <StatusPill status={w._status} />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/wells/${encodeURIComponent(w.api)}`}
+                          className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
+                        >
+                          View
+                        </Link>
+
+                        <Link
+                          href={`/jobs/new?api=${encodeURIComponent(w.api || "")}&lease_well_name=${encodeURIComponent(
+                            w.lease_well_name || ""
+                          )}&company_name=${encodeURIComponent(w.company_name || "")}`}
+                          className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
+                        >
+                          Request Test
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Action cards */}
       <div className="grid md:grid-cols-3 gap-6">
@@ -108,7 +276,7 @@ export default function DashboardPage() {
             <CountBadge value={stats.wells} loading={loadingStats} />
           </h2>
           <p className="text-sm text-gray-600">
-            View or update well data, anchor test results, and recent site updates.
+            View well data, anchor test results, and expiration dates.
           </p>
         </Link>
 
@@ -118,7 +286,7 @@ export default function DashboardPage() {
         >
           <h2 className="text-xl font-semibold mb-2">Account</h2>
           <p className="text-sm text-gray-600">
-            Manage your login info, password, and notification preferences.
+            Manage your login info and notification preferences.
           </p>
         </Link>
 
@@ -156,7 +324,7 @@ export default function DashboardPage() {
             >
               <h2 className="text-xl font-semibold mb-2">Items & Pricing</h2>
               <p className="text-sm text-gray-600">
-                Manage anchor service types, test charges, and billing rates.
+                Manage service types, charges, and billing rates.
               </p>
             </Link>
           </>
