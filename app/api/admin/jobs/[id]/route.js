@@ -7,12 +7,14 @@ import { q } from "@/lib/db";
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
   if (!session || session.user?.role !== "admin") {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
   }
   return { session };
 }
 
-export async function GET(req, { params }) {
+export async function GET(_req, { params }) {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
 
@@ -21,10 +23,13 @@ export async function GET(req, { params }) {
 
   try {
     const { rows } = await q(
-      `SELECT j.*, u.name AS driver_name
-       FROM jobs j
-       LEFT JOIN users u ON j.driver_user_id = u.id
-       WHERE j.id = $1`,
+      `
+      SELECT j.*, u.name AS driver_name
+      FROM jobs j
+      LEFT JOIN users u ON j.driver_user_id = u.id
+      WHERE j.id = $1
+      LIMIT 1
+      `,
       [id]
     );
 
@@ -50,6 +55,7 @@ export async function PATCH(req, { params }) {
     const body = await req.json();
 
     const fields = [
+      "customer_id",
       "well_api",
       "company_name",
       "lease_well_name",
@@ -90,19 +96,28 @@ export async function PATCH(req, { params }) {
 
     values.push(id);
 
-    await q(
-      `UPDATE jobs SET ${updates.join(", ")} WHERE id = $${idx}`,
-      values
+    await q(`UPDATE jobs SET ${updates.join(", ")} WHERE id = $${idx}`, values);
+
+    // return fresh row
+    const { rows } = await q(
+      `
+      SELECT j.*, u.name AS driver_name
+      FROM jobs j
+      LEFT JOIN users u ON j.driver_user_id = u.id
+      WHERE j.id = $1
+      LIMIT 1
+      `,
+      [id]
     );
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, job: rows?.[0] || null });
   } catch (err) {
     console.error("[ADMIN/JOBS][PATCH]", err);
     return NextResponse.json({ error: "Failed to update job." }, { status: 500 });
   }
 }
 
-export async function DELETE(req, { params }) {
+export async function DELETE(_req, { params }) {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
 
