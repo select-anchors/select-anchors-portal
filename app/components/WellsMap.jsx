@@ -104,7 +104,8 @@ export default function WellsMap({
         const ll = parseLatLng(w.wellhead_coords);
         if (!ll) return null;
 
-        const status = statusFromExpiration(w.expiration_date, expiringWindowDays);
+        const exp = w.current_expires_at || w.latest_expires_at || w.expiration_date || w.expiration || null;
+const status = statusFromExpiration(exp, expiringWindowDays);
         return {
           ...w,
           latlng: ll,
