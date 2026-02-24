@@ -362,15 +362,7 @@ export default function EditWellPage({ params }) {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Need By</label>
-              <input
-                type="date"
-                className="w-full"
-                value={form.need_by || ""}
-                onChange={updateField("need_by")}
-              />
-            </div>
+            
           </div>
         </div>
 
