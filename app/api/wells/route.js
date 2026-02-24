@@ -26,10 +26,9 @@ export async function GET() {
           company_name,
           company_man_name,
 
-          -- Use "current" test summary first (from well_tests trigger),
-          -- fall back to legacy columns if they still exist/populated.
-          TO_CHAR(COALESCE(current_tested_at, last_test_date), 'YYYY-MM-DD') AS last_test_date,
-          TO_CHAR(COALESCE(current_expires_at, expiration_date), 'YYYY-MM-DD') AS expiration_date,
+          -- Use trigger-driven "current" fields as the source of truth
+          TO_CHAR(current_tested_at, 'YYYY-MM-DD') AS last_test_date,
+          TO_CHAR(current_expires_at, 'YYYY-MM-DD') AS expiration_date,
 
           status
         FROM wells
@@ -50,8 +49,8 @@ export async function GET() {
         wellhead_coords,
         company_name,
         company_man_name,
-        TO_CHAR(COALESCE(current_tested_at, last_test_date), 'YYYY-MM-DD') AS last_test_date,
-        TO_CHAR(COALESCE(current_expires_at, expiration_date), 'YYYY-MM-DD') AS expiration_date,
+        TO_CHAR(current_tested_at, 'YYYY-MM-DD') AS last_test_date,
+        TO_CHAR(current_expires_at, 'YYYY-MM-DD') AS expiration_date,
         status
       FROM wells
       WHERE customer_id = $1
@@ -64,11 +63,14 @@ export async function GET() {
     return NextResponse.json(rows);
   } catch (err) {
     console.error("GET /api/wells error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: String(err?.message || err) },
+      { status: 500 }
+    );
   }
 }
 
-// POST /api/wells -> create (left mostly as-is, but you should remove any columns you dropped)
+// POST /api/wells -> create
 export async function POST(req) {
   try {
     const body = await req.json();
@@ -92,6 +94,8 @@ export async function POST(req) {
       status = "pending",
       customer,
       customer_id,
+      county,
+      state,
     } = body;
 
     const { rows } = await q(
@@ -102,14 +106,16 @@ export async function POST(req) {
         company_man_name, company_man_email, company_man_phone,
         previous_anchor_work, directions_other_notes, previous_anchor_company,
         need_by, managed_by_company, status,
-        customer, customer_id
+        customer, customer_id,
+        county, state
       ) VALUES (
         $1,$2,$3,
         $4,$5,$6,$7,
         $8,$9,$10,
         $11,$12,$13,
         $14,$15,$16,
-        $17,$18
+        $17,$18,
+        $19,$20
       )
       RETURNING id, api
       `,
@@ -132,6 +138,8 @@ export async function POST(req) {
         status ?? "pending",
         customer ?? null,
         customer_id ?? null,
+        county ?? null,
+        state ?? null,
       ]
     );
 
@@ -139,7 +147,7 @@ export async function POST(req) {
   } catch (err) {
     console.error("POST /api/wells error:", err);
     return NextResponse.json(
-      { error: String(err.message || err) },
+      { error: String(err?.message || err) },
       { status: 400 }
     );
   }
