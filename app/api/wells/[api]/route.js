@@ -82,7 +82,6 @@ export async function PUT(req, { params }) {
       previous_anchor_company,
       previous_anchor_work,
       directions_other_notes,
-      need_by,
       managed_by_company,
       status,
       state,
