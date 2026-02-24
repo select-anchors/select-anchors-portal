@@ -4,7 +4,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
 import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function AdminWellsPage() {
@@ -14,9 +13,6 @@ export default function AdminWellsPage() {
   const [q, setQ] = useState("");
   const [error, setError] = useState("");
 
-  const searchParams = useSearchParams();
-  const editApi = searchParams.get("api");
-  const isEditing = searchParams.get("edit") === "1";
 
   useEffect(() => {
     let mounted = true;
@@ -108,35 +104,7 @@ export default function AdminWellsPage() {
           {error}
         </div>
       )}
-
-      {/* Simple edit banner so the Edit link feels alive */}
-      {isEditing && editApi && (
-        <div className="p-4 rounded-xl border bg-yellow-50 text-sm space-y-1">
-          <div className="font-semibold">
-            Editing well with API: <span className="font-mono">{editApi}</span>
-          </div>
-          {editingWell ? (
-            <div className="text-gray-700">
-              Lease/Well:{" "}
-              <span className="font-medium">
-                {editingWell.lease_well_name || "—"}
-              </span>{" "}
-              &mdash; Company:{" "}
-              <span className="font-medium">
-                {editingWell.company_name || "—"}
-              </span>
-            </div>
-          ) : (
-            <div className="text-gray-700">
-              (This well is not currently in the loaded list.)
-            </div>
-          )}
-          <div className="text-gray-600">
-            You can wire a full edit form here later, or route to a dedicated
-            <code className="px-1">/admin/wells/[api]/edit</code> page.
-          </div>
-        </div>
-      )}
+      
 
       <div className="flex gap-3">
         <input
