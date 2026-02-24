@@ -106,7 +106,6 @@ export async function PUT(req, { params }) {
         previous_anchor_company = $9,
         previous_anchor_work    = $10,
         directions_other_notes  = $11,
-        need_by                 = $12,
         managed_by_company      = $13,
         status                  = $14,
         state                   = $15,
@@ -157,8 +156,6 @@ export async function PUT(req, { params }) {
         emptyToNullText(previous_anchor_company),
         emptyToNullText(previous_anchor_work),
         emptyToNullText(directions_other_notes),
-
-        emptyToNullDate(need_by),
 
         emptyToNullText(managed_by_company),
         emptyToNullText(status),
