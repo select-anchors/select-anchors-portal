@@ -35,10 +35,18 @@ function StatusPill({ status }) {
           : "bg-gray-50 text-gray-600 border-gray-200";
 
   const label =
-    s === "expired" ? "Expired" : s === "expiring" ? "Expiring Soon" : s === "good" ? "Good" : "Unknown";
+    s === "expired"
+      ? "Expired"
+      : s === "expiring"
+        ? "Expiring Soon"
+        : s === "good"
+          ? "Good"
+          : "Unknown";
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full border ${cls}`}>
+    <span
+      className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full border ${cls}`}
+    >
       {label}
     </span>
   );
@@ -58,7 +66,10 @@ export default function DashboardPage() {
   const [wells, setWells] = useState([]);
   const [loadingWells, setLoadingWells] = useState(true);
 
-  const [expiringOnly, setExpiringOnly] = useState(false);
+  // NEW: separate toggles
+  const [showExpiring, setShowExpiring] = useState(false);
+  const [showExpired, setShowExpired] = useState(false);
+
   const EXPIRING_WINDOW_DAYS = 90;
 
   useEffect(() => {
@@ -97,7 +108,9 @@ export default function DashboardPage() {
     };
   }, []);
 
-  if (status === "loading") return <div className="container py-10">Loading...</div>;
+  if (status === "loading") {
+    return <div className="container py-10">Loading...</div>;
+  }
   if (!session) return <NotLoggedIn />;
 
   const role = session?.user?.role || "customer";
@@ -115,43 +128,73 @@ export default function DashboardPage() {
     return (wells || []).map((w) => ({
       ...w,
       _status: statusFromExpiration(w.expiration_date, EXPIRING_WINDOW_DAYS),
+      _days_left: daysUntil(w.expiration_date),
     }));
   }, [wells]);
 
+  // NEW: multi-toggle filtering
   const filteredWells = useMemo(() => {
-    if (!expiringOnly) return wellsWithStatus;
-    return wellsWithStatus.filter((w) => w._status === "expiring" || w._status === "expired");
-  }, [wellsWithStatus, expiringOnly]);
+    if (!showExpiring && !showExpired) return wellsWithStatus;
+
+    return wellsWithStatus.filter((w) => {
+      if (showExpiring && w._status === "expiring") return true;
+      if (showExpired && w._status === "expired") return true;
+      return false;
+    });
+  }, [wellsWithStatus, showExpiring, showExpired]);
+
+  const emptyFilterLabel = useMemo(() => {
+    if (!showExpiring && !showExpired) return "No wells found.";
+    if (showExpiring && showExpired)
+      return `No wells expiring within ${EXPIRING_WINDOW_DAYS} days (or already expired).`;
+    if (showExpiring) return `No wells expiring within ${EXPIRING_WINDOW_DAYS} days.`;
+    return "No expired wells.";
+  }, [showExpiring, showExpired]);
 
   return (
     <div className="container py-10 space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <h1 className="text-3xl font-bold">
           Welcome, {session.user.name || "User"}!
         </h1>
 
-        {/* Expiring-only toggle (esp. useful for customers) */}
-        <label className="flex items-center gap-2 text-sm bg-white border rounded-2xl px-4 py-2">
-          <input
-            type="checkbox"
-            checked={expiringOnly}
-            onChange={(e) => setExpiringOnly(e.target.checked)}
-          />
-          <span>Expiring Soon Only (≤{EXPIRING_WINDOW_DAYS}d)</span>
-        </label>
+        {/* NEW: Expiring + Expired toggles */}
+        <div className="flex gap-3 text-sm bg-white border rounded-2xl px-4 py-2">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showExpiring}
+              onChange={(e) => setShowExpiring(e.target.checked)}
+            />
+            <span>Expiring Soon (≤{EXPIRING_WINDOW_DAYS}d)</span>
+          </label>
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showExpired}
+              onChange={(e) => setShowExpired(e.target.checked)}
+            />
+            <span>Expired</span>
+          </label>
+        </div>
       </div>
 
       {/* Quick metrics row */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          <div className="text-xs uppercase text-gray-500 tracking-wider">Total Wells</div>
+          <div className="text-xs uppercase text-gray-500 tracking-wider">
+            Total Wells
+          </div>
           <div className="mt-1 text-2xl font-semibold">
             {loadingStats ? "—" : stats.wells}
           </div>
         </div>
 
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          <div className="text-xs uppercase text-gray-500 tracking-wider">Users</div>
+          <div className="text-xs uppercase text-gray-500 tracking-wider">
+            Users
+          </div>
           <div className="mt-1 text-2xl font-semibold">
             {loadingStats ? "—" : stats.users}
           </div>
@@ -182,7 +225,10 @@ export default function DashboardPage() {
           <WellsMap
             wells={wells}
             expiringWindowDays={EXPIRING_WINDOW_DAYS}
-            expiringOnly={expiringOnly}
+            // keep passing this if your map already supports it (optional)
+            expiringOnly={showExpiring || showExpired}
+            // OPTIONAL: if you want your map to respect the exact filtered list
+            // wells={filteredWells}
           />
 
           <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
@@ -205,22 +251,32 @@ export default function DashboardPage() {
               {loadingWells ? (
                 <div className="text-sm text-gray-600">Loading wells…</div>
               ) : filteredWells.length === 0 ? (
-                <div className="text-sm text-gray-600">
-                  {expiringOnly
-                    ? `No wells expiring within ${EXPIRING_WINDOW_DAYS} days.`
-                    : "No wells found."}
-                </div>
+                <div className="text-sm text-gray-600">{emptyFilterLabel}</div>
               ) : (
                 <div className="space-y-3">
                   {filteredWells.map((w) => (
-                    <div key={w.api} className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div
+                      key={w.api}
+                      className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                    >
                       <div className="space-y-1">
-                        <div className="font-semibold">{w.lease_well_name || "—"}</div>
+                        <div className="font-semibold">
+                          {w.lease_well_name || "—"}
+                        </div>
                         <div className="text-xs text-gray-600">
                           API: <span className="font-mono">{w.api || "—"}</span>
                         </div>
                         <div className="text-xs text-gray-600">
-                          Last test: {w.last_test_date || "—"} • Expires: {w.expiration_date || "—"}
+                          Last test: {w.last_test_date || "—"} • Expires:{" "}
+                          {w.expiration_date || "—"}
+                          {typeof w._days_left === "number" ? (
+                            <span className="ml-2 text-gray-500">
+                              ({w._days_left < 0
+                                ? `${Math.abs(w._days_left)}d past due`
+                                : `${w._days_left}d left`}
+                              )
+                            </span>
+                          ) : null}
                         </div>
                         <div className="mt-1">
                           <StatusPill status={w._status} />
@@ -236,9 +292,13 @@ export default function DashboardPage() {
                         </Link>
 
                         <Link
-                          href={`/jobs/new?api=${encodeURIComponent(w.api || "")}&lease_well_name=${encodeURIComponent(
+                          href={`/jobs/new?api=${encodeURIComponent(
+                            w.api || ""
+                          )}&lease_well_name=${encodeURIComponent(
                             w.lease_well_name || ""
-                          )}&company_name=${encodeURIComponent(w.company_name || "")}`}
+                          )}&company_name=${encodeURIComponent(
+                            w.company_name || ""
+                          )}`}
                           className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
                         >
                           Request Test
