@@ -123,27 +123,29 @@ function emptyToNullDate(v) {
         TO_CHAR(current_expires_at, 'YYYY-MM-DD') AS current_expires_at
       `,
       [
-        lease_well_name ?? null,
-        company_name ?? null,
-        company_email ?? null,
-        company_phone ?? null,
-        company_address ?? null,
-        company_man_name ?? null,
-        company_man_email ?? null,
-        company_man_phone ?? null,
-        previous_anchor_company ?? null,
-        previous_anchor_work ?? null,
-        directions_other_notes ?? null,
-        need_by ?? null,
-        managed_by_company ?? null,
-        status ?? null,
-        state ?? null,
-        county ?? null,
-        wellhead_coords ?? null,
-        customer ?? null,
-        customer_id ?? null,
-        api,
-      ]
+  lease_well_name ?? null,
+  company_name ?? null,
+  company_email ?? null,
+  company_phone ?? null,
+  company_address ?? null,
+  company_man_name ?? null,
+  company_man_email ?? null,
+  company_man_phone ?? null,
+  previous_anchor_company ?? null,
+  previous_anchor_work ?? null,
+  directions_other_notes ?? null,
+
+  emptyToNullDate(need_by),
+
+  managed_by_company ?? null,
+  status ?? null,
+  state ?? null,
+  county ?? null,
+  wellhead_coords ?? null,
+  customer ?? null,
+  customer_id ?? null,
+  api,
+]
     );
 
     if (rows.length === 0) {
