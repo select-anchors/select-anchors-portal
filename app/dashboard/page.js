@@ -220,7 +220,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Customer “wow” section: Map + Wells list */}
-      {isCustomer && (
+      {(isCustomer || isAdmin || isEmployee) && (
         <div className="space-y-4">
           <WellsMap
             wells={wells}
