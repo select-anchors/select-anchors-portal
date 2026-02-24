@@ -7,34 +7,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import NotLoggedIn from "@/app/components/NotLoggedIn";
 
-function isValidLatLng(v) {
-  if (!v) return true; // allow blank
-  const s = String(v).trim();
-  // "32.123,-103.456" (spaces allowed after comma)
-  if (!/^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(s)) return false;
-
-  const [latStr, lngStr] = s.split(",").map((x) => x.trim());
-  const lat = Number(latStr);
-  const lng = Number(lngStr);
-  if (Number.isNaN(lat) || Number.isNaN(lng)) return false;
-  if (lat < -90 || lat > 90) return false;
-  if (lng < -180 || lng > 180) return false;
-  return true;
-}
-
-function cleanDate(value) {
-  // HTML date input gives "" when empty; DB wants null
-  if (!value) return null;
-  const s = String(value).trim();
-  return s ? s : null;
-}
-
-function cleanText(value) {
-  if (value === undefined || value === null) return null;
-  const s = String(value).trim();
-  return s === "" ? null : s;
-}
-
 export default function EditWellPage({ params }) {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -45,25 +17,32 @@ export default function EditWellPage({ params }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // Editable fields only
   const [form, setForm] = useState({
     lease_well_name: "",
+    wellhead_coords: "",
+    state: "",
+    county: "",
+
     company_name: "",
     company_email: "",
     company_phone: "",
     company_address: "",
+
     company_man_name: "",
     company_man_email: "",
     company_man_phone: "",
+
     previous_anchor_work: "",
     directions_other_notes: "",
-    last_test_date: "",
-    expiration_date: "",
+
     need_by: "",
-    managed_by_company: "",
-    status: "",
-    wellhead_coords: "", // ✅ NEW
-    county: "", // ✅ optional (your DB has county)
-    customer: "", // ✅ DB requires customer NOT NULL in your screenshots
+  });
+
+  // Read-only display fields (derived from tests)
+  const [display, setDisplay] = useState({
+    current_tested_at: "",
+    current_expires_at: "",
   });
 
   // Auth checks
@@ -96,23 +75,28 @@ export default function EditWellPage({ params }) {
 
         setForm({
           lease_well_name: w.lease_well_name || "",
+          wellhead_coords: w.wellhead_coords || "",
+          state: w.state || "",
+          county: w.county || "",
+
           company_name: w.company_name || "",
           company_email: w.company_email || "",
           company_phone: w.company_phone || "",
           company_address: w.company_address || "",
+
           company_man_name: w.company_man_name || "",
           company_man_email: w.company_man_email || "",
           company_man_phone: w.company_man_phone || "",
+
           previous_anchor_work: w.previous_anchor_work || "",
           directions_other_notes: w.directions_other_notes || "",
-          last_test_date: w.last_test_date || "",
-          expiration_date: w.expiration_date || "",
+
           need_by: w.need_by || "",
-          managed_by_company: w.managed_by_company || "",
-          status: w.status || "",
-          wellhead_coords: w.wellhead_coords || "", // ✅ NEW
-          county: w.county || "",
-          customer: w.customer || "",
+        });
+
+        setDisplay({
+          current_tested_at: w.current_tested_at || "",
+          current_expires_at: w.current_expires_at || "",
         });
 
         setError("");
@@ -145,50 +129,25 @@ export default function EditWellPage({ params }) {
     setSuccess("");
 
     try {
-      // ✅ validate coords
-      if (!isValidLatLng(form.wellhead_coords)) {
-        throw new Error(
-          "Wellhead Coords must be in format: lat,lng (example: 32.345678,-103.456789)"
-        );
-      }
-
-      // ✅ IMPORTANT: convert empty strings to null for DB
-      const payload = {
-        lease_well_name: cleanText(form.lease_well_name),
-        company_name: cleanText(form.company_name),
-        company_email: cleanText(form.company_email),
-        company_phone: cleanText(form.company_phone),
-        company_address: cleanText(form.company_address),
-        company_man_name: cleanText(form.company_man_name),
-        company_man_email: cleanText(form.company_man_email),
-        company_man_phone: cleanText(form.company_man_phone),
-        previous_anchor_work: cleanText(form.previous_anchor_work),
-        directions_other_notes: cleanText(form.directions_other_notes),
-
-        last_test_date: cleanDate(form.last_test_date),
-        expiration_date: cleanDate(form.expiration_date),
-        need_by: cleanDate(form.need_by),
-
-        managed_by_company: cleanText(form.managed_by_company),
-        status: cleanText(form.status),
-
-        // ✅ NEW
-        wellhead_coords: cleanText(form.wellhead_coords),
-
-        // these exist in your DB column list; keep them editable so inserts/updates don't break
-        county: cleanText(form.county),
-        customer: cleanText(form.customer) || "Unknown", // DB appears to require NOT NULL
-      };
-
       const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(form),
       });
 
-      const j = await res.json().catch(() => ({}));
       if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
         throw new Error(j.error || "Failed to save changes.");
+      }
+
+      const updated = await res.json().catch(() => null);
+
+      // Update read-only display fields too (in case triggers changed anything)
+      if (updated) {
+        setDisplay({
+          current_tested_at: updated.current_tested_at || "",
+          current_expires_at: updated.current_expires_at || "",
+        });
       }
 
       setSuccess("Well updated successfully.");
@@ -247,6 +206,7 @@ export default function EditWellPage({ params }) {
         {/* Lease / Well Info */}
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Lease / Well Info</h2>
+
           <div>
             <label className="block text-sm text-gray-600 mb-1">
               Lease / Well Name
@@ -258,16 +218,15 @@ export default function EditWellPage({ params }) {
             />
           </div>
 
-          {/* ✅ NEW: wellhead coords */}
           <div>
             <label className="block text-sm text-gray-600 mb-1">
               Wellhead Coords (lat,lng)
             </label>
             <input
-              className="w-full font-mono"
-              placeholder="32.345678,-103.456789"
+              className="w-full"
               value={form.wellhead_coords}
               onChange={updateField("wellhead_coords")}
+              placeholder="33.21372, -103.067766"
             />
             <div className="text-xs text-gray-500 mt-1">
               Optional. Format: <span className="font-mono">lat,lng</span>
@@ -284,12 +243,12 @@ export default function EditWellPage({ params }) {
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Customer</label>
+              <label className="block text-sm text-gray-600 mb-1">State</label>
               <input
                 className="w-full"
-                placeholder="Required (use company/operator name)"
-                value={form.customer}
-                onChange={updateField("customer")}
+                value={form.state}
+                onChange={updateField("state")}
+                placeholder="NM"
               />
             </div>
           </div>
@@ -376,29 +335,33 @@ export default function EditWellPage({ params }) {
         {/* Dates & Status */}
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Dates & Status</h2>
+
           <div className="grid md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">
-                Last Test Date
+                Last Test Date (from tests)
               </label>
               <input
-                type="date"
-                className="w-full"
-                value={form.last_test_date || ""}
-                onChange={updateField("last_test_date")}
+                className="w-full bg-gray-50"
+                value={display.current_tested_at || ""}
+                readOnly
               />
             </div>
+
             <div>
               <label className="block text-sm text-gray-600 mb-1">
-                Expiration Date
+                Expiration Date (from tests)
               </label>
               <input
-                type="date"
-                className="w-full"
-                value={form.expiration_date || ""}
-                onChange={updateField("expiration_date")}
+                className="w-full bg-gray-50 font-semibold"
+                value={display.current_expires_at || ""}
+                readOnly
               />
+              <div className="text-xs text-gray-500 mt-1">
+                This is auto-calculated from the latest well test.
+              </div>
             </div>
+
             <div>
               <label className="block text-sm text-gray-600 mb-1">Need By</label>
               <input
@@ -406,28 +369,6 @@ export default function EditWellPage({ params }) {
                 className="w-full"
                 value={form.need_by || ""}
                 onChange={updateField("need_by")}
-              />
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Managed By Company
-              </label>
-              <input
-                className="w-full"
-                value={form.managed_by_company}
-                onChange={updateField("managed_by_company")}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Status</label>
-              <input
-                className="w-full"
-                placeholder="e.g. pending, active, expired"
-                value={form.status}
-                onChange={updateField("status")}
               />
             </div>
           </div>
