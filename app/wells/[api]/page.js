@@ -107,14 +107,13 @@ export default function WellDetailPage({ params }) {
 
         <div className="flex flex-wrap gap-2">
           {isStaff && (
-            <Link
-              href={`/admin/wells?api=${encodeURIComponent(
-                w.api
-              )}&edit=1`}
-              className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
-            >
-              Edit
-            </Link>
+  <Link
+    href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
+    className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
+  >
+    Edit
+  </Link>
+)}
           )}
           <Link
             href={isStaff ? "/admin/wells" : "/wells"}
