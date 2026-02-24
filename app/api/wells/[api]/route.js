@@ -51,7 +51,10 @@ export async function GET(_req, { params }) {
     return NextResponse.json(rows[0]);
   } catch (err) {
     console.error("GET /api/wells/[api] error:", err);
-    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
+    return NextResponse.json(
+      { error: String(err?.message || err) },
+      { status: 500 }
+    );
   }
 }
 
@@ -80,12 +83,12 @@ export async function PUT(req, { params }) {
       customer,
       customer_id,
 
-      // ✅ editable from admin page, affects well_tests:
+      // editable from admin page:
       current_tested_at,
       current_expires_at,
     } = body;
 
-    // 1) Update the base well record (non-test fields)
+    // 1) Update the base wells record (non-test fields)
     const updatedWell = await q(
       `
       UPDATE wells
@@ -154,20 +157,19 @@ export async function PUT(req, { params }) {
 
       if (hasAnyValue) {
         if (currentTestId) {
-          // Update the "current" test row
+          // Update the "current" test row (NO updated_at column used)
           await q(
             `
             UPDATE well_tests
             SET
-              tested_at = COALESCE($1, tested_at),
-              expires_at = $2,
-              updated_at = NOW()
+              tested_at  = COALESCE($1, tested_at),
+              expires_at = $2
             WHERE id = $3
             `,
             [testedAt, expiresAt, currentTestId]
           );
         } else {
-          // Create a new test row; your trigger should set wells.current_* accordingly
+          // Create a new test row; trigger should update wells.current_* fields
           await q(
             `
             INSERT INTO well_tests (
@@ -183,7 +185,7 @@ export async function PUT(req, { params }) {
       }
     }
 
-    // 3) Return full refreshed record
+    // 3) Return refreshed well record
     const { rows } = await q(
       `
       SELECT
@@ -215,6 +217,9 @@ export async function PUT(req, { params }) {
     return NextResponse.json(rows[0]);
   } catch (err) {
     console.error("PUT /api/wells/[api] error:", err);
-    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
+    return NextResponse.json(
+      { error: String(err?.message || err) },
+      { status: 500 }
+    );
   }
 }
