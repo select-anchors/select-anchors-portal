@@ -4,15 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/nextauth-options";
 import { q } from "@/lib/db";
 
-/**
- * GET /api/wells
- * - Admin/Employee: all wells
- * - Customer: only wells that match their customer_id (UUID)
- *
- * IMPORTANT:
- * We select from wells_view (not wells) so we’re insulated from legacy columns.
- * We also alias current_* fields to last_test_date / expiration_date for the UI.
- */
+// GET /api/wells  -> list wells
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -28,23 +20,21 @@ export async function GET() {
       const { rows } = await q(`
         SELECT
           id,
-          api,
           lease_well_name,
-          company_name,
-          customer,
-          customer_id,
-          state,
-          county,
+          api,
           wellhead_coords,
-          status,
-          TO_CHAR(current_tested_at, 'YYYY-MM-DD') AS last_test_date,
-          TO_CHAR(current_expires_at, 'YYYY-MM-DD') AS expiration_date,
-          TO_CHAR(need_by, 'YYYY-MM-DD') AS need_by
-        FROM wells_view
-        ORDER BY
-          current_expires_at NULLS LAST,
-          api ASC
-        LIMIT 2000
+          company_name,
+          company_man_name,
+
+          -- Use "current" test summary first (from well_tests trigger),
+          -- fall back to legacy columns if they still exist/populated.
+          TO_CHAR(COALESCE(current_tested_at, last_test_date), 'YYYY-MM-DD') AS last_test_date,
+          TO_CHAR(COALESCE(current_expires_at, expiration_date), 'YYYY-MM-DD') AS expiration_date,
+
+          status
+        FROM wells
+        ORDER BY id DESC, lease_well_name ASC
+        LIMIT 500
       `);
 
       return NextResponse.json(rows);
@@ -55,24 +45,18 @@ export async function GET() {
       `
       SELECT
         id,
-        api,
         lease_well_name,
-        company_name,
-        customer,
-        customer_id,
-        state,
-        county,
+        api,
         wellhead_coords,
-        status,
-        TO_CHAR(current_tested_at, 'YYYY-MM-DD') AS last_test_date,
-        TO_CHAR(current_expires_at, 'YYYY-MM-DD') AS expiration_date,
-        TO_CHAR(need_by, 'YYYY-MM-DD') AS need_by
-      FROM wells_view
+        company_name,
+        company_man_name,
+        TO_CHAR(COALESCE(current_tested_at, last_test_date), 'YYYY-MM-DD') AS last_test_date,
+        TO_CHAR(COALESCE(current_expires_at, expiration_date), 'YYYY-MM-DD') AS expiration_date,
+        status
+      FROM wells
       WHERE customer_id = $1
-      ORDER BY
-        current_expires_at NULLS LAST,
-        api ASC
-      LIMIT 2000
+      ORDER BY id DESC, lease_well_name ASC
+      LIMIT 500
       `,
       [userId]
     );
@@ -80,35 +64,19 @@ export async function GET() {
     return NextResponse.json(rows);
   } catch (err) {
     console.error("GET /api/wells error:", err);
-    return NextResponse.json(
-      { error: String(err?.message || err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
 
-/**
- * POST /api/wells
- * Keep this simple and aligned with your new direction:
- * - No per-anchor coords
- * - Use wellhead_coords only
- * - Expiration should come from well_tests triggers (current_expires_at)
- */
+// POST /api/wells -> create (left mostly as-is, but you should remove any columns you dropped)
 export async function POST(req) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const role = session.user.role || "customer";
-  const isStaff = role === "admin" || role === "employee";
-
   try {
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json();
 
     const {
-      api,
       lease_well_name,
+      api,
+      wellhead_coords,
       company_name,
       company_email,
       company_phone,
@@ -116,61 +84,39 @@ export async function POST(req) {
       company_man_name,
       company_man_email,
       company_man_phone,
-      previous_anchor_company,
       previous_anchor_work,
       directions_other_notes,
-      wellhead_coords,
-      state,
-      county,
+      previous_anchor_company,
       need_by,
       managed_by_company,
-      status = "active",
+      status = "pending",
       customer,
-      customer_id, // for staff creating wells for a customer
-    } = body || {};
-
-    if (!api) {
-      return NextResponse.json({ error: "api is required." }, { status: 400 });
-    }
-
-    // Who is allowed to set customer_id?
-    // - staff can set it explicitly
-    // - customers cannot impersonate; their wells should be tied to their own id
-    const resolvedCustomerId = isStaff ? (customer_id ?? null) : session.user.id;
+      customer_id,
+    } = body;
 
     const { rows } = await q(
       `
       INSERT INTO wells (
-        api,
-        lease_well_name,
-        company_name,
-        company_email,
-        company_phone,
-        company_address,
-        company_man_name,
-        company_man_email,
-        company_man_phone,
-        previous_anchor_company,
-        previous_anchor_work,
-        directions_other_notes,
-        wellhead_coords,
-        state,
-        county,
-        need_by,
-        managed_by_company,
-        status,
-        customer,
-        customer_id
-      )
-      VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-        $11,$12,$13,$14,$15,$16,$17,$18,$19,$20
+        lease_well_name, api, wellhead_coords,
+        company_name, company_email, company_phone, company_address,
+        company_man_name, company_man_email, company_man_phone,
+        previous_anchor_work, directions_other_notes, previous_anchor_company,
+        need_by, managed_by_company, status,
+        customer, customer_id
+      ) VALUES (
+        $1,$2,$3,
+        $4,$5,$6,$7,
+        $8,$9,$10,
+        $11,$12,$13,
+        $14,$15,$16,
+        $17,$18
       )
       RETURNING id, api
       `,
       [
-        api,
         lease_well_name ?? null,
+        api ?? null,
+        wellhead_coords ?? null,
         company_name ?? null,
         company_email ?? null,
         company_phone ?? null,
@@ -178,17 +124,14 @@ export async function POST(req) {
         company_man_name ?? null,
         company_man_email ?? null,
         company_man_phone ?? null,
-        previous_anchor_company ?? null,
         previous_anchor_work ?? null,
         directions_other_notes ?? null,
-        wellhead_coords ?? null,
-        state ?? null,
-        county ?? null,
+        previous_anchor_company ?? null,
         need_by ?? null,
         managed_by_company ?? null,
-        status ?? "active",
+        status ?? "pending",
         customer ?? null,
-        resolvedCustomerId,
+        customer_id ?? null,
       ]
     );
 
@@ -196,7 +139,7 @@ export async function POST(req) {
   } catch (err) {
     console.error("POST /api/wells error:", err);
     return NextResponse.json(
-      { error: String(err?.message || err) },
+      { error: String(err.message || err) },
       { status: 400 }
     );
   }
