@@ -51,7 +51,10 @@ export async function PUT(req, { params }) {
   try {
     const api = decodeURIComponent(params.api);
     const body = await req.json();
-
+function emptyToNullDate(v) {
+  if (v === "" || v === undefined) return null;
+  return v; // allow null or "YYYY-MM-DD"
+}
     const {
       lease_well_name,
       company_name,
