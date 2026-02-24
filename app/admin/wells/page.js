@@ -12,6 +12,7 @@ export default function AdminWellsPage() {
   const [wells, setWells] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [error, setError] = useState("");
 
   const searchParams = useSearchParams();
   const editApi = searchParams.get("api");
@@ -22,10 +23,20 @@ export default function AdminWellsPage() {
 
     (async () => {
       try {
+        setError("");
+        setLoading(true);
+
         const res = await fetch("/api/wells", { cache: "no-store" });
-        const json = await res.json();
+        const json = await res.json().catch(() => ({}));
 
         if (!mounted) return;
+
+        // If API returned an error, show it (instead of silently showing "No wells found")
+        if (!res.ok) {
+          setWells([]);
+          setError(json?.error || "Failed to load wells.");
+          return;
+        }
 
         let data = [];
 
@@ -36,12 +47,19 @@ export default function AdminWellsPage() {
         // Future-proof: if we ever return { wells: [...] }
         else if (Array.isArray(json?.wells)) {
           data = json.wells;
+        } else {
+          // Unexpected shape
+          data = [];
+          setError("Unexpected response from /api/wells.");
         }
 
         setWells(data);
       } catch (err) {
         console.error("Error loading wells (admin page):", err);
-        if (mounted) setWells([]);
+        if (mounted) {
+          setWells([]);
+          setError(err?.message || "Failed to load wells.");
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -84,6 +102,12 @@ export default function AdminWellsPage() {
           New Well
         </Link>
       </div>
+
+      {error && (
+        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* Simple edit banner so the Edit link feels alive */}
       {isEditing && editApi && (
@@ -169,11 +193,11 @@ export default function AdminWellsPage() {
                         View
                       </Link>
                       <Link
-  href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
-  className="underline"
->
-  Edit
-</Link>
+                        href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
+                        className="underline"
+                      >
+                        Edit
+                      </Link>
                     </div>
                   </td>
                 </tr>
