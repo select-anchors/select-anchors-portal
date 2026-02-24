@@ -184,13 +184,13 @@ export default function WellDetailPage({ params }) {
               You can wire those in here later as needed. */}
           <div className="space-y-3">
             <div>
-              <div className="text-sm text-gray-600">Last Test Date</div>
-              <div className="font-medium">{fmtDate(w.last_test_date)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600">Expiration Date</div>
-              <div className="font-medium">{fmtDate(w.expiration_date)}</div>
-            </div>
+  <div className="text-sm text-gray-600">Last Test Date</div>
+  <div className="font-medium">{fmtDate(w.current_tested_at)}</div>
+</div>
+<div>
+  <div className="text-sm text-gray-600">Expiration Date</div>
+  <div className="font-medium">{fmtDate(w.current_expires_at)}</div>
+</div>
           </div>
         </div>
       </div>
