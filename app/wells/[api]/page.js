@@ -106,22 +106,22 @@ export default function WellDetailPage({ params }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {isStaff && (
+  {isStaff && (
+    <Link
+      href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
+      className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
+    >
+      Edit
+    </Link>
+  )}
+
   <Link
-    href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
-    className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
+    href={isStaff ? "/admin/wells" : "/wells"}
+    className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
   >
-    Edit
+    All Wells
   </Link>
-)}
-          )}
-          <Link
-            href={isStaff ? "/admin/wells" : "/wells"}
-            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
-          >
-            All Wells
-          </Link>
-        </div>
+</div>
       </div>
 
       {/* Company Card */}
