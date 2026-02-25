@@ -1,61 +1,43 @@
 // app/admin/wells/page.js
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 export default function AdminWellsPage() {
   const { data: session, status } = useSession();
+  const searchParams = useSearchParams();
+
+  // ✅ ALWAYS define these inside the component
+  const editApi = searchParams.get("api");
+  const isEditing = searchParams.get("edit") === "1";
+
   const [wells, setWells] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState("");
-  const [error, setError] = useState("");
-
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     let mounted = true;
 
     (async () => {
       try {
-        setError("");
         setLoading(true);
-
         const res = await fetch("/api/wells", { cache: "no-store" });
-        const json = await res.json().catch(() => ({}));
+        const json = await res.json();
 
         if (!mounted) return;
 
-        // If API returned an error, show it (instead of silently showing "No wells found")
-        if (!res.ok) {
-          setWells([]);
-          setError(json?.error || "Failed to load wells.");
-          return;
-        }
-
         let data = [];
-
-        // Current API shape: plain array
-        if (Array.isArray(json)) {
-          data = json;
-        }
-        // Future-proof: if we ever return { wells: [...] }
-        else if (Array.isArray(json?.wells)) {
-          data = json.wells;
-        } else {
-          // Unexpected shape
-          data = [];
-          setError("Unexpected response from /api/wells.");
-        }
+        if (Array.isArray(json)) data = json;
+        else if (Array.isArray(json?.wells)) data = json.wells;
 
         setWells(data);
       } catch (err) {
         console.error("Error loading wells (admin page):", err);
-        if (mounted) {
-          setWells([]);
-          setError(err?.message || "Failed to load wells.");
-        }
+        if (mounted) setWells([]);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -73,19 +55,26 @@ export default function AdminWellsPage() {
   const canSee = role === "admin" || role === "employee";
   if (!canSee) return <div className="container py-8">Not authorized.</div>;
 
-  const filtered = q
-    ? wells.filter(
-        (w) =>
-          (w.lease_well_name || "").toLowerCase().includes(q.toLowerCase()) ||
-          (w.api || "").toLowerCase().includes(q.toLowerCase()) ||
-          (w.company_name || "").toLowerCase().includes(q.toLowerCase())
-      )
-    : wells;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return wells;
+
+    return wells.filter((w) => {
+      const lease = (w.lease_well_name || "").toLowerCase();
+      const api = (w.api || "").toLowerCase();
+      const company = (w.company_name || "").toLowerCase();
+      const companyMan = (w.company_man_name || "").toLowerCase();
+      return (
+        lease.includes(q) ||
+        api.includes(q) ||
+        company.includes(q) ||
+        companyMan.includes(q)
+      );
+    });
+  }, [query, wells]);
 
   const editingWell =
-    isEditing && editApi
-      ? wells.find((w) => w.api === editApi) ?? null
-      : null;
+    isEditing && editApi ? wells.find((w) => w.api === editApi) ?? null : null;
 
   return (
     <div className="container py-8 space-y-6">
@@ -99,19 +88,40 @@ export default function AdminWellsPage() {
         </Link>
       </div>
 
-      {error && (
-        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
-          {error}
+      {isEditing && editApi && (
+        <div className="p-4 rounded-xl border bg-yellow-50 text-sm space-y-1">
+          <div className="font-semibold">
+            Editing well with API: <span className="font-mono">{editApi}</span>
+          </div>
+          {editingWell ? (
+            <div className="text-gray-700">
+              Lease/Well:{" "}
+              <span className="font-medium">
+                {editingWell.lease_well_name || "—"}
+              </span>{" "}
+              — Company:{" "}
+              <span className="font-medium">
+                {editingWell.company_name || "—"}
+              </span>
+            </div>
+          ) : (
+            <div className="text-gray-700">(This well is not in the loaded list.)</div>
+          )}
+          <div className="text-gray-600">
+            Tip: You can jump to the full edit page:
+            <span className="ml-2">
+              <code className="px-1">/admin/wells/[api]/edit</code>
+            </span>
+          </div>
         </div>
       )}
-      
 
       <div className="flex gap-3">
         <input
-          placeholder="Search by API, Lease/Well Name, Company…"
+          placeholder="Search by API, Lease/Well Name, Company, Company Man…"
           className="w-full"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
         />
       </div>
 
