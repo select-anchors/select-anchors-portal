@@ -29,19 +29,19 @@ function StatusPill({ status }) {
     s === "expired"
       ? "bg-red-50 text-red-700 border-red-200"
       : s === "expiring"
-        ? "bg-amber-50 text-amber-800 border-amber-200"
-        : s === "good"
-          ? "bg-green-50 text-green-700 border-green-200"
-          : "bg-gray-50 text-gray-600 border-gray-200";
+      ? "bg-amber-50 text-amber-800 border-amber-200"
+      : s === "good"
+      ? "bg-green-50 text-green-700 border-green-200"
+      : "bg-gray-50 text-gray-600 border-gray-200";
 
   const label =
     s === "expired"
       ? "Expired"
       : s === "expiring"
-        ? "Expiring Soon"
-        : s === "good"
-          ? "Good"
-          : "Unknown";
+      ? "Expiring Soon"
+      : s === "good"
+      ? "Good"
+      : "Unknown";
 
   return (
     <span
@@ -49,6 +49,27 @@ function StatusPill({ status }) {
     >
       {label}
     </span>
+  );
+}
+
+// Safely parse JSON even if the server returns 500/HTML/empty body
+async function safeJson(res) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// Normalize the expiration field during your pivot.
+// Dashboard will work whether API returns expiration_date OR current_expires_at.
+function getExpirationDate(well) {
+  return (
+    well?.expiration_date ||
+    well?.current_expires_at ||
+    well?.expires_at ||
+    well?.expires ||
+    null
   );
 }
 
@@ -66,7 +87,7 @@ export default function DashboardPage() {
   const [wells, setWells] = useState([]);
   const [loadingWells, setLoadingWells] = useState(true);
 
-  // NEW: separate toggles
+  // Toggles
   const [showExpiring, setShowExpiring] = useState(false);
   const [showExpired, setShowExpired] = useState(false);
 
@@ -74,17 +95,34 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let isMounted = true;
+
     (async () => {
       try {
         const res = await fetch("/api/stats", { cache: "no-store" });
-        const json = await res.json();
-        if (isMounted) setStats(json);
+
+        // If server throws 500, do NOT crash rendering
+        const json = await safeJson(res);
+
+        if (!isMounted) return;
+
+        if (res.ok && json && typeof json === "object") {
+          setStats({
+            wells: Number(json.wells) || 0,
+            users: Number(json.users) || 0,
+            pendingChanges: Number(json.pendingChanges) || 0,
+            upcomingTests: Number(json.upcomingTests) || 0,
+          });
+        } else {
+          // keep defaults
+          setStats((s) => s);
+        }
       } catch {
-        // leave defaults
+        // keep defaults
       } finally {
         if (isMounted) setLoadingStats(false);
       }
     })();
+
     return () => {
       isMounted = false;
     };
@@ -92,17 +130,29 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
         const res = await fetch("/api/wells", { cache: "no-store" });
-        const json = await res.json();
-        if (mounted) setWells(Array.isArray(json) ? json : []);
+        const json = await safeJson(res);
+
+        if (!mounted) return;
+
+        if (res.ok && Array.isArray(json)) {
+          setWells(json);
+        } else if (res.ok && json && Array.isArray(json.wells)) {
+          // if your API ever returns { wells: [...] }
+          setWells(json.wells);
+        } else {
+          setWells([]);
+        }
       } catch {
         if (mounted) setWells([]);
       } finally {
         if (mounted) setLoadingWells(false);
       }
     })();
+
     return () => {
       mounted = false;
     };
@@ -125,14 +175,17 @@ export default function DashboardPage() {
   );
 
   const wellsWithStatus = useMemo(() => {
-    return (wells || []).map((w) => ({
-      ...w,
-      _status: statusFromExpiration(w.expiration_date, EXPIRING_WINDOW_DAYS),
-      _days_left: daysUntil(w.expiration_date),
-    }));
+    return (wells || []).map((w) => {
+      const exp = getExpirationDate(w);
+      return {
+        ...w,
+        _expiration: exp,
+        _status: statusFromExpiration(exp, EXPIRING_WINDOW_DAYS),
+        _days_left: daysUntil(exp),
+      };
+    });
   }, [wells]);
 
-  // NEW: multi-toggle filtering
   const filteredWells = useMemo(() => {
     if (!showExpiring && !showExpired) return wellsWithStatus;
 
@@ -155,10 +208,9 @@ export default function DashboardPage() {
     <div className="container py-10 space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <h1 className="text-3xl font-bold">
-          Welcome, {session.user.name || "User"}!
+          Welcome, {session?.user?.name || "User"}!
         </h1>
 
-        {/* NEW: Expiring + Expired toggles */}
         <div className="flex gap-3 text-sm bg-white border rounded-2xl px-4 py-2">
           <label className="flex items-center gap-2">
             <input
@@ -219,16 +271,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Customer “wow” section: Map + Wells list */}
       {(isCustomer || isAdmin || isEmployee) && (
         <div className="space-y-4">
           <WellsMap
-            wells={wells}
+            wells={filteredWells}
             expiringWindowDays={EXPIRING_WINDOW_DAYS}
-            // keep passing this if your map already supports it (optional)
             expiringOnly={showExpiring || showExpired}
-            // OPTIONAL: if you want your map to respect the exact filtered list
-            // wells={filteredWells}
           />
 
           <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
@@ -254,58 +302,61 @@ export default function DashboardPage() {
                 <div className="text-sm text-gray-600">{emptyFilterLabel}</div>
               ) : (
                 <div className="space-y-3">
-                  {filteredWells.map((w) => (
-                    <div
-                      key={w.api}
-                      className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
-                    >
-                      <div className="space-y-1">
-                        <div className="font-semibold">
-                          {w.lease_well_name || "—"}
+                  {filteredWells.map((w, idx) => {
+                    const key = w?.api || w?.id || `${idx}`;
+                    return (
+                      <div
+                        key={key}
+                        className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="font-semibold">
+                            {w.lease_well_name || "—"}
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            API: <span className="font-mono">{w.api || "—"}</span>
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            Last test: {w.last_test_date || "—"} • Expires:{" "}
+                            {w._expiration || "—"}
+                            {typeof w._days_left === "number" ? (
+                              <span className="ml-2 text-gray-500">
+                                ({w._days_left < 0
+                                  ? `${Math.abs(w._days_left)}d past due`
+                                  : `${w._days_left}d left`}
+                                )
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-1">
+                            <StatusPill status={w._status} />
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-600">
-                          API: <span className="font-mono">{w.api || "—"}</span>
-                        </div>
-                        <div className="text-xs text-gray-600">
-                          Last test: {w.last_test_date || "—"} • Expires:{" "}
-                          {w.expiration_date || "—"}
-                          {typeof w._days_left === "number" ? (
-                            <span className="ml-2 text-gray-500">
-                              ({w._days_left < 0
-                                ? `${Math.abs(w._days_left)}d past due`
-                                : `${w._days_left}d left`}
-                              )
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-1">
-                          <StatusPill status={w._status} />
+
+                        <div className="flex flex-wrap gap-2">
+                          <Link
+                            href={`/wells/${encodeURIComponent(w.api || "")}`}
+                            className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
+                          >
+                            View
+                          </Link>
+
+                          <Link
+                            href={`/jobs/new?api=${encodeURIComponent(
+                              w.api || ""
+                            )}&lease_well_name=${encodeURIComponent(
+                              w.lease_well_name || ""
+                            )}&company_name=${encodeURIComponent(
+                              w.company_name || ""
+                            )}`}
+                            className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
+                          >
+                            Request Test
+                          </Link>
                         </div>
                       </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <Link
-                          href={`/wells/${encodeURIComponent(w.api)}`}
-                          className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
-                        >
-                          View
-                        </Link>
-
-                        <Link
-                          href={`/jobs/new?api=${encodeURIComponent(
-                            w.api || ""
-                          )}&lease_well_name=${encodeURIComponent(
-                            w.lease_well_name || ""
-                          )}&company_name=${encodeURIComponent(
-                            w.company_name || ""
-                          )}`}
-                          className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
-                        >
-                          Request Test
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
