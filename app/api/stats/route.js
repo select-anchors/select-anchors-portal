@@ -5,34 +5,39 @@ import { q } from "@/lib/db";
 async function safeCount(sql) {
   try {
     const { rows } = await q(sql);
-    const val = rows?.[0]?.count ?? rows?.[0]?.c ?? 0;
-    return typeof val === "string" ? parseInt(val, 10) : Number(val) || 0;
-  } catch {
+    const val = rows?.[0]?.count ?? 0;
+    return Number(val) || 0;
+  } catch (err) {
+    console.error("Stats query failed:", err.message);
     return 0;
   }
 }
 
 export async function GET() {
-  const totalWells = await safeCount(`SELECT COUNT(*) AS count FROM wells;`);
-  const totalUsers = await safeCount(`SELECT COUNT(*) AS count FROM users;`);
+  try {
+    const wells = await safeCount(`SELECT COUNT(*) FROM wells`);
+    const users = await safeCount(`SELECT COUNT(*) FROM users`);
+    const pendingChanges = await safeCount(`
+      SELECT COUNT(*) FROM changes WHERE status = 'pending'
+    `);
 
-  const pendingChanges = await safeCount(`
-    SELECT COUNT(*) AS count
-    FROM changes
-    WHERE status = 'pending';
-  `);
+    const upcomingTests = await safeCount(`
+      SELECT COUNT(*) FROM wells
+      WHERE current_expires_at IS NOT NULL
+        AND current_expires_at <= NOW() + INTERVAL '30 days'
+    `);
 
-  const upcomingTests = await safeCount(`
-    SELECT COUNT(*) AS count
-    FROM wells
-    WHERE
-      (current_expires_at IS NOT NULL AND current_expires_at <= NOW() + INTERVAL '30 days');
-  `);
-
-  return NextResponse.json({
-    wells: totalWells,
-    users: totalUsers,
-    pendingChanges,
-    upcomingTests,
-  });
+    return NextResponse.json({
+      wells,
+      users,
+      pendingChanges,
+      upcomingTests,
+    });
+  } catch (e) {
+    // ABSOLUTE fallback — dashboard must not crash
+    return NextResponse.json(
+      { wells: 0, users: 0, pendingChanges: 0, upcomingTests: 0 },
+      { status: 200 }
+    );
+  }
 }
