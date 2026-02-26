@@ -27,7 +27,7 @@ export default function NewWellPage() {
     prev_anchor_work: "",
     directions_notes: "",
     last_test_date: "",
-    expires_ne: "",
+    current_expires_at: "",
     expires_nw: "",
     expires_se: "",
     expires_sw: "",
@@ -68,7 +68,7 @@ export default function NewWellPage() {
         prev_anchor_work: "",
         directions_notes: "",
         last_test_date: "",
-        expires_ne: "",
+        current_expires_at: "",
         expires_nw: "",
         expires_se: "",
         expires_sw: "",
@@ -229,7 +229,7 @@ export default function NewWellPage() {
 
             {[
               ["last_test_date", "Last Test Date"],
-              ["expires_ne", "NE Expires"],
+              ["current_expires_at", "Expiration Date"],
               ["expires_nw", "NW Expires"],
               ["expires_se", "SE Expires"],
               ["expires_sw", "SW Expires"],
