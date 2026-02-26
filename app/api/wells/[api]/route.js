@@ -158,19 +158,28 @@ export async function PUT(req, { params }) {
       const hasAnyValue = Boolean(testedAt || expiresAt);
 
       if (hasAnyValue) {
-        if (currentTestId) {
-          // Update the current test row
-          await q(
-            `
-            UPDATE well_tests
-            SET
-              tested_at  = COALESCE($1, tested_at),
-              expires_at = $2
-            WHERE id = $3
-            `,
-            [testedAt, expiresAt, currentTestId]
-          );
-        } else {
+        await q(
+  `
+  UPDATE well_tests
+  SET
+    tested_at = COALESCE($1, tested_at),
+
+    expires_at =
+      CASE
+        -- If admin typed an expiration date, always use it
+        WHEN $2 IS NOT NULL THEN $2
+
+        -- If admin changed tested_at and left expiration blank,
+        -- set expires_at = tested_at + 2 years
+        WHEN $1 IS NOT NULL THEN ($1::date + INTERVAL '2 years')::date
+
+        -- Otherwise keep whatever is already there
+        ELSE expires_at
+      END
+  WHERE id = $3
+  `,
+  [testedAt, expiresAt, currentTestId]
+); else {
           // Create a new test row
           const inserted = await q(
             `
