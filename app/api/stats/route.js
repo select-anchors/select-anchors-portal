@@ -30,7 +30,7 @@ export async function GET() {
     SELECT COUNT(*) AS count
     FROM wells
     WHERE
-      (expires_ne IS NOT NULL AND expires_ne <= NOW() + INTERVAL '30 days') OR
+      (current_expires_at IS NOT NULL AND current_expires_at <= NOW() + INTERVAL '30 days') OR
       (expires_nw IS NOT NULL AND expires_nw <= NOW() + INTERVAL '30 days') OR
       (expires_se IS NOT NULL AND expires_se <= NOW() + INTERVAL '30 days') OR
       (expires_sw IS NOT NULL AND expires_sw <= NOW() + INTERVAL '30 days');
