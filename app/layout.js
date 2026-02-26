@@ -1,7 +1,6 @@
-// app/layout.js
 import "./globals.css";
-import Providers from "./providers";        // wraps NextAuth SessionProvider (and any others)
-import Header from "./components/Header";   // can be a client component
+import Providers from "./providers";
+import Header from "./components/Header";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
