@@ -94,36 +94,27 @@ export default function EditWellPage({ params }) {
     managed_by_company: "",
     status: "",
 
-    // Editable; updates well_tests through API
+    // editable test dates
     current_tested_at: "",
     current_expires_at: "",
   });
 
-  // ✅ IMPORTANT: useEffect must always be declared (no early returns before it)
+  // ✅ IMPORTANT: hooks must always run. So we declare this useEffect unconditionally.
   useEffect(() => {
     let mounted = true;
 
     async function load() {
-      // Wait for auth to resolve
-      if (status === "loading") return;
-
-      // Not logged in or not allowed -> don't fetch
-      if (!session || !canEdit) {
-        if (mounted) setLoading(false);
-        return;
-      }
+      // Don’t fetch until session is resolved and user is allowed
+      if (status !== "authenticated" || !canEdit) return;
 
       try {
         setLoading(true);
-        setError("");
-        setSuccess("");
-
         const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, {
           cache: "no-store",
         });
         if (!res.ok) throw new Error("Not found");
-
         const w = await res.json();
+
         if (!mounted) return;
 
         setForm({
@@ -149,8 +140,10 @@ export default function EditWellPage({ params }) {
           current_tested_at: w.current_tested_at || "",
           current_expires_at: w.current_expires_at || "",
         });
-      } catch (err) {
-        console.error("Error loading well for edit:", err);
+
+        setError("");
+      } catch (e) {
+        console.error("Error loading well for edit:", e);
         if (mounted) setError("Could not load well details.");
       } finally {
         if (mounted) setLoading(false);
@@ -158,11 +151,10 @@ export default function EditWellPage({ params }) {
     }
 
     load();
-
     return () => {
       mounted = false;
     };
-  }, [apiParam, status, session, canEdit]);
+  }, [apiParam, status, canEdit]);
 
   function updateField(field) {
     return (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -187,26 +179,32 @@ export default function EditWellPage({ params }) {
         body: JSON.stringify(form),
       });
 
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j.error || "Failed to save changes.");
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Failed to save changes.");
+      }
 
-      // Keep in sync with DB return (important for date fields)
-      setForm((prev) => ({
-        ...prev,
-        current_tested_at: j.current_tested_at ?? prev.current_tested_at,
-        current_expires_at: j.current_expires_at ?? prev.current_expires_at,
-      }));
+      const updated = await res.json().catch(() => null);
+
+      // Keep the form synced with DB (esp test dates)
+      if (updated) {
+        setForm((prev) => ({
+          ...prev,
+          current_tested_at: updated.current_tested_at ?? prev.current_tested_at,
+          current_expires_at: updated.current_expires_at ?? prev.current_expires_at,
+        }));
+      }
 
       setSuccess("Well updated successfully.");
-    } catch (err) {
-      console.error("Error saving well:", err);
-      setError(err.message || "Failed to save changes.");
+    } catch (e) {
+      console.error("Error saving well:", e);
+      setError(e.message || "Failed to save changes.");
     } finally {
       setSaving(false);
     }
   }
 
-  // Now it's safe to do early returns (after hooks)
+  // ✅ Now it’s safe to do early returns (hooks already declared above)
   if (status === "loading") return <div className="container py-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
   if (!canEdit) return <div className="container py-8">Not authorized.</div>;
@@ -249,43 +247,22 @@ export default function EditWellPage({ params }) {
         </div>
       )}
 
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white border rounded-2xl shadow-sm p-6 space-y-6"
-      >
-        {/* Lease / Well Info */}
+      <form onSubmit={handleSubmit} className="bg-white border rounded-2xl shadow-sm p-6 space-y-6">
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Lease / Well Info</h2>
 
           <div>
-            <label className="block text-sm text-gray-600 mb-1">
-              Lease / Well Name
-            </label>
-            <input
-              className="w-full"
-              value={form.lease_well_name}
-              onChange={updateField("lease_well_name")}
-            />
+            <label className="block text-sm text-gray-600 mb-1">Lease / Well Name</label>
+            <input className="w-full" value={form.lease_well_name} onChange={updateField("lease_well_name")} />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-600 mb-1">
-              Wellhead Coords (lat,lng)
-            </label>
-            <input
-              className="w-full"
-              value={form.wellhead_coords}
-              onChange={updateField("wellhead_coords")}
-            />
+            <label className="block text-sm text-gray-600 mb-1">Wellhead Coords (lat,lng)</label>
+            <input className="w-full" value={form.wellhead_coords} onChange={updateField("wellhead_coords")} />
             <div className="text-xs text-gray-500 mt-1 flex items-center gap-3">
               <span>Optional. Format: lat,lng</span>
               {googleMapsHref && (
-                <a
-                  className="text-blue-600 underline"
-                  href={googleMapsHref}
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <a className="text-blue-600 underline" href={googleMapsHref} target="_blank" rel="noreferrer">
                   Open in Google Maps
                 </a>
               )}
@@ -295,20 +272,12 @@ export default function EditWellPage({ params }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">County</label>
-              <input
-                className="w-full"
-                value={form.county}
-                onChange={updateField("county")}
-              />
+              <input className="w-full" value={form.county} onChange={updateField("county")} />
             </div>
 
             <div>
               <label className="block text-sm text-gray-600 mb-1">State</label>
-              <select
-                className="w-full"
-                value={form.state}
-                onChange={updateField("state")}
-              >
+              <select className="w-full" value={form.state} onChange={updateField("state")}>
                 {US_STATES.map((s) => (
                   <option key={s.code} value={s.code}>
                     {s.code ? `${s.code} — ${s.name}` : s.name}
@@ -319,93 +288,52 @@ export default function EditWellPage({ params }) {
           </div>
         </div>
 
-        {/* Company */}
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Company</h2>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Company Name
-              </label>
-              <input
-                className="w-full"
-                value={form.company_name}
-                onChange={updateField("company_name")}
-              />
+              <label className="block text-sm text-gray-600 mb-1">Company Name</label>
+              <input className="w-full" value={form.company_name} onChange={updateField("company_name")} />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Company Phone
-              </label>
-              <input
-                className="w-full"
-                value={form.company_phone}
-                onChange={updateField("company_phone")}
-              />
+              <label className="block text-sm text-gray-600 mb-1">Company Phone</label>
+              <input className="w-full" value={form.company_phone} onChange={updateField("company_phone")} />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Company Email
-              </label>
-              <input
-                className="w-full"
-                value={form.company_email}
-                onChange={updateField("company_email")}
-              />
+              <label className="block text-sm text-gray-600 mb-1">Company Email</label>
+              <input className="w-full" value={form.company_email} onChange={updateField("company_email")} />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm text-gray-600 mb-1">
-                Company Address
-              </label>
-              <input
-                className="w-full"
-                value={form.company_address}
-                onChange={updateField("company_address")}
-              />
+              <label className="block text-sm text-gray-600 mb-1">Company Address</label>
+              <input className="w-full" value={form.company_address} onChange={updateField("company_address")} />
             </div>
           </div>
         </div>
 
-        {/* Company Man */}
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Company Man</h2>
           <div className="grid md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">Name</label>
-              <input
-                className="w-full"
-                value={form.company_man_name}
-                onChange={updateField("company_man_name")}
-              />
+              <input className="w-full" value={form.company_man_name} onChange={updateField("company_man_name")} />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Phone</label>
-              <input
-                className="w-full"
-                value={form.company_man_phone}
-                onChange={updateField("company_man_phone")}
-              />
+              <input className="w-full" value={form.company_man_phone} onChange={updateField("company_man_phone")} />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Email</label>
-              <input
-                className="w-full"
-                value={form.company_man_email}
-                onChange={updateField("company_man_email")}
-              />
+              <input className="w-full" value={form.company_man_email} onChange={updateField("company_man_email")} />
             </div>
           </div>
         </div>
 
-        {/* Dates & Status */}
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Dates & Status</h2>
 
           <div className="grid md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Last Test Date (from tests)
-              </label>
+              <label className="block text-sm text-gray-600 mb-1">Last Test Date (from tests)</label>
               <input
                 type="date"
                 className="w-full"
@@ -413,23 +341,19 @@ export default function EditWellPage({ params }) {
                 onChange={updateField("current_tested_at")}
               />
               <div className="text-xs text-gray-500 mt-1">
-                Saves to <code>well_tests</code> (and updates current summary on the well).
+                Editing this updates the latest entry in <code>well_tests</code>.
               </div>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Expiration Date (from tests)
-              </label>
+              <label className="block text-sm text-gray-600 mb-1">Expiration Date (from tests)</label>
               <input
                 type="date"
                 className="w-full"
                 value={form.current_expires_at || ""}
                 onChange={updateField("current_expires_at")}
               />
-              <div className="text-xs text-gray-500 mt-1">
-                Optional — leave blank for NULL.
-              </div>
+              <div className="text-xs text-gray-500 mt-1">Leave blank for NULL.</div>
             </div>
 
             <div>
@@ -445,43 +369,22 @@ export default function EditWellPage({ params }) {
 
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Managed By Company
-              </label>
-              <input
-                className="w-full"
-                value={form.managed_by_company}
-                onChange={updateField("managed_by_company")}
-              />
+              <label className="block text-sm text-gray-600 mb-1">Managed By Company</label>
+              <input className="w-full" value={form.managed_by_company} onChange={updateField("managed_by_company")} />
             </div>
           </div>
         </div>
 
-        {/* History & Notes */}
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">History & Notes</h2>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Previous Anchor Work
-              </label>
-              <textarea
-                rows={4}
-                className="w-full"
-                value={form.previous_anchor_work}
-                onChange={updateField("previous_anchor_work")}
-              />
+              <label className="block text-sm text-gray-600 mb-1">Previous Anchor Work</label>
+              <textarea rows={4} className="w-full" value={form.previous_anchor_work} onChange={updateField("previous_anchor_work")} />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Directions & Other Notes
-              </label>
-              <textarea
-                rows={4}
-                className="w-full"
-                value={form.directions_other_notes}
-                onChange={updateField("directions_other_notes")}
-              />
+              <label className="block text-sm text-gray-600 mb-1">Directions & Other Notes</label>
+              <textarea rows={4} className="w-full" value={form.directions_other_notes} onChange={updateField("directions_other_notes")} />
             </div>
           </div>
         </div>
