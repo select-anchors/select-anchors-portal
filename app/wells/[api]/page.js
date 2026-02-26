@@ -10,8 +10,22 @@ import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 function fmtDate(d) {
   if (!d) return "—";
+
+  // If the API gives "YYYY-MM-DD", parse as a LOCAL date to avoid timezone shift.
+  if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    const [y, m, day] = d.split("-").map(Number);
+    const local = new Date(y, m - 1, day); // local midnight
+    return local.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  // Otherwise fall back to normal parsing
   const date = typeof d === "string" ? new Date(d) : d;
   if (Number.isNaN(date.getTime())) return "—";
+
   return date.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
