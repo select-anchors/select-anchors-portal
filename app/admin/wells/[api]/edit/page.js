@@ -91,8 +91,6 @@ export default function EditWellPage({ params }) {
 
     previous_anchor_work: "",
     directions_other_notes: "",
-    managed_by_company: "",
-    status: "",
 
     // editable test dates
     current_tested_at: "",
@@ -134,8 +132,7 @@ export default function EditWellPage({ params }) {
 
           previous_anchor_work: w.previous_anchor_work || "",
           directions_other_notes: w.directions_other_notes || "",
-          managed_by_company: w.managed_by_company || "",
-          status: w.status || "",
+
 
           current_tested_at: w.current_tested_at || "",
           current_expires_at: w.current_expires_at || "",
@@ -356,23 +353,10 @@ export default function EditWellPage({ params }) {
               <div className="text-xs text-gray-500 mt-1">Leave blank for NULL.</div>
             </div>
 
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Status</label>
-              <input
-                className="w-full"
-                placeholder="e.g. pending, active, expired"
-                value={form.status}
-                onChange={updateField("status")}
-              />
-            </div>
+            
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Managed By Company</label>
-              <input className="w-full" value={form.managed_by_company} onChange={updateField("managed_by_company")} />
-            </div>
-          </div>
+          
         </div>
 
         <div className="space-y-3">
