@@ -34,7 +34,6 @@ export async function GET(_req, { params }) {
         customer,
         customer_id,
 
-        -- "Current" test summary (driven by well_tests / triggers)
         TO_CHAR(current_tested_at, 'YYYY-MM-DD') AS current_tested_at,
         TO_CHAR(current_expires_at, 'YYYY-MM-DD') AS current_expires_at,
         current_test_id
@@ -84,12 +83,12 @@ export async function PUT(req, { params }) {
       customer,
       customer_id,
 
-      // Editable from admin page, affects well_tests:
+      // editable from admin page (writes to well_tests)
       current_tested_at,
       current_expires_at,
     } = body;
 
-    // 1) Update base well record (non-test fields)
+    // 1) Update base well record
     const updatedWell = await q(
       `
       UPDATE wells
@@ -145,7 +144,7 @@ export async function PUT(req, { params }) {
 
     const currentTestId = updatedWell.rows[0].current_test_id;
 
-    // 2) If admin provided test dates, update/create a well_tests row
+    // 2) If test dates were included, update/create a well_tests row
     const testedAt = emptyToNullDate(current_tested_at);
     const expiresAt = emptyToNullDate(current_expires_at);
 
@@ -153,24 +152,23 @@ export async function PUT(req, { params }) {
       current_tested_at !== undefined || current_expires_at !== undefined;
 
     if (shouldWriteTest) {
-      // If both are null/blank, do nothing (avoid creating empty tests)
       const hasAnyValue = Boolean(testedAt || expiresAt);
 
       if (hasAnyValue) {
         if (currentTestId) {
-          // Update the "current" test row (NO updated_at column assumed)
+          // Update current test row (NO updated_at column)
           await q(
             `
             UPDATE well_tests
             SET
-              tested_at  = COALESCE($1, tested_at),
+              tested_at = COALESCE($1, tested_at),
               expires_at = $2
             WHERE id = $3
             `,
             [testedAt, expiresAt, currentTestId]
           );
         } else {
-          // Create a new test row; your trigger should set wells.current_* accordingly
+          // Create new test row; trigger should populate wells.current_* fields
           await q(
             `
             INSERT INTO well_tests (
@@ -186,7 +184,7 @@ export async function PUT(req, { params }) {
       }
     }
 
-    // 3) Return full refreshed record
+    // 3) Return refreshed record
     const { rows } = await q(
       `
       SELECT
