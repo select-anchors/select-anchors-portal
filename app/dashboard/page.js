@@ -1,4 +1,4 @@
-// app/dashboard/page.js
+// /app/dashboard/page.js
 "use client";
 
 import Link from "next/link";
@@ -44,37 +44,22 @@ function StatusPill({ status }) {
       : "Unknown";
 
   return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full border ${cls}`}
-    >
+    <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full border ${cls}`}>
       {label}
     </span>
   );
 }
 
-// Safely parse JSON even if the server returns 500/HTML/empty body
-async function safeJson(res) {
-  try {
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-// Normalize the expiration field during your pivot.
-// Dashboard will work whether API returns expiration_date OR current_expires_at.
-function getExpirationDate(well) {
-  return (
-    well?.expiration_date ||
-    well?.current_expires_at ||
-    well?.expires_at ||
-    well?.expires ||
-    null
-  );
-}
+const CountBadge = ({ value, loading }) => (
+  <span className="ml-2 inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-gray-100 border">
+    {loading ? "…" : value}
+  </span>
+);
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
+
+  const EXPIRING_WINDOW_DAYS = 90;
 
   const [stats, setStats] = useState({
     wells: 0,
@@ -87,104 +72,65 @@ export default function DashboardPage() {
   const [wells, setWells] = useState([]);
   const [loadingWells, setLoadingWells] = useState(true);
 
-  // Toggles
   const [showExpiring, setShowExpiring] = useState(false);
   const [showExpired, setShowExpired] = useState(false);
 
-  const EXPIRING_WINDOW_DAYS = 90;
-
+  // Fetch stats
   useEffect(() => {
     let isMounted = true;
-
     (async () => {
       try {
         const res = await fetch("/api/stats", { cache: "no-store" });
-
-        // If server throws 500, do NOT crash rendering
-        const json = await safeJson(res);
-
-        if (!isMounted) return;
-
-        if (res.ok && json && typeof json === "object") {
-          setStats({
-            wells: Number(json.wells) || 0,
-            users: Number(json.users) || 0,
-            pendingChanges: Number(json.pendingChanges) || 0,
-            upcomingTests: Number(json.upcomingTests) || 0,
-          });
-        } else {
-          // keep defaults
-          setStats((s) => s);
-        }
+        const json = await res.json();
+        if (isMounted) setStats(json);
       } catch {
-        // keep defaults
+        // leave defaults
       } finally {
         if (isMounted) setLoadingStats(false);
       }
     })();
-
     return () => {
       isMounted = false;
     };
   }, []);
 
+  // Fetch wells
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       try {
         const res = await fetch("/api/wells", { cache: "no-store" });
-        const json = await safeJson(res);
-
-        if (!mounted) return;
-
-        if (res.ok && Array.isArray(json)) {
-          setWells(json);
-        } else if (res.ok && json && Array.isArray(json.wells)) {
-          // if your API ever returns { wells: [...] }
-          setWells(json.wells);
-        } else {
-          setWells([]);
-        }
+        const json = await res.json();
+        if (mounted) setWells(Array.isArray(json) ? json : []);
       } catch {
         if (mounted) setWells([]);
       } finally {
         if (mounted) setLoadingWells(false);
       }
     })();
-
     return () => {
       mounted = false;
     };
   }, []);
 
-  if (status === "loading") {
-    return <div className="container py-10">Loading...</div>;
-  }
-  if (!session) return <NotLoggedIn />;
-
+  // ---- IMPORTANT: ALL MEMOS ABOVE ANY RETURN ----
   const role = session?.user?.role || "customer";
   const isAdmin = role === "admin";
   const isEmployee = role === "employee";
   const isCustomer = role === "customer";
 
-  const CountBadge = ({ value, loading }) => (
-    <span className="ml-2 inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-gray-100 border">
-      {loading ? "…" : value}
-    </span>
-  );
-
+  // NOTE: you’re using expiration_date in wells list; keep consistent.
   const wellsWithStatus = useMemo(() => {
     return (wells || []).map((w) => {
-      const exp = getExpirationDate(w);
+      const exp = w.current_expires_at ?? w.expiration_date ?? null;
       return {
         ...w,
-        _expiration: exp,
         _status: statusFromExpiration(exp, EXPIRING_WINDOW_DAYS),
         _days_left: daysUntil(exp),
+        _exp_for_display: exp,
       };
     });
-  }, [wells]);
+  }, [wells, EXPIRING_WINDOW_DAYS]);
 
   const filteredWells = useMemo(() => {
     if (!showExpiring && !showExpired) return wellsWithStatus;
@@ -202,13 +148,19 @@ export default function DashboardPage() {
       return `No wells expiring within ${EXPIRING_WINDOW_DAYS} days (or already expired).`;
     if (showExpiring) return `No wells expiring within ${EXPIRING_WINDOW_DAYS} days.`;
     return "No expired wells.";
-  }, [showExpiring, showExpired]);
+  }, [showExpiring, showExpired, EXPIRING_WINDOW_DAYS]);
+
+  // ---- NOW it’s safe to return conditionally ----
+  if (status === "loading") {
+    return <div className="container py-10">Loading...</div>;
+  }
+  if (!session) return <NotLoggedIn />;
 
   return (
     <div className="container py-10 space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <h1 className="text-3xl font-bold">
-          Welcome, {session?.user?.name || "User"}!
+          Welcome, {session.user?.name || "User"}!
         </h1>
 
         <div className="flex gap-3 text-sm bg-white border rounded-2xl px-4 py-2">
@@ -232,24 +184,15 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick metrics row */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          <div className="text-xs uppercase text-gray-500 tracking-wider">
-            Total Wells
-          </div>
-          <div className="mt-1 text-2xl font-semibold">
-            {loadingStats ? "—" : stats.wells}
-          </div>
+          <div className="text-xs uppercase text-gray-500 tracking-wider">Total Wells</div>
+          <div className="mt-1 text-2xl font-semibold">{loadingStats ? "—" : stats.wells}</div>
         </div>
 
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          <div className="text-xs uppercase text-gray-500 tracking-wider">
-            Users
-          </div>
-          <div className="mt-1 text-2xl font-semibold">
-            {loadingStats ? "—" : stats.users}
-          </div>
+          <div className="text-xs uppercase text-gray-500 tracking-wider">Users</div>
+          <div className="mt-1 text-2xl font-semibold">{loadingStats ? "—" : stats.users}</div>
         </div>
 
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
@@ -262,9 +205,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          <div className="text-xs uppercase text-gray-500 tracking-wider">
-            Pending Changes
-          </div>
+          <div className="text-xs uppercase text-gray-500 tracking-wider">Pending Changes</div>
           <div className="mt-1 text-2xl font-semibold">
             {loadingStats ? "—" : stats.pendingChanges}
           </div>
@@ -302,61 +243,51 @@ export default function DashboardPage() {
                 <div className="text-sm text-gray-600">{emptyFilterLabel}</div>
               ) : (
                 <div className="space-y-3">
-                  {filteredWells.map((w, idx) => {
-                    const key = w?.api || w?.id || `${idx}`;
-                    return (
-                      <div
-                        key={key}
-                        className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
-                      >
-                        <div className="space-y-1">
-                          <div className="font-semibold">
-                            {w.lease_well_name || "—"}
-                          </div>
-                          <div className="text-xs text-gray-600">
-                            API: <span className="font-mono">{w.api || "—"}</span>
-                          </div>
-                          <div className="text-xs text-gray-600">
-                            Last test: {w.last_test_date || "—"} • Expires:{" "}
-                            {w._expiration || "—"}
-                            {typeof w._days_left === "number" ? (
-                              <span className="ml-2 text-gray-500">
-                                ({w._days_left < 0
-                                  ? `${Math.abs(w._days_left)}d past due`
-                                  : `${w._days_left}d left`}
-                                )
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="mt-1">
-                            <StatusPill status={w._status} />
-                          </div>
+                  {filteredWells.map((w) => (
+                    <div
+                      key={w.api || `${w.lease_well_name}-${Math.random()}`}
+                      className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="font-semibold">{w.lease_well_name || "—"}</div>
+                        <div className="text-xs text-gray-600">
+                          API: <span className="font-mono">{w.api || "—"}</span>
                         </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          <Link
-                            href={`/wells/${encodeURIComponent(w.api || "")}`}
-                            className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
-                          >
-                            View
-                          </Link>
-
-                          <Link
-                            href={`/jobs/new?api=${encodeURIComponent(
-                              w.api || ""
-                            )}&lease_well_name=${encodeURIComponent(
-                              w.lease_well_name || ""
-                            )}&company_name=${encodeURIComponent(
-                              w.company_name || ""
-                            )}`}
-                            className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
-                          >
-                            Request Test
-                          </Link>
+                        <div className="text-xs text-gray-600">
+                          Last test: {w.last_test_date || "—"} • Expires: {w._exp_for_display || "—"}
+                          {typeof w._days_left === "number" ? (
+                            <span className="ml-2 text-gray-500">
+                              ({w._days_left < 0
+                                ? `${Math.abs(w._days_left)}d past due`
+                                : `${w._days_left}d left`}
+                              )
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-1">
+                          <StatusPill status={w._status} />
                         </div>
                       </div>
-                    );
-                  })}
+
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/wells/${encodeURIComponent(w.api || "")}`}
+                          className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
+                        >
+                          View
+                        </Link>
+
+                        <Link
+                          href={`/jobs/new?api=${encodeURIComponent(w.api || "")}&lease_well_name=${encodeURIComponent(
+                            w.lease_well_name || ""
+                          )}&company_name=${encodeURIComponent(w.company_name || "")}`}
+                          className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
+                        >
+                          Request Test
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -364,7 +295,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Action cards */}
       <div className="grid md:grid-cols-3 gap-6">
         {(isAdmin || isEmployee) && (
           <Link
