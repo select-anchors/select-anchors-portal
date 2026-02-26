@@ -182,17 +182,17 @@ export async function PUT(req, { params }) {
 ); else {
           // Create a new test row
           const inserted = await q(
-            `
-            INSERT INTO well_tests (
-              well_api,
-              tested_at,
-              expires_at,
-              tested_by_company
-            ) VALUES ($1, $2, $3, $4)
-            RETURNING id
-            `,
-            [api, testedAt, expiresAt, "Manual edit (admin)"]
-          );
+  `
+  INSERT INTO well_tests (
+    well_api,
+    tested_at,
+    expires_at,
+    tested_by_company
+  ) VALUES ($1, $2, COALESCE($3, ($2::date + INTERVAL '2 years')::date), $4)
+  RETURNING id
+  `,
+  [api, testedAt, expiresAt, "Manual edit (admin)"]
+);
 
           const newTestId = inserted.rows?.[0]?.id;
 
