@@ -14,10 +14,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <Providers>
+        {/* <Providers> */}
   {/* <Header /> */}
   {children}
-</Providers>
+{/* </Providers> */}
       </body>
     </html>
   );
