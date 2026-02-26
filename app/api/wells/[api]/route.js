@@ -34,6 +34,7 @@ export async function GET(_req, { params }) {
         customer,
         customer_id,
 
+        -- "Current" test summary (driven by well_tests / triggers)
         TO_CHAR(current_tested_at, 'YYYY-MM-DD') AS current_tested_at,
         TO_CHAR(current_expires_at, 'YYYY-MM-DD') AS current_expires_at,
         current_test_id
@@ -83,12 +84,12 @@ export async function PUT(req, { params }) {
       customer,
       customer_id,
 
-      // editable from admin page:
+      // Editable from admin page, affects well_tests:
       current_tested_at,
       current_expires_at,
     } = body;
 
-    // 1) Update the base wells record (non-test fields)
+    // 1) Update base well record (non-test fields)
     const updatedWell = await q(
       `
       UPDATE wells
@@ -157,7 +158,7 @@ export async function PUT(req, { params }) {
 
       if (hasAnyValue) {
         if (currentTestId) {
-          // Update the "current" test row (NO updated_at column used)
+          // Update the "current" test row (NO updated_at column assumed)
           await q(
             `
             UPDATE well_tests
@@ -169,7 +170,7 @@ export async function PUT(req, { params }) {
             [testedAt, expiresAt, currentTestId]
           );
         } else {
-          // Create a new test row; trigger should update wells.current_* fields
+          // Create a new test row; your trigger should set wells.current_* accordingly
           await q(
             `
             INSERT INTO well_tests (
@@ -185,7 +186,7 @@ export async function PUT(req, { params }) {
       }
     }
 
-    // 3) Return refreshed well record
+    // 3) Return full refreshed record
     const { rows } = await q(
       `
       SELECT
