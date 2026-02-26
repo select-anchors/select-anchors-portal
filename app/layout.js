@@ -1,3 +1,4 @@
+// /app/layout.js
 import "./globals.css";
 import Providers from "./providers";
 import Header from "./components/Header";
