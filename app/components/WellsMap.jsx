@@ -126,12 +126,17 @@ const status = statusFromExpiration(exp, expiringWindowDays);
     if (!mapObjRef.current) {
       const first = mapped[0]?.latlng || { lat: 32.0, lng: -103.0 }; // Permian-ish fallback
       mapObjRef.current = new window.google.maps.Map(mapRef.current, {
-        center: first,
-        zoom: mapped.length ? 7 : 6,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: true,
-      });
+  center: first,
+  zoom: mapped.length ? 7 : 6,
+  mapTypeControl: false,
+  streetViewControl: false,
+  fullscreenControl: true,
+
+  // ✅ allow zoom / gestures
+  gestureHandling: "cooperative", // trackpad + scroll zoom works
+  scrollwheel: true,
+  keyboardShortcuts: true,
+});
       infoRef.current = new window.google.maps.InfoWindow();
     }
 
