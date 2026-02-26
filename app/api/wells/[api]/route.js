@@ -88,7 +88,15 @@ export async function PUT(req, { params }) {
       current_expires_at,
     } = body;
 
-    // 1) Update base well record
+    // Normalize incoming test date inputs
+    const testedAt = emptyToNullDate(current_tested_at);
+    const expiresAt = emptyToNullDate(current_expires_at);
+
+    // Only touch tests if those fields are present in the request body
+    const shouldWriteTest =
+      current_tested_at !== undefined || current_expires_at !== undefined;
+
+    // 1) Update base well record (non-test fields)
     const updatedWell = await q(
       `
       UPDATE wells
@@ -142,34 +150,29 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const currentTestId = updatedWell.rows[0].current_test_id;
+    let currentTestId = updatedWell.rows[0].current_test_id;
 
     // 2) If test dates were included, update/create a well_tests row
-    const testedAt = emptyToNullDate(current_tested_at);
-    const expiresAt = emptyToNullDate(current_expires_at);
-
-    const shouldWriteTest =
-      current_tested_at !== undefined || current_expires_at !== undefined;
-
     if (shouldWriteTest) {
+      // If both are blank/null, do nothing (avoid creating empty tests)
       const hasAnyValue = Boolean(testedAt || expiresAt);
 
       if (hasAnyValue) {
         if (currentTestId) {
-          // Update current test row (NO updated_at column)
+          // Update the current test row
           await q(
             `
             UPDATE well_tests
             SET
-              tested_at = COALESCE($1, tested_at),
+              tested_at  = COALESCE($1, tested_at),
               expires_at = $2
             WHERE id = $3
             `,
             [testedAt, expiresAt, currentTestId]
           );
         } else {
-          // Create new test row; trigger should populate wells.current_* fields
-          await q(
+          // Create a new test row
+          const inserted = await q(
             `
             INSERT INTO well_tests (
               well_api,
@@ -177,9 +180,25 @@ export async function PUT(req, { params }) {
               expires_at,
               tested_by_company
             ) VALUES ($1, $2, $3, $4)
+            RETURNING id
             `,
             [api, testedAt, expiresAt, "Manual edit (admin)"]
           );
+
+          const newTestId = inserted.rows?.[0]?.id;
+
+          // IMPORTANT: link this new test as the current test for the well
+          if (newTestId) {
+            await q(
+              `
+              UPDATE wells
+              SET current_test_id = $1
+              WHERE api = $2
+              `,
+              [newTestId, api]
+            );
+            currentTestId = newTestId;
+          }
         }
       }
     }
