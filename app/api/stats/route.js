@@ -2,11 +2,9 @@
 import { NextResponse } from "next/server";
 import { q } from "@/lib/db";
 
-// Helper that returns 0 if the query/table/column doesn't exist yet
 async function safeCount(sql) {
   try {
     const { rows } = await q(sql);
-    // accept count as text or int
     const val = rows?.[0]?.count ?? rows?.[0]?.c ?? 0;
     return typeof val === "string" ? parseInt(val, 10) : Number(val) || 0;
   } catch {
@@ -15,11 +13,9 @@ async function safeCount(sql) {
 }
 
 export async function GET() {
-  // Always-present counts
   const totalWells = await safeCount(`SELECT COUNT(*) AS count FROM wells;`);
   const totalUsers = await safeCount(`SELECT COUNT(*) AS count FROM users;`);
 
-  // Optional tables/columns (won’t break if not created yet)
   const pendingChanges = await safeCount(`
     SELECT COUNT(*) AS count
     FROM changes
@@ -30,10 +26,7 @@ export async function GET() {
     SELECT COUNT(*) AS count
     FROM wells
     WHERE
-      (current_expires_at IS NOT NULL AND current_expires_at <= NOW() + INTERVAL '30 days') OR
-      (expires_nw IS NOT NULL AND expires_nw <= NOW() + INTERVAL '30 days') OR
-      (expires_se IS NOT NULL AND expires_se <= NOW() + INTERVAL '30 days') OR
-      (expires_sw IS NOT NULL AND expires_sw <= NOW() + INTERVAL '30 days');
+      (current_expires_at IS NOT NULL AND current_expires_at <= NOW() + INTERVAL '30 days');
   `);
 
   return NextResponse.json({
