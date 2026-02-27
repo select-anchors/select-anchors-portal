@@ -205,9 +205,8 @@ export default function WellDetailPage({ params }) {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <StatusPill status={computedStatus} daysLeft={daysLeft} />
-            <ExpirationBadge daysLeft={daysLeft} />
-          </div>
+  <StatusPill status={computedStatus} daysLeft={daysLeft} />
+</div>
         </div>
 
         <div className="flex flex-col items-end gap-2">
