@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import NotLoggedIn from "@/app/components/NotLoggedIn";
+import NotLoggedIn from "../components/NotLoggedIn";
 import WellsMap from "../components/WellsMap";
 
 function daysUntil(dateStr) {
