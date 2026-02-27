@@ -251,7 +251,7 @@ export default function AccountPage() {
 
                 {form.monthly_expiring_summary_enabled ? (
                   <div className="mt-2 text-xs text-gray-500">
-                    For the demo: this is an automated email that only sends when there are wells in that window.
+                    This is an automated email that only sends when there are wells in that window.
                   </div>
                 ) : null}
               </div>
