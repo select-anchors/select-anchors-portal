@@ -4,13 +4,15 @@ import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 
 export default function Header() {
-  const { data } = useSession();
-  const role = data?.user?.role;
+  const { data, status } = useSession();
+  const role = data?.user?.role || "customer";
   const isLoggedIn = !!data?.user;
 
   const isAdmin = role === "admin";
   const isEmployee = role === "employee";
-  const isCustomer = role === "customer";
+
+  // ✅ One source of truth for "All Wells" destination
+  const wellsHref = isAdmin || isEmployee ? "/admin/wells" : "/wells";
 
   return (
     <header className="border-b bg-white">
@@ -31,11 +33,8 @@ export default function Header() {
             </Link>
           )}
 
-          {(isAdmin || isEmployee) && <Link href="/admin/wells">All Wells</Link>}
-{isCustomer && <Link href="/wells">All Wells</Link>}
- 
-          {isCustomer && (
-            <Link href="/wells" className="hover:underline">
+          {isLoggedIn && (
+            <Link href={wellsHref} className="hover:underline">
               All Wells
             </Link>
           )}
