@@ -5,7 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 
 export default function Header() {
   const { data } = useSession();
-  const role = data?.user?.role; // "admin" | "employee" | "customer" | undefined
+  const role = data?.user?.role;
   const isLoggedIn = !!data?.user;
 
   const isAdmin = role === "admin";
@@ -16,21 +16,24 @@ export default function Header() {
     <header className="border-b bg-white">
       <div className="container flex items-center justify-between h-14">
         <Link href="/" className="flex items-center gap-2">
-          <div className="rounded-full bg-[#2f4f4f] text-white w-7 h-7 grid place-items-center text-sm font-bold">
+          {/* SA mark */}
+          <div className="rounded-full bg-[#2f4f4f] text-white w-7 h-7 grid place-items-center text-sm font-norwester leading-none">
             SA
           </div>
-          <span className="font-semibold">SELECT ANCHORS</span>
+
+          {/* Wordmark */}
+          <span className="font-norwester tracking-[0.12em] text-sm">
+            SELECT ANCHORS
+          </span>
         </Link>
 
         <nav className="flex items-center gap-4 text-sm">
-          {/* Dashboard: only when logged in */}
           {isLoggedIn && (
             <Link href="/dashboard" className="hover:underline">
               Dashboard
             </Link>
           )}
 
-          {/* All Wells */}
           {(isAdmin || isEmployee) && (
             <Link href="/admin/wells" className="hover:underline">
               All Wells
@@ -42,21 +45,18 @@ export default function Header() {
             </Link>
           )}
 
-          {/* My Day: staff only */}
           {(isAdmin || isEmployee) && (
             <Link href="/driver/my-day" className="hover:underline">
               My Day
             </Link>
           )}
 
-          {/* Users (admin only) */}
           {isAdmin && (
             <Link href="/admin/users" className="hover:underline">
               Users
             </Link>
           )}
 
-          {/* Account / Auth */}
           {isLoggedIn ? (
             <>
               <Link href="/account" className="hover:underline">
@@ -70,10 +70,7 @@ export default function Header() {
               </button>
             </>
           ) : (
-            <Link
-              href="/login"
-              className="rounded-xl border px-3 py-1"
-            >
+            <Link href="/login" className="rounded-xl border px-3 py-1">
               Login
             </Link>
           )}
