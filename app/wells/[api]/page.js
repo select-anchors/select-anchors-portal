@@ -1,9 +1,7 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../../components/NotLoggedIn";
 import WellLocationMap from "../../components/WellLocationMap";
@@ -23,7 +21,7 @@ function fmtDate(d) {
 function daysUntil(dateStr) {
   if (!dateStr) return null;
 
-  // ✅ Treat YYYY-MM-DD as a local date (prevents timezone shift)
+  // Treat YYYY-MM-DD as local date (prevents timezone shift)
   if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const [y, m, d] = dateStr.split("-").map(Number);
     const target = new Date(y, m - 1, d);
@@ -146,13 +144,15 @@ export default function WellDetailPage({ params }) {
   if (!session) return <NotLoggedIn />;
   if (loading) return <div className="container py-10">Loading well…</div>;
 
+  const isStaff = session?.user?.role === "admin" || session?.user?.role === "employee";
+
   if (!well) {
     return (
       <div className="container py-10">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h1 className="text-xl font-semibold mb-2">Well not found</h1>
           <p className="text-gray-600 mb-4">API: {apiParam}</p>
-          <Link href="/wells" className="underline text-[#2f4f4f]">
+          <Link href={isStaff ? "/admin/wells" : "/wells"} className="underline text-[#2f4f4f]">
             ← Back to All Wells
           </Link>
         </div>
@@ -161,20 +161,24 @@ export default function WellDetailPage({ params }) {
   }
 
   const w = well;
-  const isStaff = session?.user?.role === "admin" || session?.user?.role === "employee";
 
   // ✅ Fix 1 (best fields)
   const lastTest = w.current_tested_at ?? w.last_test_date ?? null;
-  const expires = w.current_expires_at ?? w.expiration_date ?? null;
+  const expires =
+    w.current_expires_at ??
+    w.latest_expires_at ??
+    w.expiration_date ??
+    w.expiration ??
+    null;
 
   const EXPIRING_WINDOW_DAYS = 90;
 
-  const computedStatus = useMemo(() => statusFromExpiration(expires, EXPIRING_WINDOW_DAYS), [expires]);
-  const daysLeft = useMemo(() => daysUntil(expires), [expires]);
+  // ✅ No hooks here (prevents React #310)
+  const computedStatus = statusFromExpiration(expires, EXPIRING_WINDOW_DAYS);
+  const daysLeft = daysUntil(expires);
 
   return (
     <div className="container py-10 space-y-6">
-      {/* Title + Status */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">{w.lease_well_name ?? "Untitled Well"}</h1>
@@ -227,13 +231,11 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
-      {/* Map */}
       <WellLocationMap
         coords={w.wellhead_coords}
         title={w.lease_well_name ? `${w.lease_well_name} Location` : "Well Location"}
       />
 
-      {/* Company */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">Company</h2>
@@ -258,7 +260,6 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
-      {/* Company Man */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">Company Man</h2>
@@ -279,7 +280,6 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
-      {/* Dates */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">Test Dates</h2>
@@ -299,7 +299,6 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
-      {/* Notes */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">History & Notes</h2>
