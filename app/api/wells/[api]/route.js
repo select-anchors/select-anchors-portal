@@ -1,10 +1,10 @@
 // app/api/wells/[api]/route.js
 import { NextResponse } from "next/server";
-import { q } from "@/lib/db";
+import { q } from "../../../../lib/db";
 
 function emptyToNullDate(v) {
   if (v === "" || v === undefined) return null;
-  return v; // allow null or "YYYY-MM-DD"
+  return v;
 }
 function emptyToNullText(v) {
   if (v === "" || v === undefined) return null;
@@ -29,7 +29,6 @@ export async function GET(_req, { params }) {
         wellhead_coords,
         state,
         county,
-        managed_by_company,
         status,
         customer,
         customer_id,
@@ -50,10 +49,7 @@ export async function GET(_req, { params }) {
     return NextResponse.json(rows[0]);
   } catch (err) {
     console.error("GET /api/wells/[api] error:", err);
-    return NextResponse.json(
-      { error: String(err?.message || err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
 
@@ -74,7 +70,7 @@ export async function PUT(req, { params }) {
       previous_anchor_company,
       previous_anchor_work,
       directions_other_notes,
-      managed_by_company,
+      // managed_by_company removed
       status,
       state,
       county,
@@ -82,20 +78,15 @@ export async function PUT(req, { params }) {
       customer,
       customer_id,
 
-      // editable from admin page (writes to well_tests)
       current_tested_at,
       current_expires_at,
     } = body;
 
-    // Normalize incoming test date inputs
     const testedAt = emptyToNullDate(current_tested_at);
     const expiresAt = emptyToNullDate(current_expires_at);
 
-    // Only touch tests if those fields are present in the request body
-    const shouldWriteTest =
-      current_tested_at !== undefined || current_expires_at !== undefined;
+    const shouldWriteTest = current_tested_at !== undefined || current_expires_at !== undefined;
 
-    // 1) Update base well record (non-test fields)
     const updatedWell = await q(
       `
       UPDATE wells
@@ -111,15 +102,14 @@ export async function PUT(req, { params }) {
         previous_anchor_company = $9,
         previous_anchor_work    = $10,
         directions_other_notes  = $11,
-        managed_by_company      = $12,
-        status                  = $13,
-        state                   = $14,
-        county                  = $15,
-        wellhead_coords         = $16,
-        customer                = COALESCE($17, customer),
-        customer_id             = $18,
+        status                  = $12,
+        state                   = $13,
+        county                  = $14,
+        wellhead_coords         = $15,
+        customer                = COALESCE($16, customer),
+        customer_id             = $17,
         updated_at              = NOW()
-      WHERE api = $19
+      WHERE api = $18
       RETURNING id, api, current_test_id
       `,
       [
@@ -134,14 +124,13 @@ export async function PUT(req, { params }) {
         emptyToNullText(previous_anchor_company),
         emptyToNullText(previous_anchor_work),
         emptyToNullText(directions_other_notes),
-        emptyToNullText(managed_by_company),
         emptyToNullText(status),
         emptyToNullText(state),
         emptyToNullText(county),
         emptyToNullText(wellhead_coords),
         emptyToNullText(customer),
         customer_id ?? null,
-        api,
+        api
       ]
     );
 
@@ -151,14 +140,10 @@ export async function PUT(req, { params }) {
 
     let currentTestId = updatedWell.rows[0].current_test_id;
 
-    // 2) If test dates were included, update/create a well_tests row
     if (shouldWriteTest) {
-      // If both are blank/null, do nothing (avoid creating empty tests)
       const hasAnyValue = Boolean(testedAt || expiresAt);
-
       if (hasAnyValue) {
         if (currentTestId) {
-          // Update the current test row
           await q(
             `
             UPDATE well_tests
@@ -170,7 +155,6 @@ export async function PUT(req, { params }) {
             [testedAt, expiresAt, currentTestId]
           );
         } else {
-          // Create a new test row
           const inserted = await q(
             `
             INSERT INTO well_tests (
@@ -185,8 +169,6 @@ export async function PUT(req, { params }) {
           );
 
           const newTestId = inserted.rows?.[0]?.id;
-
-          // Link this new test as the current test for the well
           if (newTestId) {
             await q(
               `
@@ -202,7 +184,6 @@ export async function PUT(req, { params }) {
       }
     }
 
-    // 3) Return refreshed record
     const { rows } = await q(
       `
       SELECT
@@ -217,7 +198,6 @@ export async function PUT(req, { params }) {
         wellhead_coords,
         state,
         county,
-        managed_by_company,
         status,
         customer,
         customer_id,
@@ -234,9 +214,6 @@ export async function PUT(req, { params }) {
     return NextResponse.json(rows[0]);
   } catch (err) {
     console.error("PUT /api/wells/[api] error:", err);
-    return NextResponse.json(
-      { error: String(err?.message || err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
