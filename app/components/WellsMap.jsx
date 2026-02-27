@@ -1,7 +1,6 @@
 // app/components/WellsMap.jsx
 "use client";
 
-import Script from "next/script";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 function parseLatLng(raw) {
@@ -29,8 +28,18 @@ function parseLatLng(raw) {
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
+
+  // Handle "YYYY-MM-DD" as local date to avoid timezone shifts
+  if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const target = new Date(y, m - 1, d);
+    const now = new Date();
+    return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return null;
+
   const now = new Date();
   return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
@@ -41,6 +50,56 @@ function statusFromExpiration(expirationDate, windowDays = 90) {
   if (d < 0) return "expired";
   if (d <= windowDays) return "expiring";
   return "good";
+}
+
+/**
+ * ✅ Shared Google Maps loader (fixes: blank map until refresh)
+ * Load the script ONCE for the whole app.
+ */
+function loadGoogleMaps(key) {
+  if (typeof window === "undefined") return Promise.resolve(false);
+
+  if (window.google?.maps) return Promise.resolve(true);
+
+  if (window.__googleMapsPromise) return window.__googleMapsPromise;
+
+  window.__googleMapsPromise = new Promise((resolve, reject) => {
+    try {
+      const existing = document.querySelector('script[data-google-maps="true"]');
+      if (existing) {
+        // If script exists, wait for google.maps to appear.
+        const start = Date.now();
+        const t = setInterval(() => {
+          if (window.google?.maps) {
+            clearInterval(t);
+            resolve(true);
+          } else if (Date.now() - start > 15000) {
+            clearInterval(t);
+            reject(new Error("Google Maps script loaded but google.maps did not initialize."));
+          }
+        }, 50);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.dataset.googleMaps = "true";
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+        key
+      )}&v=weekly&loading=async`;
+      script.async = true;
+      script.defer = true;
+
+      script.onload = () => resolve(true);
+      script.onerror = () =>
+        reject(new Error("Script load error (check API key / referrer restrictions)."));
+
+      document.head.appendChild(script);
+    } catch (e) {
+      reject(e);
+    }
+  });
+
+  return window.__googleMapsPromise;
 }
 
 function markerIcon(status) {
@@ -60,7 +119,6 @@ function markerIcon(status) {
     </svg>
   `);
 
-  // Build icon only after google is present
   const g = typeof window !== "undefined" ? window.google : null;
   return {
     url: `data:image/svg+xml,${svg}`,
@@ -101,14 +159,30 @@ export default function WellsMap({
 
   const [ready, setReady] = useState(false);
   const [scriptError, setScriptError] = useState("");
+
   const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-  // ✅ Fix for "map doesn’t load first time":
-  // if Google is already loaded (client nav), flip ready without relying on Script onLoad.
+  // ✅ One-time loader
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.google?.maps) setReady(true);
-  }, []);
+    let cancelled = false;
+
+    async function boot() {
+      if (!key) return;
+
+      try {
+        await loadGoogleMaps(key);
+        if (!cancelled) setReady(true);
+      } catch (err) {
+        console.error("Google Maps load failed:", err);
+        if (!cancelled) setScriptError(err?.message || "Google Maps failed to load.");
+      }
+    }
+
+    boot();
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
 
   const mapped = useMemo(() => {
     const items = (wells || [])
@@ -116,6 +190,7 @@ export default function WellsMap({
         const ll = parseLatLng(w.wellhead_coords);
         if (!ll) return null;
 
+        // ✅ Use “best expiration field”
         const exp =
           w.current_expires_at ??
           w.latest_expires_at ??
@@ -148,14 +223,15 @@ export default function WellsMap({
     // Init once
     if (!mapObjRef.current) {
       const first = mapped[0]?.latlng || { lat: 32.0, lng: -103.0 }; // Permian-ish fallback
+
       mapObjRef.current = new window.google.maps.Map(mapRef.current, {
         center: first,
         zoom: mapped.length ? 7 : 6,
 
-        // ✅ Satellite with labels by default:
+        // ✅ Satellite + labels ON by default:
         mapTypeId: "hybrid",
 
-        // ✅ Let user change back to “Map”:
+        // ✅ Let user switch to Map/Satellite/Hybrid:
         mapTypeControl: true,
         mapTypeControlOptions: {
           position: window.google.maps.ControlPosition.TOP_RIGHT,
@@ -204,7 +280,6 @@ export default function WellsMap({
               : `${daysLeft} days left`
             : "—";
 
-        // ✅ Make the well name clickable to the well detail page
         const wellHref = `/wells/${encodeURIComponent(w.api || "")}`;
 
         const jobHref = `/jobs/new?api=${encodeURIComponent(w.api || "")}&lease_well_name=${encodeURIComponent(
@@ -269,14 +344,6 @@ export default function WellsMap({
 
   return (
     <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
-      <Script
-        // ✅ Add loading=async to address the console warning
-        src={`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&loading=async`}
-        strategy="afterInteractive"
-        onLoad={() => setReady(true)}
-        onError={() => setScriptError("Script load error (check API key / referrer restrictions).")}
-      />
-
       <div className="p-4 border-b">
         <div className="font-semibold">Wells Map</div>
         <div className="text-xs text-gray-500">
