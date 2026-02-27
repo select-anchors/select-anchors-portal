@@ -9,7 +9,6 @@ import NotLoggedIn from "@/app/components/NotLoggedIn";
 
 function fmtDate(d) {
   if (!d) return "—";
-  // handle "YYYY-MM-DD" as local date (prevents timezone shift)
   if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
     const [y, m, day] = d.split("-").map(Number);
     return new Date(y, m - 1, day).toLocaleDateString();
@@ -19,11 +18,62 @@ function fmtDate(d) {
   return dt.toLocaleDateString();
 }
 
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+
+  if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const target = new Date(y, m - 1, d);
+    const now = new Date();
+    return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  const target = new Date(dateStr);
+  if (Number.isNaN(target.getTime())) return null;
+
+  const now = new Date();
+  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function ExpirationPill({ expirationDate, windowDays = 90 }) {
+  const d = daysUntil(expirationDate);
+
+  if (d === null) {
+    return (
+      <span className="inline-flex items-center gap-2 px-2 py-0.5 rounded-full border text-xs bg-gray-50 text-gray-600 border-gray-200">
+        <span className="h-2 w-2 rounded-full bg-gray-400" />
+        —
+      </span>
+    );
+  }
+
+  const isOverdue = d < 0;
+  const isExpiringSoon = d <= windowDays;
+
+  const dotClass = isOverdue
+    ? "bg-red-600"
+    : isExpiringSoon
+    ? "bg-amber-500"
+    : "bg-green-600";
+
+  const wrapClass = isOverdue
+    ? "bg-red-50 text-red-700 border-red-200"
+    : isExpiringSoon
+    ? "bg-amber-50 text-amber-800 border-amber-200"
+    : "bg-green-50 text-green-700 border-green-200";
+
+  return (
+    <span className={`inline-flex items-center gap-2 px-2 py-0.5 rounded-full border text-xs ${wrapClass}`}>
+      <span className={`h-2 w-2 rounded-full ${dotClass}`} />
+      {isOverdue ? `${Math.abs(d)}d overdue` : `${d}d left`}
+    </span>
+  );
+}
+
 export default function AdminWellsPage() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
 
-  // URL flags (optional)
   const editApi = searchParams.get("api");
   const isEditing = searchParams.get("edit") === "1";
 
@@ -32,9 +82,8 @@ export default function AdminWellsPage() {
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
 
-  // sorting
-  const [sortKey, setSortKey] = useState("lease_well_name"); // default
-  const [sortDir, setSortDir] = useState("asc"); // "asc" | "desc"
+  const [sortKey, setSortKey] = useState("lease_well_name");
+  const [sortDir, setSortDir] = useState("asc");
 
   const role = session?.user?.role;
   const canSee = role === "admin" || role === "employee";
@@ -63,7 +112,6 @@ export default function AdminWellsPage() {
     );
   }
 
-  // Fetch wells (only after auth resolved + authorized)
   useEffect(() => {
     let mounted = true;
 
@@ -118,7 +166,6 @@ export default function AdminWellsPage() {
     };
   }, [status, canSee]);
 
-  // Filter + sort (hooks BEFORE returns)
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = wells;
@@ -129,29 +176,31 @@ export default function AdminWellsPage() {
         const api = (w.api || "").toLowerCase();
         const company = (w.company_name || "").toLowerCase();
         const companyMan = (w.company_man_name || "").toLowerCase();
-        return (
-          lease.includes(q) ||
-          api.includes(q) ||
-          company.includes(q) ||
-          companyMan.includes(q)
-        );
+        return lease.includes(q) || api.includes(q) || company.includes(q) || companyMan.includes(q);
       });
     }
 
     const dir = sortDir === "asc" ? 1 : -1;
 
     return [...list].sort((a, b) => {
+      // Special: sort by "expires_in" uses expiration_date daysUntil
+      if (sortKey === "expires_in") {
+        const ad = daysUntil(a?.expiration_date);
+        const bd = daysUntil(b?.expiration_date);
+        const av = ad === null ? Number.POSITIVE_INFINITY : ad;
+        const bv = bd === null ? Number.POSITIVE_INFINITY : bd;
+        return (av - bv) * dir;
+      }
+
       let av = a?.[sortKey];
       let bv = b?.[sortKey];
 
-      // date sorting
       if (sortKey === "last_test_date" || sortKey === "expiration_date") {
         const ad = av ? new Date(av).getTime() : 0;
         const bd = bv ? new Date(bv).getTime() : 0;
         return (ad - bd) * dir;
       }
 
-      // string sorting
       av = (av ?? "").toString().toLowerCase();
       bv = (bv ?? "").toString().toLowerCase();
 
@@ -161,10 +210,8 @@ export default function AdminWellsPage() {
     });
   }, [wells, query, sortKey, sortDir]);
 
-  const editingWell =
-    isEditing && editApi ? wells.find((w) => w.api === editApi) ?? null : null;
+  const editingWell = isEditing && editApi ? wells.find((w) => w.api === editApi) ?? null : null;
 
-  // Returns AFTER hooks
   if (status === "loading") return <div className="container py-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
   if (!canSee) return <div className="container py-8">Not authorized.</div>;
@@ -188,9 +235,7 @@ export default function AdminWellsPage() {
           </div>
           {editingWell ? (
             <div className="text-gray-700">
-              Lease/Well:{" "}
-              <span className="font-medium">{editingWell.lease_well_name || "—"}</span>{" "}
-              — Company:{" "}
+              Lease/Well: <span className="font-medium">{editingWell.lease_well_name || "—"}</span> — Company:{" "}
               <span className="font-medium">{editingWell.company_name || "—"}</span>
             </div>
           ) : (
@@ -200,9 +245,7 @@ export default function AdminWellsPage() {
       )}
 
       {error && (
-        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
-          {error}
-        </div>
+        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>
       )}
 
       <div className="flex gap-3">
@@ -224,6 +267,7 @@ export default function AdminWellsPage() {
               <th className="text-left p-3">Company Man</th>
               <SortableTh label="Last Test" column="last_test_date" />
               <SortableTh label="Expiration" column="expiration_date" />
+              <SortableTh label="Expires In" column="expires_in" />
               <th className="text-left p-3">Actions</th>
             </tr>
           </thead>
@@ -231,13 +275,13 @@ export default function AdminWellsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="p-4" colSpan={7}>
+                <td className="p-4" colSpan={8}>
                   Loading…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="p-4" colSpan={7}>
+                <td className="p-4" colSpan={8}>
                   No wells found.
                 </td>
               </tr>
@@ -251,17 +295,14 @@ export default function AdminWellsPage() {
                   <td className="p-3">{fmtDate(w.last_test_date)}</td>
                   <td className="p-3">{fmtDate(w.expiration_date)}</td>
                   <td className="p-3">
+                    <ExpirationPill expirationDate={w.expiration_date} windowDays={90} />
+                  </td>
+                  <td className="p-3">
                     <div className="flex gap-2">
-                      <Link
-                        href={`/wells/${encodeURIComponent(w.api)}`}
-                        className="underline"
-                      >
+                      <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
                         View
                       </Link>
-                      <Link
-                        href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
-                        className="underline"
-                      >
+                      <Link href={`/admin/wells/${encodeURIComponent(w.api)}/edit`} className="underline">
                         Edit
                       </Link>
                     </div>
