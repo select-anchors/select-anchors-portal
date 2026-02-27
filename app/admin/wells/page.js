@@ -31,7 +31,7 @@ export default function AdminWellsPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
-
+ 
   const filtered = useMemo(() => {
   const q = query.trim().toLowerCase();
 
