@@ -49,12 +49,7 @@ function ExpirationPill({ expirationDate, windowDays = 90 }) {
   const isOverdue = d < 0;
   const isExpiringSoon = d <= windowDays;
 
-  const dotClass = isOverdue
-    ? "bg-red-600"
-    : isExpiringSoon
-    ? "bg-amber-500"
-    : "bg-green-600";
-
+  const dotClass = isOverdue ? "bg-red-600" : isExpiringSoon ? "bg-amber-500" : "bg-green-600";
   const wrapClass = isOverdue
     ? "bg-red-50 text-red-700 border-red-200"
     : isExpiringSoon
