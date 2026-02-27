@@ -10,7 +10,7 @@ import WellsMap from "@/app/components/WellsMap";
 function daysUntil(dateStr) {
   if (!dateStr) return null;
 
-  // If API returns "YYYY-MM-DD", treat it as a local date (prevents timezone weirdness)
+  // If API returns "YYYY-MM-DD", treat it as a local date (prevents timezone shift)
   if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const [y, m, d] = dateStr.split("-").map(Number);
     const target = new Date(y, m - 1, d);
@@ -23,50 +23,6 @@ function daysUntil(dateStr) {
 
   const now = new Date();
   return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function ExpirationPill({ expirationDate }) {
-  const d = daysUntil(expirationDate);
-
-  // no date
-  if (d === null) {
-    return (
-      <span className="inline-flex items-center gap-2 px-2 py-0.5 rounded-full border text-xs bg-gray-50 text-gray-600 border-gray-200">
-        <span className="h-2 w-2 rounded-full bg-gray-400" />
-        —
-      </span>
-    );
-  }
-
-  const isOverdue = d < 0;
-  const isExpiringSoon = d <= 90; // change if you want
-
-  const dotClass = isOverdue
-    ? "bg-red-600"
-    : isExpiringSoon
-    ? "bg-amber-500"
-    : "bg-green-600";
-
-  const wrapClass = isOverdue
-    ? "bg-red-50 text-red-700 border-red-200"
-    : isExpiringSoon
-    ? "bg-amber-50 text-amber-800 border-amber-200"
-    : "bg-green-50 text-green-700 border-green-200";
-
-  return (
-    <span className={`inline-flex items-center gap-2 px-2 py-0.5 rounded-full border text-xs ${wrapClass}`}>
-      <span className={`h-2 w-2 rounded-full ${dotClass}`} />
-      {isOverdue ? `${Math.abs(d)}d overdue` : `${d}d left`}
-    </span>
-  );
-}
-
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return null;
-  const now = new Date();
-  return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function statusFromExpiration(expirationDate, windowDays = 90) {
@@ -100,6 +56,41 @@ function StatusPill({ status }) {
   return (
     <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full border ${cls}`}>
       {label}
+    </span>
+  );
+}
+
+function ExpirationPill({ expirationDate, windowDays = 90 }) {
+  const d = daysUntil(expirationDate);
+
+  if (d === null) {
+    return (
+      <span className="inline-flex items-center gap-2 px-2 py-0.5 rounded-full border text-xs bg-gray-50 text-gray-600 border-gray-200">
+        <span className="h-2 w-2 rounded-full bg-gray-400" />
+        —
+      </span>
+    );
+  }
+
+  const isOverdue = d < 0;
+  const isExpiringSoon = d <= windowDays;
+
+  const dotClass = isOverdue
+    ? "bg-red-600"
+    : isExpiringSoon
+    ? "bg-amber-500"
+    : "bg-green-600";
+
+  const wrapClass = isOverdue
+    ? "bg-red-50 text-red-700 border-red-200"
+    : isExpiringSoon
+    ? "bg-amber-50 text-amber-800 border-amber-200"
+    : "bg-green-50 text-green-700 border-green-200";
+
+  return (
+    <span className={`inline-flex items-center gap-2 px-2 py-0.5 rounded-full border text-xs ${wrapClass}`}>
+      <span className={`h-2 w-2 rounded-full ${dotClass}`} />
+      {isOverdue ? `${Math.abs(d)}d overdue` : `${d}d left`}
     </span>
   );
 }
@@ -271,12 +262,7 @@ export default function DashboardPage() {
 
       {/* Top stats cards (clickable where requested) */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Total Wells"
-          value={stats.wells}
-          loading={loadingStats}
-          href={wellsPageHref}
-        />
+        <StatCard title="Total Wells" value={stats.wells} loading={loadingStats} href={wellsPageHref} />
 
         <StatCard
           title="Users"
@@ -290,15 +276,9 @@ export default function DashboardPage() {
           title={`Upcoming Tests (≤${EXPIRING_WINDOW_DAYS}d)`}
           value={stats.upcomingTests}
           loading={loadingStats}
-          // (optional) later you can link to a filtered view
         />
 
-        <StatCard
-          title="Pending Changes"
-          value={stats.pendingChanges}
-          loading={loadingStats}
-          // (optional) later you can link to /admin/changes
-        />
+        <StatCard title="Pending Changes" value={stats.pendingChanges} loading={loadingStats} />
       </div>
 
       {(isCustomer || isAdmin || isEmployee) && (
@@ -307,7 +287,6 @@ export default function DashboardPage() {
             wells={filteredWells}
             expiringWindowDays={EXPIRING_WINDOW_DAYS}
             expiringOnly={showExpiring || showExpired}
-            // map defaults are handled in component
           />
 
           <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
@@ -319,11 +298,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* ✅ Role-based Wells Page button */}
-              <Link
-                href={wellsPageHref}
-                className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
-              >
+              <Link href={wellsPageHref} className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50">
                 Open Wells Page →
               </Link>
             </div>
@@ -341,7 +316,6 @@ export default function DashboardPage() {
                       className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
                     >
                       <div className="space-y-1">
-                        {/* ✅ Make well name clickable to the well detail */}
                         <Link
                           href={`/wells/${encodeURIComponent(w.api || "")}`}
                           className="font-semibold underline"
@@ -353,16 +327,14 @@ export default function DashboardPage() {
                           API: <span className="font-mono">{w.api || "—"}</span>
                         </div>
 
-                        <div className="text-xs text-gray-600">
-                          Last test: {w.last_test_date || "—"} • Expires: {w._exp_for_display || "—"}
-                          {typeof w._days_left === "number" ? (
-                            <span className="ml-2 text-gray-500">
-                              ({w._days_left < 0
-                                ? `${Math.abs(w._days_left)}d past due`
-                                : `${w._days_left}d left`}
-                              )
-                            </span>
-                          ) : null}
+                        <div className="text-xs text-gray-600 flex flex-wrap items-center gap-2">
+                          <span>
+                            Last test: {w.last_test_date || "—"} • Expires: {w._exp_for_display || "—"}
+                          </span>
+                          <ExpirationPill
+                            expirationDate={w._exp_for_display}
+                            windowDays={EXPIRING_WINDOW_DAYS}
+                          />
                         </div>
 
                         <div className="mt-1">
@@ -428,9 +400,7 @@ export default function DashboardPage() {
           className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
         >
           <h2 className="text-xl font-semibold mb-2">Account</h2>
-          <p className="text-sm text-gray-600">
-            Manage your login info and notification preferences.
-          </p>
+          <p className="text-sm text-gray-600">Manage your login info and notification preferences.</p>
         </Link>
 
         {isAdmin && (
@@ -456,9 +426,7 @@ export default function DashboardPage() {
                 Pending Changes
                 <CountBadge value={stats.pendingChanges} loading={loadingStats} />
               </h2>
-              <p className="text-sm text-gray-600">
-                Review and approve edits before they go live.
-              </p>
+              <p className="text-sm text-gray-600">Review and approve edits before they go live.</p>
             </Link>
 
             <Link
@@ -466,9 +434,7 @@ export default function DashboardPage() {
               className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
             >
               <h2 className="text-xl font-semibold mb-2">Items & Pricing</h2>
-              <p className="text-sm text-gray-600">
-                Manage service types, charges, and billing rates.
-              </p>
+              <p className="text-sm text-gray-600">Manage service types, charges, and billing rates.</p>
             </Link>
           </>
         )}
