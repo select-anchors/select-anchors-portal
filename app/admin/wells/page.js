@@ -18,7 +18,29 @@ function fmtDate(d) {
   if (Number.isNaN(dt.getTime())) return "—";
   return dt.toLocaleDateString();
 }
+function SortableTh({ label, column }) {
+  const active = sortKey === column;
+  const arrow = active ? (sortDir === "asc" ? "▲" : "▼") : "";
 
+  return (
+    <th
+      className="text-left p-3 cursor-pointer select-none hover:bg-gray-100"
+      onClick={() => {
+        if (active) {
+          setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        } else {
+          setSortKey(column);
+          setSortDir("asc");
+        }
+      }}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <span className="text-xs">{arrow}</span>
+      </span>
+    </th>
+  );
+}
 export default function AdminWellsPage() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
