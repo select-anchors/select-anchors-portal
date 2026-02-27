@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../../components/NotLoggedIn";
 import WellLocationMap from "../../components/WellLocationMap";
@@ -13,19 +13,11 @@ function fmtDate(d) {
   if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
     const [y, m, day] = d.split("-").map(Number);
     const local = new Date(y, m - 1, day);
-    return local.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    return local.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
   const date = typeof d === "string" ? new Date(d) : d;
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 function daysUntil(dateStr) {
@@ -36,17 +28,16 @@ function daysUntil(dateStr) {
   return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function getStatus(expirationDate, windowDays = 90) {
+function statusFromExpiration(expirationDate, windowDays = 90) {
   const d = daysUntil(expirationDate);
-  if (d === null) return { key: "unknown", label: "Unknown", days: null };
-  if (d < 0) return { key: "expired", label: "Expired", days: d };
-  if (d <= windowDays) return { key: "expiring", label: "Expiring Soon", days: d };
-  return { key: "good", label: "Up to Date", days: d };
+  if (d === null) return "unknown";
+  if (d < 0) return "expired";
+  if (d <= windowDays) return "expiring";
+  return "good";
 }
 
-function StatusPill({ status }) {
-  const s = status?.key || "unknown";
-
+function StatusPill({ status, daysLeft }) {
+  const s = status || "unknown";
   const cls =
     s === "expired"
       ? "bg-red-50 text-red-700 border-red-200"
@@ -56,14 +47,51 @@ function StatusPill({ status }) {
       ? "bg-green-50 text-green-700 border-green-200"
       : "bg-gray-50 text-gray-600 border-gray-200";
 
+  const label =
+    s === "expired" ? "Expired" : s === "expiring" ? "Expiring Soon" : s === "good" ? "Good" : "Unknown";
+
   return (
     <span className={`inline-flex items-center px-3 py-1 text-sm rounded-full border ${cls}`}>
-      {status?.label || "Unknown"}
-      {typeof status?.days === "number" ? (
+      {label}
+      {typeof daysLeft === "number" ? (
         <span className="ml-2 text-xs opacity-80">
-          {status.days < 0 ? `${Math.abs(status.days)}d past due` : `${status.days}d left`}
+          {daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
         </span>
       ) : null}
+    </span>
+  );
+}
+
+function ExpirationBadge({ daysLeft }) {
+  const cls =
+    typeof daysLeft !== "number"
+      ? "bg-gray-100 text-gray-700 border-gray-200"
+      : daysLeft < 0
+      ? "bg-red-50 text-red-700 border-red-200"
+      : daysLeft <= 90
+      ? "bg-amber-50 text-amber-800 border-amber-200"
+      : "bg-green-50 text-green-700 border-green-200";
+
+  const dot =
+    typeof daysLeft !== "number"
+      ? "bg-gray-400"
+      : daysLeft < 0
+      ? "bg-red-600"
+      : daysLeft <= 90
+      ? "bg-amber-600"
+      : "bg-green-600";
+
+  const text =
+    typeof daysLeft !== "number"
+      ? "No expiration"
+      : daysLeft < 0
+      ? `${Math.abs(daysLeft)} days overdue`
+      : `${daysLeft} days left`;
+
+  return (
+    <span className={`inline-flex items-center gap-2 px-3 py-1 text-xs rounded-full border ${cls}`}>
+      <span className={`inline-block w-2 h-2 rounded-full ${dot}`} />
+      {text}
     </span>
   );
 }
@@ -77,13 +105,9 @@ export default function WellDetailPage({ params }) {
 
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       try {
-        setLoading(true);
-        const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Not found");
         const j = await res.json();
         if (!mounted) return;
@@ -95,13 +119,11 @@ export default function WellDetailPage({ params }) {
         if (mounted) setLoading(false);
       }
     })();
-
     return () => {
       mounted = false;
     };
   }, [apiParam]);
 
-  // ✅ Early returns AFTER hooks (we only used useSession/useState/useEffect above)
   if (status === "loading") return <div className="container py-10">Loading…</div>;
   if (!session) return <NotLoggedIn />;
   if (loading) return <div className="container py-10">Loading well…</div>;
@@ -127,7 +149,9 @@ export default function WellDetailPage({ params }) {
   const expires = w.current_expires_at ?? w.expiration_date ?? null;
 
   const EXPIRING_WINDOW_DAYS = 90;
-  const statusObj = getStatus(expires, EXPIRING_WINDOW_DAYS);
+
+  const computedStatus = useMemo(() => statusFromExpiration(expires, EXPIRING_WINDOW_DAYS), [expires]);
+  const daysLeft = useMemo(() => daysUntil(expires), [expires]);
 
   return (
     <div className="container py-10 space-y-6">
@@ -156,10 +180,14 @@ export default function WellDetailPage({ params }) {
               </p>
             )}
           </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <StatusPill status={computedStatus} daysLeft={daysLeft} />
+            <ExpirationBadge daysLeft={daysLeft} />
+          </div>
         </div>
 
         <div className="flex flex-col items-end gap-2">
-          <StatusPill status={statusObj} />
           <div className="flex flex-wrap gap-2">
             {isStaff && (
               <Link
@@ -180,7 +208,7 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
-      {/* Map */}
+      {/* Map (now matches dashboard style) */}
       <WellLocationMap
         coords={w.wellhead_coords}
         title={w.lease_well_name ? `${w.lease_well_name} Location` : "Well Location"}
@@ -245,6 +273,9 @@ export default function WellDetailPage({ params }) {
           <div>
             <div className="text-sm text-gray-600">Expiration Date</div>
             <div className="font-medium">{fmtDate(expires)}</div>
+            <div className="mt-2">
+              <ExpirationBadge daysLeft={daysLeft} />
+            </div>
           </div>
         </div>
       </div>
