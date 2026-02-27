@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../../components/NotLoggedIn";
 import WellLocationMap from "../../components/WellLocationMap";
@@ -13,11 +13,19 @@ function fmtDate(d) {
   if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
     const [y, m, day] = d.split("-").map(Number);
     const local = new Date(y, m - 1, day);
-    return local.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return local.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   }
   const date = typeof d === "string" ? new Date(d) : d;
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function daysUntil(dateStr) {
@@ -28,16 +36,17 @@ function daysUntil(dateStr) {
   return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function statusFromExpiration(expirationDate, windowDays = 90) {
+function getStatus(expirationDate, windowDays = 90) {
   const d = daysUntil(expirationDate);
-  if (d === null) return "unknown";
-  if (d < 0) return "expired";
-  if (d <= windowDays) return "expiring";
-  return "good";
+  if (d === null) return { key: "unknown", label: "Unknown", days: null };
+  if (d < 0) return { key: "expired", label: "Expired", days: d };
+  if (d <= windowDays) return { key: "expiring", label: "Expiring Soon", days: d };
+  return { key: "good", label: "Up to Date", days: d };
 }
 
-function StatusPill({ status, daysLeft }) {
-  const s = status || "unknown";
+function StatusPill({ status }) {
+  const s = status?.key || "unknown";
+
   const cls =
     s === "expired"
       ? "bg-red-50 text-red-700 border-red-200"
@@ -47,15 +56,12 @@ function StatusPill({ status, daysLeft }) {
       ? "bg-green-50 text-green-700 border-green-200"
       : "bg-gray-50 text-gray-600 border-gray-200";
 
-  const label =
-    s === "expired" ? "Expired" : s === "expiring" ? "Expiring Soon" : s === "good" ? "Good" : "Unknown";
-
   return (
     <span className={`inline-flex items-center px-3 py-1 text-sm rounded-full border ${cls}`}>
-      {label}
-      {typeof daysLeft === "number" ? (
+      {status?.label || "Unknown"}
+      {typeof status?.days === "number" ? (
         <span className="ml-2 text-xs opacity-80">
-          {daysLeft < 0 ? `${Math.abs(daysLeft)}d past due` : `${daysLeft}d left`}
+          {status.days < 0 ? `${Math.abs(status.days)}d past due` : `${status.days}d left`}
         </span>
       ) : null}
     </span>
@@ -71,9 +77,13 @@ export default function WellDetailPage({ params }) {
 
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
-        const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, { cache: "no-store" });
+        setLoading(true);
+        const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error("Not found");
         const j = await res.json();
         if (!mounted) return;
@@ -85,11 +95,13 @@ export default function WellDetailPage({ params }) {
         if (mounted) setLoading(false);
       }
     })();
+
     return () => {
       mounted = false;
     };
   }, [apiParam]);
 
+  // ✅ Early returns AFTER hooks (we only used useSession/useState/useEffect above)
   if (status === "loading") return <div className="container py-10">Loading…</div>;
   if (!session) return <NotLoggedIn />;
   if (loading) return <div className="container py-10">Loading well…</div>;
@@ -115,13 +127,7 @@ export default function WellDetailPage({ params }) {
   const expires = w.current_expires_at ?? w.expiration_date ?? null;
 
   const EXPIRING_WINDOW_DAYS = 90;
-
-  const computedStatus = useMemo(
-    () => statusFromExpiration(expires, EXPIRING_WINDOW_DAYS),
-    [expires]
-  );
-
-  const daysLeft = useMemo(() => daysUntil(expires), [expires]);
+  const statusObj = getStatus(expires, EXPIRING_WINDOW_DAYS);
 
   return (
     <div className="container py-10 space-y-6">
@@ -153,7 +159,7 @@ export default function WellDetailPage({ params }) {
         </div>
 
         <div className="flex flex-col items-end gap-2">
-          <StatusPill status={computedStatus} daysLeft={daysLeft} />
+          <StatusPill status={statusObj} />
           <div className="flex flex-wrap gap-2">
             {isStaff && (
               <Link
