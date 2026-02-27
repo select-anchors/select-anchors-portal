@@ -1,8 +1,9 @@
+// app/admin/wells/new/page.js
 "use client";
 
 import { useSession } from "next-auth/react";
 import { useState } from "react";
-import NotLoggedIn from "@/app/components/NotLoggedIn";
+import NotLoggedIn from "../../../components/NotLoggedIn";
 
 function Field({ label, children }) {
   return (
@@ -42,47 +43,38 @@ function Card({ title, children }) {
   );
 }
 
-const ANCHORS = [
-  { key: "anchor_ne", label: "NE Anchor GPS" },
-  { key: "anchor_nw", label: "NW Anchor GPS" },
-  { key: "anchor_se", label: "SE Anchor GPS" },
-  { key: "anchor_sw", label: "SW Anchor GPS" },
-];
-
-// If you’re pivoting away from per-anchor expiration, you can delete these entirely.
-const PER_ANCHOR_EXPIRES = [
-  { key: "expires_nw", label: "NW Expires" },
-  { key: "expires_se", label: "SE Expires" },
-  { key: "expires_sw", label: "SW Expires" },
-];
-
 export default function NewWellPage() {
   const { data: session, status } = useSession();
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
+  // ✅ These keys MATCH your POST /api/wells route
   const [form, setForm] = useState({
     lease_well_name: "",
     api: "",
+    wellhead_coords: "",
+    county: "",
+    state: "",
+
     company_name: "",
     company_phone: "",
     company_email: "",
     company_address: "",
+
     company_man_name: "",
     company_man_phone: "",
     company_man_email: "",
-    wellhead_coords: "",
-    anchor_ne: "",
-    anchor_nw: "",
-    anchor_se: "",
-    anchor_sw: "",
-    prev_anchor_work: "",
-    directions_notes: "",
-    last_test_date: "",
-    current_expires_at: "",
-    expires_nw: "",
-    expires_se: "",
-    expires_sw: "",
+
+    previous_anchor_company: "",
+    previous_anchor_work: "",
+    directions_other_notes: "",
+
+    need_by: "",
+    status: "pending",
+
+    // Optional: set customer_id if you want (admin assigns)
+    customer_id: "",
+    customer: "",
   });
 
   function upd(k, v) {
@@ -93,17 +85,40 @@ export default function NewWellPage() {
     e.preventDefault();
     setSaving(true);
     setMsg("");
+
     try {
       const res = await fetch("/api/wells", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(form),
       });
-      const j = await res.json();
+
+      const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || "Failed to save");
-      setMsg("Submitted for approval.");
-      // reset
-      setForm((p) => Object.fromEntries(Object.keys(p).map((k) => [k, ""])));
+
+      setMsg("Well created.");
+      setForm((p) => ({
+        ...p,
+        lease_well_name: "",
+        api: "",
+        wellhead_coords: "",
+        county: "",
+        state: "",
+        company_name: "",
+        company_phone: "",
+        company_email: "",
+        company_address: "",
+        company_man_name: "",
+        company_man_phone: "",
+        company_man_email: "",
+        previous_anchor_company: "",
+        previous_anchor_work: "",
+        directions_other_notes: "",
+        need_by: "",
+        status: "pending",
+        customer_id: "",
+        customer: "",
+      }));
     } catch (e2) {
       setMsg(e2?.message || "Failed to save");
     } finally {
@@ -113,6 +128,7 @@ export default function NewWellPage() {
 
   if (status === "loading") return <div className="container py-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
+
   const role = session?.user?.role;
   if (role !== "admin" && role !== "employee") {
     return <div className="container py-8">Not authorized.</div>;
@@ -128,7 +144,7 @@ export default function NewWellPage() {
       <form onSubmit={submit} className="space-y-8">
         <Card title="Company">
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Company">
+            <Field label="Company Name">
               <TextInput value={form.company_name} onChange={(e) => upd("company_name", e.target.value)} />
             </Field>
             <Field label="Company Phone">
@@ -157,13 +173,10 @@ export default function NewWellPage() {
           </div>
         </Card>
 
-        <Card title="Well Header">
+        <Card title="Well Info">
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="Lease / Well Name">
-              <TextInput
-                value={form.lease_well_name}
-                onChange={(e) => upd("lease_well_name", e.target.value)}
-              />
+              <TextInput value={form.lease_well_name} onChange={(e) => upd("lease_well_name", e.target.value)} />
             </Field>
 
             <Field label="API">
@@ -175,7 +188,7 @@ export default function NewWellPage() {
             </Field>
 
             <div className="md:col-span-2">
-              <Field label="Well Head GPS (paste from Maps)">
+              <Field label="Wellhead Coords (lat,lng)">
                 <TextInput
                   value={form.wellhead_coords}
                   onChange={(e) => upd("wellhead_coords", e.target.value)}
@@ -183,64 +196,40 @@ export default function NewWellPage() {
                 />
               </Field>
             </div>
-          </div>
-        </Card>
 
-        <Card title="Anchors & Testing">
-          <div className="grid md:grid-cols-2 gap-4">
-            {ANCHORS.map(({ key, label }) => (
-              <Field key={key} label={label}>
-                <TextInput
-                  value={form[key]}
-                  onChange={(e) => upd(key, e.target.value)}
-                  placeholder="32.12345, -103.12345"
-                />
-              </Field>
-            ))}
-
-            <Field label="Last Test Date">
-              <TextInput
-                type="date"
-                value={form.last_test_date}
-                onChange={(e) => upd("last_test_date", e.target.value)}
-              />
+            <Field label="County">
+              <TextInput value={form.county} onChange={(e) => upd("county", e.target.value)} />
             </Field>
 
-            <Field label="Expiration Date">
-              <TextInput
-                type="date"
-                value={form.current_expires_at}
-                onChange={(e) => upd("current_expires_at", e.target.value)}
-              />
+            <Field label="State (2-letter)">
+              <TextInput value={form.state} onChange={(e) => upd("state", e.target.value.toUpperCase())} placeholder="NM" />
             </Field>
-
-            {/* If you’re pivoting away from per-anchor expires, delete this block */}
-            {PER_ANCHOR_EXPIRES.map(({ key, label }) => (
-              <Field key={key} label={label}>
-                <TextInput
-                  type="date"
-                  value={form[key]}
-                  onChange={(e) => upd(key, e.target.value)}
-                />
-              </Field>
-            ))}
           </div>
         </Card>
 
         <Card title="History & Notes">
           <div className="grid md:grid-cols-2 gap-6">
+            <Field label="Previous Anchor Company">
+              <TextInput value={form.previous_anchor_company} onChange={(e) => upd("previous_anchor_company", e.target.value)} />
+            </Field>
+
+            <Field label="Need By (optional)">
+              <TextInput type="date" value={form.need_by} onChange={(e) => upd("need_by", e.target.value)} />
+            </Field>
+
             <Field label="Previous Anchor Work">
               <TextArea
                 rows={6}
-                value={form.prev_anchor_work}
-                onChange={(e) => upd("prev_anchor_work", e.target.value)}
+                value={form.previous_anchor_work}
+                onChange={(e) => upd("previous_anchor_work", e.target.value)}
               />
             </Field>
+
             <Field label="Directions & Other Notes">
               <TextArea
                 rows={6}
-                value={form.directions_notes}
-                onChange={(e) => upd("directions_notes", e.target.value)}
+                value={form.directions_other_notes}
+                onChange={(e) => upd("directions_other_notes", e.target.value)}
               />
             </Field>
           </div>
@@ -251,7 +240,7 @@ export default function NewWellPage() {
             disabled={saving}
             className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 disabled:opacity-60"
           >
-            {saving ? "Saving…" : "Submit for Approval"}
+            {saving ? "Saving…" : "Create Well"}
           </button>
         </div>
       </form>
