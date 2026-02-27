@@ -22,10 +22,20 @@ function fmtDate(d) {
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return null;
+
+  // ✅ Treat YYYY-MM-DD as a local date (prevents timezone shift)
+  if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const target = new Date(y, m - 1, d);
+    const now = new Date();
+    return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  const target = new Date(dateStr);
+  if (Number.isNaN(target.getTime())) return null;
+
   const now = new Date();
-  return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function statusFromExpiration(expirationDate, windowDays = 90) {
@@ -48,7 +58,13 @@ function StatusPill({ status, daysLeft }) {
       : "bg-gray-50 text-gray-600 border-gray-200";
 
   const label =
-    s === "expired" ? "Expired" : s === "expiring" ? "Expiring Soon" : s === "good" ? "Good" : "Unknown";
+    s === "expired"
+      ? "Expired"
+      : s === "expiring"
+      ? "Expiring Soon"
+      : s === "good"
+      ? "Good"
+      : "Unknown";
 
   return (
     <span className={`inline-flex items-center px-3 py-1 text-sm rounded-full border ${cls}`}>
@@ -105,6 +121,7 @@ export default function WellDetailPage({ params }) {
 
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
         const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, { cache: "no-store" });
@@ -119,6 +136,7 @@ export default function WellDetailPage({ params }) {
         if (mounted) setLoading(false);
       }
     })();
+
     return () => {
       mounted = false;
     };
@@ -134,7 +152,7 @@ export default function WellDetailPage({ params }) {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h1 className="text-xl font-semibold mb-2">Well not found</h1>
           <p className="text-gray-600 mb-4">API: {apiParam}</p>
-          <Link href="/admin/wells" className="underline text-[#2f4f4f]">
+          <Link href="/wells" className="underline text-[#2f4f4f]">
             ← Back to All Wells
           </Link>
         </div>
@@ -145,6 +163,7 @@ export default function WellDetailPage({ params }) {
   const w = well;
   const isStaff = session?.user?.role === "admin" || session?.user?.role === "employee";
 
+  // ✅ Fix 1 (best fields)
   const lastTest = w.current_tested_at ?? w.last_test_date ?? null;
   const expires = w.current_expires_at ?? w.expiration_date ?? null;
 
@@ -208,7 +227,7 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
-      {/* Map (now matches dashboard style) */}
+      {/* Map */}
       <WellLocationMap
         coords={w.wellhead_coords}
         title={w.lease_well_name ? `${w.lease_well_name} Location` : "Well Location"}
