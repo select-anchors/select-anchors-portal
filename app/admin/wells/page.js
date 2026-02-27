@@ -32,6 +32,49 @@ export default function AdminWellsPage() {
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
 
+  const filtered = useMemo(() => {
+  const q = query.trim().toLowerCase();
+
+  let list = wells;
+
+  if (q) {
+    list = list.filter((w) => {
+      const lease = (w.lease_well_name || "").toLowerCase();
+      const api = (w.api || "").toLowerCase();
+      const company = (w.company_name || "").toLowerCase();
+      const companyMan = (w.company_man_name || "").toLowerCase();
+      return (
+        lease.includes(q) ||
+        api.includes(q) ||
+        company.includes(q) ||
+        companyMan.includes(q)
+      );
+    });
+  }
+
+  const dir = sortDir === "asc" ? 1 : -1;
+
+  return [...list].sort((a, b) => {
+    let av = a?.[sortKey];
+    let bv = b?.[sortKey];
+
+    // Date sorting
+    if (sortKey === "last_test_date" || sortKey === "expiration_date") {
+      const ad = av ? new Date(av).getTime() : 0;
+      const bd = bv ? new Date(bv).getTime() : 0;
+      return (ad - bd) * dir;
+    }
+
+    // String sorting
+    av = (av ?? "").toString().toLowerCase();
+    bv = (bv ?? "").toString().toLowerCase();
+
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+}, [wells, query, sortKey, sortDir]);
+  
   const role = session?.user?.role;
   const canSee = role === "admin" || role === "employee";
 
