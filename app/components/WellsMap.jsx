@@ -7,8 +7,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 function parseLatLng(raw) {
   if (!raw) return null;
   const s = String(raw).trim();
-
-  // Extract numbers (handles "32.1,-103.4" or "Lat: 32.1 Lng: -103.4")
   const nums = s.match(/-?\d+(\.\d+)?/g);
   if (!nums || nums.length < 2) return null;
 
@@ -16,8 +14,6 @@ function parseLatLng(raw) {
   const b = Number(nums[1]);
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
 
-  // Heuristic: lat is [-90, 90], lng is [-180, 180]
-  // If first number isn't a lat but second is, swap.
   let lat = a;
   let lng = b;
 
@@ -25,38 +21,33 @@ function parseLatLng(raw) {
     lat = b;
     lng = a;
   }
-
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
 
   return { lat, lng };
 }
 
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return null;
-  const now = new Date();
-  return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-}
-
 function statusFromExpiration(expirationDate, windowDays = 90) {
-  const d = daysUntil(expirationDate);
-  if (d === null) return "unknown";
-  if (d < 0) return "expired";
-  if (d <= windowDays) return "expiring";
+  if (!expirationDate) return "unknown";
+  const d = new Date(expirationDate);
+  if (Number.isNaN(d.getTime())) return "unknown";
+
+  const now = new Date();
+  const days = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (days < 0) return "expired";
+  if (days <= windowDays) return "expiring";
   return "good";
 }
 
 function markerIcon(status) {
-  // Google default marker colors via simple SVG data URL (no external deps)
   const color =
     status === "expired"
-      ? "#DC2626" // red
+      ? "#DC2626"
       : status === "expiring"
-        ? "#D97706" // amber
-        : status === "good"
-          ? "#16A34A" // green
-          : "#6B7280"; // gray
+      ? "#D97706"
+      : status === "good"
+      ? "#16A34A"
+      : "#6B7280";
 
   const svg = encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
@@ -104,17 +95,27 @@ export default function WellsMap({
         const ll = parseLatLng(w.wellhead_coords);
         if (!ll) return null;
 
-        const exp = w.current_expires_at || w.latest_expires_at || w.expiration_date || w.expiration || null;
-const status = statusFromExpiration(exp, expiringWindowDays);
+        const exp =
+          w.current_expires_at ??
+          w.latest_expires_at ??
+          w.expiration_date ??
+          w.expiration ??
+          null;
+
+        const status = statusFromExpiration(exp, expiringWindowDays);
+
         return {
           ...w,
           latlng: ll,
           _status: status,
+          _exp: exp,
         };
       })
       .filter(Boolean);
 
-    return expiringOnly ? items.filter((x) => x._status === "expiring" || x._status === "expired") : items;
+    return expiringOnly
+      ? items.filter((x) => x._status === "expiring" || x._status === "expired")
+      : items;
   }, [wells, expiringOnly, expiringWindowDays]);
 
   useEffect(() => {
@@ -124,19 +125,26 @@ const status = statusFromExpiration(exp, expiringWindowDays);
 
     // Initialize map once
     if (!mapObjRef.current) {
-      const first = mapped[0]?.latlng || { lat: 32.0, lng: -103.0 }; // Permian-ish fallback
-      mapObjRef.current = new window.google.maps.Map(mapRef.current, {
-  center: first,
-  zoom: mapped.length ? 7 : 6,
-  mapTypeControl: false,
-  streetViewControl: false,
-  fullscreenControl: true,
+      const first = mapped[0]?.latlng || { lat: 32.0, lng: -103.0 };
 
-  // ✅ allow zooming + scroll wheel
-  zoomControl: true,
-  scrollwheel: true,
-  gestureHandling: "greedy",
-});
+      mapObjRef.current = new window.google.maps.Map(mapRef.current, {
+        center: first,
+        zoom: mapped.length ? 7 : 6,
+
+        // ✅ Default Satellite, but allow switching
+        mapTypeId: "satellite",
+        mapTypeControl: true,
+        mapTypeControlOptions: {
+          style: window.google.maps.MapTypeControlStyle.DROPDOWN_MENU,
+        },
+
+        streetViewControl: false,
+        fullscreenControl: true,
+        zoomControl: true,
+        scrollwheel: true,
+        gestureHandling: "greedy",
+      });
+
       infoRef.current = new window.google.maps.InfoWindow();
     }
 
@@ -145,10 +153,12 @@ const status = statusFromExpiration(exp, expiringWindowDays);
     markersRef.current = [];
 
     const bounds = new window.google.maps.LatLngBounds();
+    let hasAny = false;
 
     for (const w of mapped) {
       const pos = new window.google.maps.LatLng(w.latlng.lat, w.latlng.lng);
       bounds.extend(pos);
+      hasAny = true;
 
       const marker = new window.google.maps.Marker({
         position: pos,
@@ -162,22 +172,25 @@ const status = statusFromExpiration(exp, expiringWindowDays);
         const api = escapeHtml(w.api || "—");
         const company = escapeHtml(w.company_name || "—");
         const lastTest = escapeHtml(w.last_test_date || "—");
-        const exp = escapeHtml(w.expiration_date || "—");
+        const exp = escapeHtml(w._exp || w.expiration_date || "—");
 
-        const href = `/jobs/new?api=${encodeURIComponent(w.api || "")}&lease_well_name=${encodeURIComponent(
+        const detailsHref = `/wells/${encodeURIComponent(w.api || "")}`;
+        const requestHref = `/jobs/new?api=${encodeURIComponent(w.api || "")}&lease_well_name=${encodeURIComponent(
           w.lease_well_name || ""
         )}&company_name=${encodeURIComponent(w.company_name || "")}`;
 
         const html = `
           <div style="font-family: ui-sans-serif, system-ui; max-width: 260px;">
-            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">${name}</div>
+            <a href="${detailsHref}" style="display:block; font-weight:700; font-size:14px; margin-bottom:4px; text-decoration:underline; color:#111827;">
+              ${name}
+            </a>
             <div style="font-size: 12px; color: #374151; margin-bottom: 6px;">
               <div><span style="color:#6B7280;">API:</span> <span style="font-family: ui-monospace;">${api}</span></div>
               <div><span style="color:#6B7280;">Company:</span> ${company}</div>
               <div><span style="color:#6B7280;">Last test:</span> ${lastTest}</div>
               <div><span style="color:#6B7280;">Expires:</span> ${exp}</div>
             </div>
-            <a href="${href}" style="
+            <a href="${requestHref}" style="
               display:inline-block; padding:8px 10px; border-radius:12px;
               background:#2f4f4f; color:white; text-decoration:none; font-size:12px;
             ">Request Test</a>
@@ -191,7 +204,7 @@ const status = statusFromExpiration(exp, expiringWindowDays);
       markersRef.current.push(marker);
     }
 
-    if (mapped.length) {
+    if (hasAny) {
       mapObjRef.current.fitBounds(bounds, 40);
     }
   }, [ready, mapped, expiringWindowDays]);
@@ -199,8 +212,7 @@ const status = statusFromExpiration(exp, expiringWindowDays);
   if (!key) {
     return (
       <div className="bg-white border rounded-2xl p-4 text-sm text-red-600">
-        Missing <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code>. Add it in Vercel
-        Env Vars to enable the dashboard map.
+        Missing <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code>. Add it in your env vars to enable the map.
       </div>
     );
   }
@@ -217,6 +229,8 @@ const status = statusFromExpiration(exp, expiringWindowDays);
         <div className="text-xs text-gray-500">
           Showing {mapped.length} well{mapped.length === 1 ? "" : "s"}{" "}
           {expiringOnly ? "(expiring/expired only)" : ""}
+          {" • "}
+          Default: Satellite (switch in map controls)
         </div>
       </div>
       <div ref={mapRef} style={{ width: "100%", height: 420 }} />
