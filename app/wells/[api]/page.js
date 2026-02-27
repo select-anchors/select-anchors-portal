@@ -1,8 +1,6 @@
 // app/wells/[api]/page.js
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import Link from "next/link";
 import Script from "next/script";
 import { useEffect, useMemo, useRef, useState } from "react";
