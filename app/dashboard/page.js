@@ -1,4 +1,4 @@
-// /app/dashboard/page.js
+// app/dashboard/page.js
 "use client";
 
 import Link from "next/link";
@@ -56,6 +56,28 @@ const CountBadge = ({ value, loading }) => (
   </span>
 );
 
+function StatCard({ title, value, loading, href, disabled }) {
+  const content = (
+    <div
+      className={[
+        "p-5 bg-white border rounded-2xl shadow-sm transition",
+        disabled ? "opacity-60 cursor-not-allowed" : href ? "hover:shadow-md cursor-pointer" : "",
+      ].join(" ")}
+    >
+      <div className="text-xs uppercase text-gray-500 tracking-wider">{title}</div>
+      <div className="mt-1 text-2xl font-semibold">{loading ? "—" : value}</div>
+    </div>
+  );
+
+  if (!href || disabled) return content;
+
+  return (
+    <Link href={href} className="block">
+      {content}
+    </Link>
+  );
+}
+
 export default function DashboardPage() {
   const { data: session, status } = useSession();
 
@@ -75,10 +97,22 @@ export default function DashboardPage() {
   const [showExpiring, setShowExpiring] = useState(false);
   const [showExpired, setShowExpired] = useState(false);
 
-  // Fetch stats
+  // ---- IMPORTANT: ALL MEMOS ABOVE ANY RETURN ----
+  const role = session?.user?.role || "customer";
+  const isAdmin = role === "admin";
+  const isEmployee = role === "employee";
+  const isCustomer = role === "customer";
+
+  const wellsPageHref = isAdmin || isEmployee ? "/admin/wells" : "/wells";
+  const usersPageHref = "/admin/users";
+
+  // Fetch stats (only after auth is resolved)
   useEffect(() => {
     let isMounted = true;
-    (async () => {
+
+    async function run() {
+      if (status !== "authenticated") return;
+
       try {
         const res = await fetch("/api/stats", { cache: "no-store" });
         const json = await res.json();
@@ -88,16 +122,21 @@ export default function DashboardPage() {
       } finally {
         if (isMounted) setLoadingStats(false);
       }
-    })();
+    }
+
+    run();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [status]);
 
-  // Fetch wells
+  // Fetch wells (only after auth is resolved)
   useEffect(() => {
     let mounted = true;
-    (async () => {
+
+    async function run() {
+      if (status !== "authenticated") return;
+
       try {
         const res = await fetch("/api/wells", { cache: "no-store" });
         const json = await res.json();
@@ -107,19 +146,15 @@ export default function DashboardPage() {
       } finally {
         if (mounted) setLoadingWells(false);
       }
-    })();
+    }
+
+    run();
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [status]);
 
-  // ---- IMPORTANT: ALL MEMOS ABOVE ANY RETURN ----
-  const role = session?.user?.role || "customer";
-  const isAdmin = role === "admin";
-  const isEmployee = role === "employee";
-  const isCustomer = role === "customer";
-
-  // NOTE: you’re using expiration_date in wells list; keep consistent.
+  // Status enrich for cards + map
   const wellsWithStatus = useMemo(() => {
     return (wells || []).map((w) => {
       const exp = w.current_expires_at ?? w.expiration_date ?? null;
@@ -151,17 +186,13 @@ export default function DashboardPage() {
   }, [showExpiring, showExpired, EXPIRING_WINDOW_DAYS]);
 
   // ---- NOW it’s safe to return conditionally ----
-  if (status === "loading") {
-    return <div className="container py-10">Loading...</div>;
-  }
+  if (status === "loading") return <div className="container py-10">Loading...</div>;
   if (!session) return <NotLoggedIn />;
 
   return (
     <div className="container py-10 space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <h1 className="text-3xl font-bold">
-          Welcome, {session.user?.name || "User"}!
-        </h1>
+        <h1 className="text-3xl font-bold">Welcome, {session.user?.name || "User"}!</h1>
 
         <div className="flex gap-3 text-sm bg-white border rounded-2xl px-4 py-2">
           <label className="flex items-center gap-2">
@@ -184,32 +215,36 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Top stats cards (clickable where requested) */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          <div className="text-xs uppercase text-gray-500 tracking-wider">Total Wells</div>
-          <div className="mt-1 text-2xl font-semibold">{loadingStats ? "—" : stats.wells}</div>
-        </div>
+        <StatCard
+          title="Total Wells"
+          value={stats.wells}
+          loading={loadingStats}
+          href={wellsPageHref}
+        />
 
-        <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          <div className="text-xs uppercase text-gray-500 tracking-wider">Users</div>
-          <div className="mt-1 text-2xl font-semibold">{loadingStats ? "—" : stats.users}</div>
-        </div>
+        <StatCard
+          title="Users"
+          value={stats.users}
+          loading={loadingStats}
+          href={isAdmin ? usersPageHref : undefined}
+          disabled={!isAdmin}
+        />
 
-        <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          <div className="text-xs uppercase text-gray-500 tracking-wider">
-            Upcoming Tests (≤{EXPIRING_WINDOW_DAYS}d)
-          </div>
-          <div className="mt-1 text-2xl font-semibold">
-            {loadingStats ? "—" : stats.upcomingTests}
-          </div>
-        </div>
+        <StatCard
+          title={`Upcoming Tests (≤${EXPIRING_WINDOW_DAYS}d)`}
+          value={stats.upcomingTests}
+          loading={loadingStats}
+          // (optional) later you can link to a filtered view
+        />
 
-        <div className="p-5 bg-white border rounded-2xl shadow-sm">
-          <div className="text-xs uppercase text-gray-500 tracking-wider">Pending Changes</div>
-          <div className="mt-1 text-2xl font-semibold">
-            {loadingStats ? "—" : stats.pendingChanges}
-          </div>
-        </div>
+        <StatCard
+          title="Pending Changes"
+          value={stats.pendingChanges}
+          loading={loadingStats}
+          // (optional) later you can link to /admin/changes
+        />
       </div>
 
       {(isCustomer || isAdmin || isEmployee) && (
@@ -218,6 +253,7 @@ export default function DashboardPage() {
             wells={filteredWells}
             expiringWindowDays={EXPIRING_WINDOW_DAYS}
             expiringOnly={showExpiring || showExpired}
+            // map defaults are handled in component
           />
 
           <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
@@ -228,8 +264,10 @@ export default function DashboardPage() {
                   Click a well to view details, or request a test in one click.
                 </div>
               </div>
+
+              {/* ✅ Role-based Wells Page button */}
               <Link
-                href="/wells"
+                href={wellsPageHref}
                 className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
               >
                 Open Wells Page →
@@ -245,14 +283,22 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   {filteredWells.map((w) => (
                     <div
-                      key={w.api || `${w.lease_well_name}-${Math.random()}`}
+                      key={w.api || `${w.lease_well_name}-x`}
                       className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
                     >
                       <div className="space-y-1">
-                        <div className="font-semibold">{w.lease_well_name || "—"}</div>
+                        {/* ✅ Make well name clickable to the well detail */}
+                        <Link
+                          href={`/wells/${encodeURIComponent(w.api || "")}`}
+                          className="font-semibold underline"
+                        >
+                          {w.lease_well_name || "—"}
+                        </Link>
+
                         <div className="text-xs text-gray-600">
                           API: <span className="font-mono">{w.api || "—"}</span>
                         </div>
+
                         <div className="text-xs text-gray-600">
                           Last test: {w.last_test_date || "—"} • Expires: {w._exp_for_display || "—"}
                           {typeof w._days_left === "number" ? (
@@ -264,6 +310,7 @@ export default function DashboardPage() {
                             </span>
                           ) : null}
                         </div>
+
                         <div className="mt-1">
                           <StatusPill status={w._status} />
                         </div>
@@ -295,6 +342,7 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Bottom tiles */}
       <div className="grid md:grid-cols-3 gap-6">
         {(isAdmin || isEmployee) && (
           <Link
@@ -309,7 +357,7 @@ export default function DashboardPage() {
         )}
 
         <Link
-          href={isAdmin || isEmployee ? "/admin/wells" : "/wells"}
+          href={wellsPageHref}
           className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
         >
           <h2 className="text-xl font-semibold mb-2">
