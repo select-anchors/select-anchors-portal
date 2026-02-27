@@ -132,10 +132,10 @@ const status = statusFromExpiration(exp, expiringWindowDays);
   streetViewControl: false,
   fullscreenControl: true,
 
-  // ✅ allow zoom / gestures
-  gestureHandling: "cooperative", // trackpad + scroll zoom works
+  // ✅ allow zooming + scroll wheel
+  zoomControl: true,
   scrollwheel: true,
-  keyboardShortcuts: true,
+  gestureHandling: "greedy",
 });
       infoRef.current = new window.google.maps.InfoWindow();
     }
