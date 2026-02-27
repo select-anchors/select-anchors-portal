@@ -21,6 +21,7 @@ function fmtDate(d) {
 function daysUntil(dateStr) {
   if (!dateStr) return null;
 
+  // Handle YYYY-MM-DD as local date
   if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const [y, m, d] = dateStr.split("-").map(Number);
     const target = new Date(y, m - 1, d);
@@ -50,12 +51,7 @@ function ExpirationPill({ expirationDate, windowDays = 90 }) {
   const isOverdue = d < 0;
   const isExpiringSoon = d <= windowDays;
 
-  const dotClass = isOverdue
-    ? "bg-red-600"
-    : isExpiringSoon
-    ? "bg-amber-500"
-    : "bg-green-600";
-
+  const dotClass = isOverdue ? "bg-red-600" : isExpiringSoon ? "bg-amber-500" : "bg-green-600";
   const wrapClass = isOverdue
     ? "bg-red-50 text-red-700 border-red-200"
     : isExpiringSoon
@@ -96,9 +92,8 @@ export default function AdminWellsPage() {
       <th
         className="text-left p-3 cursor-pointer select-none hover:bg-gray-100"
         onClick={() => {
-          if (active) {
-            setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-          } else {
+          if (active) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+          else {
             setSortKey(column);
             setSortDir("asc");
           }
@@ -183,10 +178,12 @@ export default function AdminWellsPage() {
     const dir = sortDir === "asc" ? 1 : -1;
 
     return [...list].sort((a, b) => {
-      // Special: sort by "expires_in" uses expiration_date daysUntil
+      const aExp = a?.current_expires_at ?? a?.expiration_date ?? null;
+      const bExp = b?.current_expires_at ?? b?.expiration_date ?? null;
+
       if (sortKey === "expires_in") {
-        const ad = daysUntil(a?.expiration_date);
-        const bd = daysUntil(b?.expiration_date);
+        const ad = daysUntil(aExp);
+        const bd = daysUntil(bExp);
         const av = ad === null ? Number.POSITIVE_INFINITY : ad;
         const bv = bd === null ? Number.POSITIVE_INFINITY : bd;
         return (av - bv) * dir;
@@ -195,9 +192,15 @@ export default function AdminWellsPage() {
       let av = a?.[sortKey];
       let bv = b?.[sortKey];
 
-      if (sortKey === "last_test_date" || sortKey === "expiration_date") {
+      if (sortKey === "last_test_date") {
         const ad = av ? new Date(av).getTime() : 0;
         const bd = bv ? new Date(bv).getTime() : 0;
+        return (ad - bd) * dir;
+      }
+
+      if (sortKey === "expiration_date") {
+        const ad = aExp ? new Date(aExp).getTime() : 0;
+        const bd = bExp ? new Date(bExp).getTime() : 0;
         return (ad - bd) * dir;
       }
 
@@ -220,10 +223,7 @@ export default function AdminWellsPage() {
     <div className="container py-8 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">All Wells</h1>
-        <Link
-          href="/admin/wells/new"
-          className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
-        >
+        <Link href="/admin/wells/new" className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90">
           New Well
         </Link>
       </div>
@@ -286,29 +286,33 @@ export default function AdminWellsPage() {
                 </td>
               </tr>
             ) : (
-              filtered.map((w) => (
-                <tr key={w.api} className="border-t">
-                  <td className="p-3">{w.lease_well_name || "—"}</td>
-                  <td className="p-3 font-mono">{w.api}</td>
-                  <td className="p-3">{w.company_name || "—"}</td>
-                  <td className="p-3">{w.company_man_name || "—"}</td>
-                  <td className="p-3">{fmtDate(w.last_test_date)}</td>
-                  <td className="p-3">{fmtDate(w.expiration_date)}</td>
-                  <td className="p-3">
-                    <ExpirationPill expirationDate={w.expiration_date} windowDays={90} />
-                  </td>
-                  <td className="p-3">
-                    <div className="flex gap-2">
-                      <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
-                        View
-                      </Link>
-                      <Link href={`/admin/wells/${encodeURIComponent(w.api)}/edit`} className="underline">
-                        Edit
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))
+              filtered.map((w) => {
+                const exp = w.current_expires_at ?? w.expiration_date ?? null;
+
+                return (
+                  <tr key={w.api} className="border-t">
+                    <td className="p-3">{w.lease_well_name || "—"}</td>
+                    <td className="p-3 font-mono">{w.api}</td>
+                    <td className="p-3">{w.company_name || "—"}</td>
+                    <td className="p-3">{w.company_man_name || "—"}</td>
+                    <td className="p-3">{fmtDate(w.last_test_date)}</td>
+                    <td className="p-3">{fmtDate(exp)}</td>
+                    <td className="p-3">
+                      <ExpirationPill expirationDate={exp} windowDays={90} />
+                    </td>
+                    <td className="p-3">
+                      <div className="flex gap-2">
+                        <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
+                          View
+                        </Link>
+                        <Link href={`/admin/wells/${encodeURIComponent(w.api)}/edit`} className="underline">
+                          Edit
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
