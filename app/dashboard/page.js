@@ -9,6 +9,60 @@ import WellsMap from "@/app/components/WellsMap";
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
+
+  // If API returns "YYYY-MM-DD", treat it as a local date (prevents timezone weirdness)
+  if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const target = new Date(y, m - 1, d);
+    const now = new Date();
+    return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  const target = new Date(dateStr);
+  if (Number.isNaN(target.getTime())) return null;
+
+  const now = new Date();
+  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function ExpirationPill({ expirationDate }) {
+  const d = daysUntil(expirationDate);
+
+  // no date
+  if (d === null) {
+    return (
+      <span className="inline-flex items-center gap-2 px-2 py-0.5 rounded-full border text-xs bg-gray-50 text-gray-600 border-gray-200">
+        <span className="h-2 w-2 rounded-full bg-gray-400" />
+        —
+      </span>
+    );
+  }
+
+  const isOverdue = d < 0;
+  const isExpiringSoon = d <= 90; // change if you want
+
+  const dotClass = isOverdue
+    ? "bg-red-600"
+    : isExpiringSoon
+    ? "bg-amber-500"
+    : "bg-green-600";
+
+  const wrapClass = isOverdue
+    ? "bg-red-50 text-red-700 border-red-200"
+    : isExpiringSoon
+    ? "bg-amber-50 text-amber-800 border-amber-200"
+    : "bg-green-50 text-green-700 border-green-200";
+
+  return (
+    <span className={`inline-flex items-center gap-2 px-2 py-0.5 rounded-full border text-xs ${wrapClass}`}>
+      <span className={`h-2 w-2 rounded-full ${dotClass}`} />
+      {isOverdue ? `${Math.abs(d)}d overdue` : `${d}d left`}
+    </span>
+  );
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return null;
   const now = new Date();
