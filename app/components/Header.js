@@ -31,11 +31,9 @@ export default function Header() {
             </Link>
           )}
 
-          {(isAdmin || isEmployee) && (
-            <Link href="/admin/wells" className="hover:underline">
-              All Wells
-            </Link>
-          )}
+          {(isAdmin || isEmployee) && <Link href="/admin/wells">All Wells</Link>}
+{isCustomer && <Link href="/wells">All Wells</Link>}
+ 
           {isCustomer && (
             <Link href="/wells" className="hover:underline">
               All Wells
