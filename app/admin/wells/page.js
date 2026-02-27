@@ -18,29 +18,7 @@ function fmtDate(d) {
   if (Number.isNaN(dt.getTime())) return "—";
   return dt.toLocaleDateString();
 }
-function SortableTh({ label, column }) {
-  const active = sortKey === column;
-  const arrow = active ? (sortDir === "asc" ? "▲" : "▼") : "";
 
-  return (
-    <th
-      className="text-left p-3 cursor-pointer select-none hover:bg-gray-100"
-      onClick={() => {
-        if (active) {
-          setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-        } else {
-          setSortKey(column);
-          setSortDir("asc");
-        }
-      }}
-    >
-      <span className="inline-flex items-center gap-1">
-        {label}
-        <span className="text-xs">{arrow}</span>
-      </span>
-    </th>
-  );
-}
 export default function AdminWellsPage() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
@@ -54,104 +32,49 @@ export default function AdminWellsPage() {
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
 
-const filtered = useMemo(() => {
-  const q = query.trim().toLowerCase();
+  // sorting
+  const [sortKey, setSortKey] = useState("lease_well_name"); // default
+  const [sortDir, setSortDir] = useState("asc"); // "asc" | "desc"
 
-  let list = wells;
-
-  if (q) {
-    list = list.filter((w) => {
-      const lease = (w.lease_well_name || "").toLowerCase();
-      const api = (w.api || "").toLowerCase();
-      const company = (w.company_name || "").toLowerCase();
-      const companyMan = (w.company_man_name || "").toLowerCase();
-      return (
-        lease.includes(q) ||
-        api.includes(q) ||
-        company.includes(q) ||
-        companyMan.includes(q)
-      );
-    });
-  }
-
-  const dir = sortDir === "asc" ? 1 : -1;
-
-  return [...list].sort((a, b) => {
-    let av = a?.[sortKey];
-    let bv = b?.[sortKey];
-
-    // Date sorting
-    if (sortKey === "last_test_date" || sortKey === "expiration_date") {
-      const ad = av ? new Date(av).getTime() : 0;
-      const bd = bv ? new Date(bv).getTime() : 0;
-      return (ad - bd) * dir;
-    }
-
-    // String sorting
-    av = (av ?? "").toString().toLowerCase();
-    bv = (bv ?? "").toString().toLowerCase();
-
-    if (av < bv) return -1 * dir;
-    if (av > bv) return 1 * dir;
-    return 0;
-  });
-}, [wells, query, sortKey, sortDir]);
-  
-  const filtered = useMemo(() => {
-  const q = query.trim().toLowerCase();
-
-  let list = wells;
-
-  if (q) {
-    list = list.filter((w) => {
-      const lease = (w.lease_well_name || "").toLowerCase();
-      const api = (w.api || "").toLowerCase();
-      const company = (w.company_name || "").toLowerCase();
-      const companyMan = (w.company_man_name || "").toLowerCase();
-      return (
-        lease.includes(q) ||
-        api.includes(q) ||
-        company.includes(q) ||
-        companyMan.includes(q)
-      );
-    });
-  }
-
-  const dir = sortDir === "asc" ? 1 : -1;
-
-  return [...list].sort((a, b) => {
-    let av = a?.[sortKey];
-    let bv = b?.[sortKey];
-
-    // Date sorting
-    if (sortKey === "last_test_date" || sortKey === "expiration_date") {
-      const ad = av ? new Date(av).getTime() : 0;
-      const bd = bv ? new Date(bv).getTime() : 0;
-      return (ad - bd) * dir;
-    }
-
-    // String sorting
-    av = (av ?? "").toString().toLowerCase();
-    bv = (bv ?? "").toString().toLowerCase();
-
-    if (av < bv) return -1 * dir;
-    if (av > bv) return 1 * dir;
-    return 0;
-  });
-}, [wells, query, sortKey, sortDir]);
-  
   const role = session?.user?.role;
   const canSee = role === "admin" || role === "employee";
 
-  // ✅ Only fetch after auth is resolved AND user is allowed
+  function SortableTh({ label, column }) {
+    const active = sortKey === column;
+    const arrow = active ? (sortDir === "asc" ? "▲" : "▼") : "";
+
+    return (
+      <th
+        className="text-left p-3 cursor-pointer select-none hover:bg-gray-100"
+        onClick={() => {
+          if (active) {
+            setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+          } else {
+            setSortKey(column);
+            setSortDir("asc");
+          }
+        }}
+      >
+        <span className="inline-flex items-center gap-1">
+          {label}
+          <span className="text-xs">{arrow}</span>
+        </span>
+      </th>
+    );
+  }
+
+  // Fetch wells (only after auth resolved + authorized)
   useEffect(() => {
     let mounted = true;
 
     async function load() {
-      // Wait until NextAuth resolves
-      if (status !== "authenticated") return;
+      if (status === "loading") return;
 
-      // If not allowed, do not fetch
+      if (status !== "authenticated") {
+        if (mounted) setLoading(false);
+        return;
+      }
+
       if (!canSee) {
         if (mounted) {
           setWells([]);
@@ -168,20 +91,15 @@ const filtered = useMemo(() => {
 
         const res = await fetch("/api/wells", { cache: "no-store" });
 
-        // Handle non-OK responses cleanly
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
           throw new Error(j?.error || `Failed to load wells (HTTP ${res.status})`);
         }
 
         const json = await res.json();
-
         if (!mounted) return;
 
-        let data = [];
-        if (Array.isArray(json)) data = json;
-        else if (Array.isArray(json?.wells)) data = json.wells;
-
+        const data = Array.isArray(json) ? json : Array.isArray(json?.wells) ? json.wells : [];
         setWells(data);
       } catch (err) {
         console.error("Error loading wells (admin page):", err);
@@ -200,29 +118,53 @@ const filtered = useMemo(() => {
     };
   }, [status, canSee]);
 
-  // ✅ Hooks before returns
+  // Filter + sort (hooks BEFORE returns)
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return wells;
+    let list = wells;
 
-    return wells.filter((w) => {
-      const lease = (w.lease_well_name || "").toLowerCase();
-      const api = (w.api || "").toLowerCase();
-      const company = (w.company_name || "").toLowerCase();
-      const companyMan = (w.company_man_name || "").toLowerCase();
-      return (
-        lease.includes(q) ||
-        api.includes(q) ||
-        company.includes(q) ||
-        companyMan.includes(q)
-      );
+    if (q) {
+      list = list.filter((w) => {
+        const lease = (w.lease_well_name || "").toLowerCase();
+        const api = (w.api || "").toLowerCase();
+        const company = (w.company_name || "").toLowerCase();
+        const companyMan = (w.company_man_name || "").toLowerCase();
+        return (
+          lease.includes(q) ||
+          api.includes(q) ||
+          company.includes(q) ||
+          companyMan.includes(q)
+        );
+      });
+    }
+
+    const dir = sortDir === "asc" ? 1 : -1;
+
+    return [...list].sort((a, b) => {
+      let av = a?.[sortKey];
+      let bv = b?.[sortKey];
+
+      // date sorting
+      if (sortKey === "last_test_date" || sortKey === "expiration_date") {
+        const ad = av ? new Date(av).getTime() : 0;
+        const bd = bv ? new Date(bv).getTime() : 0;
+        return (ad - bd) * dir;
+      }
+
+      // string sorting
+      av = (av ?? "").toString().toLowerCase();
+      bv = (bv ?? "").toString().toLowerCase();
+
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
     });
-  }, [query, wells]);
+  }, [wells, query, sortKey, sortDir]);
 
   const editingWell =
     isEditing && editApi ? wells.find((w) => w.api === editApi) ?? null : null;
 
-  // ✅ Returns after hooks
+  // Returns AFTER hooks
   if (status === "loading") return <div className="container py-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
   if (!canSee) return <div className="container py-8">Not authorized.</div>;
@@ -247,13 +189,9 @@ const filtered = useMemo(() => {
           {editingWell ? (
             <div className="text-gray-700">
               Lease/Well:{" "}
-              <span className="font-medium">
-                {editingWell.lease_well_name || "—"}
-              </span>{" "}
+              <span className="font-medium">{editingWell.lease_well_name || "—"}</span>{" "}
               — Company:{" "}
-              <span className="font-medium">
-                {editingWell.company_name || "—"}
-              </span>
+              <span className="font-medium">{editingWell.company_name || "—"}</span>
             </div>
           ) : (
             <div className="text-gray-700">(This well is not in the loaded list.)</div>
@@ -280,24 +218,26 @@ const filtered = useMemo(() => {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
             <tr>
-              <th className="text-left p-3">Lease/Well</th>
-              <th className="text-left p-3">API</th>
+              <SortableTh label="Lease / Well" column="lease_well_name" />
+              <SortableTh label="API" column="api" />
               <th className="text-left p-3">Company</th>
               <th className="text-left p-3">Company Man</th>
-              <th className="text-left p-3">Last Test</th>
+              <SortableTh label="Last Test" column="last_test_date" />
+              <SortableTh label="Expiration" column="expiration_date" />
               <th className="text-left p-3">Actions</th>
             </tr>
           </thead>
+
           <tbody>
             {loading ? (
               <tr>
-                <td className="p-4" colSpan={6}>
+                <td className="p-4" colSpan={7}>
                   Loading…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="p-4" colSpan={6}>
+                <td className="p-4" colSpan={7}>
                   No wells found.
                 </td>
               </tr>
@@ -309,9 +249,13 @@ const filtered = useMemo(() => {
                   <td className="p-3">{w.company_name || "—"}</td>
                   <td className="p-3">{w.company_man_name || "—"}</td>
                   <td className="p-3">{fmtDate(w.last_test_date)}</td>
+                  <td className="p-3">{fmtDate(w.expiration_date)}</td>
                   <td className="p-3">
                     <div className="flex gap-2">
-                      <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
+                      <Link
+                        href={`/wells/${encodeURIComponent(w.api)}`}
+                        className="underline"
+                      >
                         View
                       </Link>
                       <Link
