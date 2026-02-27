@@ -16,13 +16,10 @@ export default function Header() {
     <header className="border-b bg-white">
       <div className="container flex items-center justify-between h-14">
         <Link href="/" className="flex items-center gap-2">
-          {/* SA mark */}
-          <div className="rounded-full bg-[#2f4f4f] text-white w-7 h-7 grid place-items-center text-base font-norwester leading-none">
+          <div className="rounded-full bg-[#2f4f4f] text-white w-8 h-8 grid place-items-center text-sm font-bold font-norwester">
             SA
           </div>
-
-          {/* Wordmark */}
-          <span className="font-norwester tracking-[0.12em] text-base">
+          <span className="font-norwester tracking-widest text-[15px]">
             SELECT ANCHORS
           </span>
         </Link>
