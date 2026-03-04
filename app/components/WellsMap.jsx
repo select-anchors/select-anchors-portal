@@ -37,11 +37,11 @@ function daysUntil(dateStr) {
     return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   }
 
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return null;
+  const dt = new Date(dateStr);
+  if (Number.isNaN(dt.getTime())) return null;
 
   const now = new Date();
-  return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.ceil((dt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function statusFromExpiration(expirationDate, windowDays = 90) {
@@ -67,7 +67,6 @@ function loadGoogleMaps(key) {
     try {
       const existing = document.querySelector('script[data-google-maps="true"]');
       if (existing) {
-        // If script exists, wait for google.maps to appear.
         const start = Date.now();
         const t = setInterval(() => {
           if (window.google?.maps) {
@@ -90,8 +89,7 @@ function loadGoogleMaps(key) {
       script.defer = true;
 
       script.onload = () => resolve(true);
-      script.onerror = () =>
-        reject(new Error("Script load error (check API key / referrer restrictions)."));
+      script.onerror = () => reject(new Error("Script load error (check API key / referrer restrictions)."));
 
       document.head.appendChild(script);
     } catch (e) {
@@ -151,11 +149,14 @@ export default function WellsMap({
   wells = [],
   expiringWindowDays = 90,
   expiringOnly = false,
+  onVisibleWellsChange, // ✅ NEW
 }) {
   const mapRef = useRef(null);
   const mapObjRef = useRef(null);
   const markersRef = useRef([]);
   const infoRef = useRef(null);
+  const idleListenerRef = useRef(null); // ✅ NEW
+  const lastVisibleKeyRef = useRef(""); // ✅ NEW (dedupe spam)
 
   const [ready, setReady] = useState(false);
   const [scriptError, setScriptError] = useState("");
@@ -190,7 +191,6 @@ export default function WellsMap({
         const ll = parseLatLng(w.wellhead_coords);
         if (!ll) return null;
 
-        // ✅ Use “best expiration field”
         const exp =
           w.current_expires_at ??
           w.latest_expires_at ??
@@ -215,6 +215,36 @@ export default function WellsMap({
       : items;
   }, [wells, expiringOnly, expiringWindowDays]);
 
+  // ✅ helper: report visible wells based on current bounds
+  function reportVisible() {
+    try {
+      const map = mapObjRef.current;
+      if (!map) return;
+      const bounds = map.getBounds?.();
+      if (!bounds) return;
+
+      const visible = mapped
+        .filter((w) => {
+          if (!w?.latlng) return false;
+          const pos = new window.google.maps.LatLng(w.latlng.lat, w.latlng.lng);
+          return bounds.contains(pos);
+        })
+        .map((w) => w.api)
+        .filter(Boolean);
+
+      // prevent spamming parent state if nothing changed
+      const key = visible.slice().sort().join("|");
+      if (key === lastVisibleKeyRef.current) return;
+      lastVisibleKeyRef.current = key;
+
+      if (typeof onVisibleWellsChange === "function") {
+        onVisibleWellsChange(visible);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     if (!ready) return;
     if (!mapRef.current) return;
@@ -228,10 +258,7 @@ export default function WellsMap({
         center: first,
         zoom: mapped.length ? 7 : 6,
 
-        // ✅ Satellite + labels ON by default:
         mapTypeId: "hybrid",
-
-        // ✅ Let user switch to Map/Satellite/Hybrid:
         mapTypeControl: true,
         mapTypeControlOptions: {
           position: window.google.maps.ControlPosition.TOP_RIGHT,
@@ -246,6 +273,11 @@ export default function WellsMap({
       });
 
       infoRef.current = new window.google.maps.InfoWindow();
+
+      // ✅ attach idle listener ONCE
+      idleListenerRef.current = mapObjRef.current.addListener("idle", () => {
+        reportVisible();
+      });
     }
 
     // Clear markers
@@ -323,8 +355,21 @@ export default function WellsMap({
 
     if (mapped.length) {
       mapObjRef.current.fitBounds(bounds, 40);
+      // after fitBounds, idle will fire and reportVisible() will run
+    } else {
+      // no wells => report empty
+      if (typeof onVisibleWellsChange === "function") onVisibleWellsChange([]);
     }
-  }, [ready, mapped]);
+
+    // also report immediately in case idle doesn’t fire (rare)
+    setTimeout(() => reportVisible(), 50);
+
+    return () => {
+      // don’t remove idle listener on every render; map persists across updates
+      // but if component unmounts, Google handles it; if you want, you can clean up here:
+      // idleListenerRef.current?.remove?.();
+    };
+  }, [ready, mapped]); // ✅ re-run when mapped list changes
 
   if (!key) {
     return (
