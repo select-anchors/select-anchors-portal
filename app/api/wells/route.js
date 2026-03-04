@@ -4,50 +4,71 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../../lib/nextauth-options";
 import { q } from "../../../lib/db";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function noStoreJson(data, init = {}) {
+  const res = NextResponse.json(data, init);
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
+}
+
 // GET /api/wells  -> list wells
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return noStoreJson({ error: "Unauthorized" }, { status: 401 });
   }
 
   const role = session.user.role || "customer";
   const userId = session.user.id;
 
+  // ✅ Best-field logic (works even if Neon edits either column)
+  // NOTE: This assumes you have BOTH fields available in your DB.
+  // If you only have current_expires_at/current_tested_at, COALESCE still works fine.
+  const selectSql = `
+    SELECT
+      id,
+      lease_well_name,
+      api,
+      wellhead_coords,
+      company_name,
+      company_man_name,
+
+      -- "best" tested date
+      TO_CHAR(
+        COALESCE(current_tested_at, last_test_date),
+        'YYYY-MM-DD'
+      ) AS last_test_date,
+
+      -- "best" expiration date (THIS is what your UI should use everywhere)
+      TO_CHAR(
+        COALESCE(current_expires_at, expiration_date),
+        'YYYY-MM-DD'
+      ) AS expiration_date
+
+    FROM wells
+  `;
+
   try {
+    // staff sees all
     if (role === "admin" || role === "employee") {
-      const { rows } = await q(`
-        SELECT
-          id,
-          lease_well_name,
-          api,
-          wellhead_coords,
-          company_name,
-          company_man_name,
-
-          TO_CHAR(current_tested_at, 'YYYY-MM-DD') AS last_test_date,
-          TO_CHAR(current_expires_at, 'YYYY-MM-DD') AS expiration_date
-
-        FROM wells
+      const { rows } = await q(
+        `
+        ${selectSql}
         ORDER BY id DESC, lease_well_name ASC
         LIMIT 500
-      `);
-
-      return NextResponse.json(rows);
+        `
+      );
+      return noStoreJson(rows);
     }
 
+    // customers only see their wells
     const { rows } = await q(
       `
-      SELECT
-        id,
-        lease_well_name,
-        api,
-        wellhead_coords,
-        company_name,
-        company_man_name,
-        TO_CHAR(current_tested_at, 'YYYY-MM-DD') AS last_test_date,
-        TO_CHAR(current_expires_at, 'YYYY-MM-DD') AS expiration_date
-      FROM wells
+      ${selectSql}
       WHERE customer_id = $1
       ORDER BY id DESC, lease_well_name ASC
       LIMIT 500
@@ -55,10 +76,10 @@ export async function GET() {
       [userId]
     );
 
-    return NextResponse.json(rows);
+    return noStoreJson(rows);
   } catch (err) {
     console.error("GET /api/wells error:", err);
-    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
+    return noStoreJson({ error: String(err?.message || err) }, { status: 500 });
   }
 }
 
@@ -82,7 +103,6 @@ export async function POST(req) {
       directions_other_notes,
       previous_anchor_company,
       need_by,
-      // managed_by_company removed
       status = "pending",
       customer,
       customer_id,
@@ -134,9 +154,9 @@ export async function POST(req) {
       ]
     );
 
-    return NextResponse.json(rows[0], { status: 201 });
+    return noStoreJson(rows[0], { status: 201 });
   } catch (err) {
     console.error("POST /api/wells error:", err);
-    return NextResponse.json({ error: String(err?.message || err) }, { status: 400 });
+    return noStoreJson({ error: String(err?.message || err) }, { status: 400 });
   }
 }
