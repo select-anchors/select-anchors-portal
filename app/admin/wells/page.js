@@ -36,6 +36,23 @@ function daysUntil(dateStr) {
   return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+/**
+ * ✅ Fix 1: "best expiration field"
+ * Use the same expiration field everywhere:
+ * - display expiration date
+ * - "expires_in" sorting
+ * - pill calculation
+ */
+function bestExpiration(w) {
+  return (
+    w?.current_expires_at ??
+    w?.latest_expires_at ??
+    w?.expiration_date ??
+    w?.expiration ??
+    null
+  );
+}
+
 function ExpirationPill({ expirationDate, windowDays = 90 }) {
   const d = daysUntil(expirationDate);
 
@@ -178,15 +195,24 @@ export default function AdminWellsPage() {
     const dir = sortDir === "asc" ? 1 : -1;
 
     return [...list].sort((a, b) => {
-      const aExp = a?.current_expires_at ?? a?.expiration_date ?? null;
-      const bExp = b?.current_expires_at ?? b?.expiration_date ?? null;
+      // ✅ Always use the "best expiration field"
+      const aExp = bestExpiration(a);
+      const bExp = bestExpiration(b);
 
       if (sortKey === "expires_in") {
+        // ✅ Fix 2: Expires In sorting uses the SAME bestExpiration
         const ad = daysUntil(aExp);
         const bd = daysUntil(bExp);
         const av = ad === null ? Number.POSITIVE_INFINITY : ad;
         const bv = bd === null ? Number.POSITIVE_INFINITY : bd;
         return (av - bv) * dir;
+      }
+
+      // custom date sorts
+      if (sortKey === "expiration_date") {
+        const ad = aExp ? new Date(aExp).getTime() : 0;
+        const bd = bExp ? new Date(bExp).getTime() : 0;
+        return (ad - bd) * dir;
       }
 
       let av = a?.[sortKey];
@@ -195,12 +221,6 @@ export default function AdminWellsPage() {
       if (sortKey === "last_test_date") {
         const ad = av ? new Date(av).getTime() : 0;
         const bd = bv ? new Date(bv).getTime() : 0;
-        return (ad - bd) * dir;
-      }
-
-      if (sortKey === "expiration_date") {
-        const ad = aExp ? new Date(aExp).getTime() : 0;
-        const bd = bExp ? new Date(bExp).getTime() : 0;
         return (ad - bd) * dir;
       }
 
@@ -287,7 +307,8 @@ export default function AdminWellsPage() {
               </tr>
             ) : (
               filtered.map((w) => {
-                const exp = w.current_expires_at ?? w.expiration_date ?? null;
+                // ✅ Use best expiration field for display + pill
+                const exp = bestExpiration(w);
 
                 return (
                   <tr key={w.api} className="border-t">
