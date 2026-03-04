@@ -260,7 +260,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Top stats cards (clickable where requested) */}
+      {/* Top stats cards */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Wells" value={stats.wells} loading={loadingStats} href={wellsPageHref} />
 
@@ -283,12 +283,86 @@ export default function DashboardPage() {
 
       {(isCustomer || isAdmin || isEmployee) && (
         <div className="space-y-4">
+          {/* 1) Map */}
           <WellsMap
             wells={filteredWells}
             expiringWindowDays={EXPIRING_WINDOW_DAYS}
             expiringOnly={showExpiring || showExpired}
           />
 
+          {/* 2) MOVED: Cards go here (between map and list) */}
+          <div className="grid md:grid-cols-3 gap-6">
+            {(isAdmin || isEmployee) && (
+              <Link
+                href="/driver/my-day"
+                className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+              >
+                <h2 className="text-xl font-semibold mb-2">My Day</h2>
+                <p className="text-sm text-gray-600">
+                  View and update today’s job details, routes, and well site work.
+                </p>
+              </Link>
+            )}
+
+            <Link
+              href={wellsPageHref}
+              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+            >
+              <h2 className="text-xl font-semibold mb-2">
+                All Wells
+                <CountBadge value={stats.wells} loading={loadingStats} />
+              </h2>
+              <p className="text-sm text-gray-600">
+                View well data, anchor test results, and expiration dates.
+              </p>
+            </Link>
+
+            <Link
+              href="/account"
+              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+            >
+              <h2 className="text-xl font-semibold mb-2">Account</h2>
+              <p className="text-sm text-gray-600">Manage your login info and notification preferences.</p>
+            </Link>
+
+            {isAdmin && (
+              <>
+                <Link
+                  href="/admin/users"
+                  className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+                >
+                  <h2 className="text-xl font-semibold mb-2">
+                    Manage Users
+                    <CountBadge value={stats.users} loading={loadingStats} />
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    Create, edit, and reset passwords for employees and clients.
+                  </p>
+                </Link>
+
+                <Link
+                  href="/admin/changes"
+                  className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+                >
+                  <h2 className="text-xl font-semibold mb-2">
+                    Pending Changes
+                    <CountBadge value={stats.pendingChanges} loading={loadingStats} />
+                  </h2>
+                  <p className="text-sm text-gray-600">Review and approve edits before they go live.</p>
+                </Link>
+
+                <Link
+                  href="/admin/items"
+                  className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+                >
+                  <h2 className="text-xl font-semibold mb-2">Items & Pricing</h2>
+                  <p className="text-sm text-gray-600">Manage service types, charges, and billing rates.</p>
+                </Link>
+              </>
+            )}
+          </div>
+
+          {/* 3) List */}
           <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
             <div className="p-4 border-b flex items-center justify-between gap-4">
               <div>
@@ -367,78 +441,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
-      {/* Bottom tiles */}
-      <div className="grid md:grid-cols-3 gap-6">
-        {(isAdmin || isEmployee) && (
-          <Link
-            href="/driver/my-day"
-            className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-          >
-            <h2 className="text-xl font-semibold mb-2">My Day</h2>
-            <p className="text-sm text-gray-600">
-              View and update today’s job details, routes, and well site work.
-            </p>
-          </Link>
-        )}
-
-        <Link
-          href={wellsPageHref}
-          className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-        >
-          <h2 className="text-xl font-semibold mb-2">
-            All Wells
-            <CountBadge value={stats.wells} loading={loadingStats} />
-          </h2>
-          <p className="text-sm text-gray-600">
-            View well data, anchor test results, and expiration dates.
-          </p>
-        </Link>
-
-        <Link
-          href="/account"
-          className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-        >
-          <h2 className="text-xl font-semibold mb-2">Account</h2>
-          <p className="text-sm text-gray-600">Manage your login info and notification preferences.</p>
-        </Link>
-
-        {isAdmin && (
-          <>
-            <Link
-              href="/admin/users"
-              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-            >
-              <h2 className="text-xl font-semibold mb-2">
-                Manage Users
-                <CountBadge value={stats.users} loading={loadingStats} />
-              </h2>
-              <p className="text-sm text-gray-600">
-                Create, edit, and reset passwords for employees and clients.
-              </p>
-            </Link>
-
-            <Link
-              href="/admin/changes"
-              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-            >
-              <h2 className="text-xl font-semibold mb-2">
-                Pending Changes
-                <CountBadge value={stats.pendingChanges} loading={loadingStats} />
-              </h2>
-              <p className="text-sm text-gray-600">Review and approve edits before they go live.</p>
-            </Link>
-
-            <Link
-              href="/admin/items"
-              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-            >
-              <h2 className="text-xl font-semibold mb-2">Items & Pricing</h2>
-              <p className="text-sm text-gray-600">Manage service types, charges, and billing rates.</p>
-            </Link>
-          </>
-        )}
-      </div>
     </div>
   );
 }
