@@ -1,7 +1,5 @@
 // app/api/stats/route.js
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/nextauth-options";
 import { q } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -21,69 +19,28 @@ async function safeCount(sql, params = []) {
     const val = rows?.[0]?.count ?? 0;
     return Number(val) || 0;
   } catch (err) {
-    console.error("Stats query failed:", err?.message || err);
+    console.error("Stats query failed:", err.message);
     return 0;
   }
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return noStoreJson({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const role = session.user.role || "customer";
-  const userId = session.user.id;
-
-  const EXPIRING_WINDOW_DAYS = 90;
-
-  // ✅ This is the SAME rule used by /api/wells now
-  const bestExpiresExpr = `COALESCE(current_expires_at, expiration_date)`;
-
   try {
-    const isStaff = role === "admin" || role === "employee";
+    const wells = await safeCount(`SELECT COUNT(*) FROM wells`);
+    const users = await safeCount(`SELECT COUNT(*) FROM users`);
+    const pendingChanges = await safeCount(`SELECT COUNT(*) FROM changes WHERE status = 'pending'`);
 
-    const wells = isStaff
-      ? await safeCount(`SELECT COUNT(*) FROM wells`)
-      : await safeCount(`SELECT COUNT(*) FROM wells WHERE customer_id = $1`, [userId]);
+    // ✅ upcomingTests uses COALESCE(wells.current_expires_at, well_tests.expires_at)
+    const upcomingTests = await safeCount(`
+      SELECT COUNT(*)
+      FROM wells w
+      LEFT JOIN well_tests t ON t.id = w.current_test_id
+      WHERE COALESCE(w.current_expires_at, t.expires_at) IS NOT NULL
+        AND COALESCE(w.current_expires_at, t.expires_at) <= (CURRENT_DATE + INTERVAL '90 days')
+    `);
 
-    const users = isStaff ? await safeCount(`SELECT COUNT(*) FROM users`) : 0;
-
-    const pendingChanges = isStaff
-      ? await safeCount(`SELECT COUNT(*) FROM changes WHERE status = 'pending'`)
-      : 0;
-
-    const upcomingTests = isStaff
-      ? await safeCount(
-          `
-          SELECT COUNT(*) FROM wells
-          WHERE ${bestExpiresExpr} IS NOT NULL
-            AND ${bestExpiresExpr}::date >= CURRENT_DATE
-            AND ${bestExpiresExpr}::date <= (CURRENT_DATE + $1::int)
-          `,
-          [EXPIRING_WINDOW_DAYS]
-        )
-      : await safeCount(
-          `
-          SELECT COUNT(*) FROM wells
-          WHERE customer_id = $1
-            AND ${bestExpiresExpr} IS NOT NULL
-            AND ${bestExpiresExpr}::date >= CURRENT_DATE
-            AND ${bestExpiresExpr}::date <= (CURRENT_DATE + $2::int)
-          `,
-          [userId, EXPIRING_WINDOW_DAYS]
-        );
-
-    return noStoreJson({
-      wells,
-      users,
-      pendingChanges,
-      upcomingTests,
-    });
+    return noStoreJson({ wells, users, pendingChanges, upcomingTests });
   } catch (e) {
-    return noStoreJson(
-      { wells: 0, users: 0, pendingChanges: 0, upcomingTests: 0 },
-      { status: 200 }
-    );
+    return noStoreJson({ wells: 0, users: 0, pendingChanges: 0, upcomingTests: 0 }, { status: 200 });
   }
 }
