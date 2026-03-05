@@ -75,12 +75,7 @@ function ExpirationPill({ expirationDate, windowDays = 90 }) {
   const isOverdue = d < 0;
   const isExpiringSoon = d <= windowDays;
 
-  const dotClass = isOverdue
-    ? "bg-red-600"
-    : isExpiringSoon
-    ? "bg-amber-500"
-    : "bg-green-600";
-
+  const dotClass = isOverdue ? "bg-red-600" : isExpiringSoon ? "bg-amber-500" : "bg-green-600";
   const wrapClass = isOverdue
     ? "bg-red-50 text-red-700 border-red-200"
     : isExpiringSoon
@@ -142,6 +137,10 @@ export default function DashboardPage() {
   const [showExpiring, setShowExpiring] = useState(false);
   const [showExpired, setShowExpired] = useState(false);
 
+  // ✅ NEW: map viewport + search filtering
+  const [visibleApis, setVisibleApis] = useState([]); // APIs currently visible in map view
+  const [searchQuery, setSearchQuery] = useState("");
+
   // ---- IMPORTANT: ALL MEMOS ABOVE ANY RETURN ----
   const role = session?.user?.role || "customer";
   const isAdmin = role === "admin";
@@ -199,7 +198,7 @@ export default function DashboardPage() {
     };
   }, [status]);
 
-  // Status enrich for cards + map
+  // Status enrich for cards + map + list
   const wellsWithStatus = useMemo(() => {
     return (wells || []).map((w) => {
       const exp = w.current_expires_at ?? w.expiration_date ?? null;
@@ -212,6 +211,7 @@ export default function DashboardPage() {
     });
   }, [wells, EXPIRING_WINDOW_DAYS]);
 
+  // Filters controlled by the checkboxes
   const filteredWells = useMemo(() => {
     if (!showExpiring && !showExpired) return wellsWithStatus;
 
@@ -222,6 +222,35 @@ export default function DashboardPage() {
     });
   }, [wellsWithStatus, showExpiring, showExpired]);
 
+  // ✅ FINAL list: (checkbox filters) + (map viewport) + (search)
+  const listWells = useMemo(() => {
+    let list = filteredWells;
+
+    // viewport filter (only show wells currently in the map bounds)
+    if (Array.isArray(visibleApis) && visibleApis.length > 0) {
+      const set = new Set(visibleApis);
+      list = list.filter((w) => set.has(w.api));
+    } else {
+      // If map hasn't reported yet, don't hide everything.
+      // (You could change this to hide everything until map reports if you prefer.)
+      list = list;
+    }
+
+    // search filter
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((w) => {
+        const lease = (w.lease_well_name || "").toLowerCase();
+        const api = (w.api || "").toLowerCase();
+        const company = (w.company_name || "").toLowerCase();
+        const companyMan = (w.company_man_name || "").toLowerCase();
+        return lease.includes(q) || api.includes(q) || company.includes(q) || companyMan.includes(q);
+      });
+    }
+
+    return list;
+  }, [filteredWells, visibleApis, searchQuery]);
+
   const emptyFilterLabel = useMemo(() => {
     if (!showExpiring && !showExpired) return "No wells found.";
     if (showExpiring && showExpired)
@@ -229,6 +258,17 @@ export default function DashboardPage() {
     if (showExpiring) return `No wells expiring within ${EXPIRING_WINDOW_DAYS} days.`;
     return "No expired wells.";
   }, [showExpiring, showExpired, EXPIRING_WINDOW_DAYS]);
+
+  const emptyListLabel = useMemo(() => {
+    // empty message should reflect combined filters
+    const hasViewport = Array.isArray(visibleApis) && visibleApis.length > 0;
+    const q = searchQuery.trim();
+
+    if (q && hasViewport) return "No wells match your search in the current map view.";
+    if (q) return "No wells match your search.";
+    if (hasViewport) return "No wells in the current map view.";
+    return emptyFilterLabel;
+  }, [visibleApis, searchQuery, emptyFilterLabel]);
 
   // ---- NOW it’s safe to return conditionally ----
   if (status === "loading") return <div className="container py-10">Loading...</div>;
@@ -241,20 +281,12 @@ export default function DashboardPage() {
 
         <div className="flex gap-3 text-sm bg-white border rounded-2xl px-4 py-2">
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showExpiring}
-              onChange={(e) => setShowExpiring(e.target.checked)}
-            />
+            <input type="checkbox" checked={showExpiring} onChange={(e) => setShowExpiring(e.target.checked)} />
             <span>Expiring Soon (≤{EXPIRING_WINDOW_DAYS}d)</span>
           </label>
 
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showExpired}
-              onChange={(e) => setShowExpired(e.target.checked)}
-            />
+            <input type="checkbox" checked={showExpired} onChange={(e) => setShowExpired(e.target.checked)} />
             <span>Expired</span>
           </label>
         </div>
@@ -283,14 +315,15 @@ export default function DashboardPage() {
 
       {(isCustomer || isAdmin || isEmployee) && (
         <div className="space-y-4">
-          {/* 1) Map */}
+          {/* MAP */}
           <WellsMap
             wells={filteredWells}
             expiringWindowDays={EXPIRING_WINDOW_DAYS}
             expiringOnly={showExpiring || showExpired}
+            onVisibleWellsChange={setVisibleApis}
           />
 
-          {/* 2) MOVED: Cards go here (between map and list) */}
+          {/* ✅ MOVED: tiles/cards now between map and list */}
           <div className="grid md:grid-cols-3 gap-6">
             {(isAdmin || isEmployee) && (
               <Link
@@ -298,9 +331,7 @@ export default function DashboardPage() {
                 className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
               >
                 <h2 className="text-xl font-semibold mb-2">My Day</h2>
-                <p className="text-sm text-gray-600">
-                  View and update today’s job details, routes, and well site work.
-                </p>
+                <p className="text-sm text-gray-600">View and update today’s job details, routes, and well site work.</p>
               </Link>
             )}
 
@@ -312,15 +343,10 @@ export default function DashboardPage() {
                 All Wells
                 <CountBadge value={stats.wells} loading={loadingStats} />
               </h2>
-              <p className="text-sm text-gray-600">
-                View well data, anchor test results, and expiration dates.
-              </p>
+              <p className="text-sm text-gray-600">View well data, anchor test results, and expiration dates.</p>
             </Link>
 
-            <Link
-              href="/account"
-              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-            >
+            <Link href="/account" className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white">
               <h2 className="text-xl font-semibold mb-2">Account</h2>
               <p className="text-sm text-gray-600">Manage your login info and notification preferences.</p>
             </Link>
@@ -335,9 +361,7 @@ export default function DashboardPage() {
                     Manage Users
                     <CountBadge value={stats.users} loading={loadingStats} />
                   </h2>
-                  <p className="text-sm text-gray-600">
-                    Create, edit, and reset passwords for employees and clients.
-                  </p>
+                  <p className="text-sm text-gray-600">Create, edit, and reset passwords for employees and clients.</p>
                 </Link>
 
                 <Link
@@ -362,13 +386,30 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* 3) List */}
+          {/* ✅ SEARCH BAR (filters within visible map wells + checkbox filters) */}
+          <div className="bg-white border rounded-2xl p-4">
+            <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+              <div>
+                <div className="font-semibold">Search</div>
+                <div className="text-xs text-gray-500">Filters the wells currently visible on the map.</div>
+              </div>
+
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by lease/well, API, company, company man…"
+                className="w-full md:w-[420px] rounded-xl border px-3 py-2"
+              />
+            </div>
+          </div>
+
+          {/* LIST */}
           <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
             <div className="p-4 border-b flex items-center justify-between gap-4">
               <div>
-                <div className="font-semibold">My Wells</div>
+                <div className="font-semibold">Wells in View</div>
                 <div className="text-xs text-gray-500">
-                  Click a well to view details, or request a test in one click.
+                  Showing {listWells.length} well{listWells.length === 1 ? "" : "s"} from the current map view.
                 </div>
               </div>
 
@@ -380,20 +421,17 @@ export default function DashboardPage() {
             <div className="p-4">
               {loadingWells ? (
                 <div className="text-sm text-gray-600">Loading wells…</div>
-              ) : filteredWells.length === 0 ? (
-                <div className="text-sm text-gray-600">{emptyFilterLabel}</div>
+              ) : listWells.length === 0 ? (
+                <div className="text-sm text-gray-600">{emptyListLabel}</div>
               ) : (
                 <div className="space-y-3">
-                  {filteredWells.map((w) => (
+                  {listWells.map((w) => (
                     <div
                       key={w.api || `${w.lease_well_name}-x`}
                       className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
                     >
                       <div className="space-y-1">
-                        <Link
-                          href={`/wells/${encodeURIComponent(w.api || "")}`}
-                          className="font-semibold underline"
-                        >
+                        <Link href={`/wells/${encodeURIComponent(w.api || "")}`} className="font-semibold underline">
                           {w.lease_well_name || "—"}
                         </Link>
 
@@ -405,10 +443,7 @@ export default function DashboardPage() {
                           <span>
                             Last test: {w.last_test_date || "—"} • Expires: {w._exp_for_display || "—"}
                           </span>
-                          <ExpirationPill
-                            expirationDate={w._exp_for_display}
-                            windowDays={EXPIRING_WINDOW_DAYS}
-                          />
+                          <ExpirationPill expirationDate={w._exp_for_display} windowDays={EXPIRING_WINDOW_DAYS} />
                         </div>
 
                         <div className="mt-1">
