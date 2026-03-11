@@ -89,26 +89,15 @@ function ExpirationPill({ expirationDate, windowDays = 90 }) {
   );
 }
 
-const CountBadge = ({ value, loading }) => (
-  <span className="ml-2 inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-gray-100 border">
-    {loading ? "…" : value}
-  </span>
-);
-
-function StatCard({ title, value, loading, href, disabled }) {
+function StatCard({ title, value, loading, href }) {
   const content = (
-    <div
-      className={[
-        "p-5 bg-white border rounded-2xl shadow-sm transition",
-        disabled ? "opacity-60 cursor-not-allowed" : href ? "hover:shadow-md cursor-pointer" : "",
-      ].join(" ")}
-    >
+    <div className="p-5 bg-white border rounded-2xl shadow-sm transition hover:shadow-md cursor-pointer">
       <div className="text-xs uppercase text-gray-500 tracking-wider">{title}</div>
       <div className="mt-1 text-2xl font-semibold">{loading ? "—" : value}</div>
     </div>
   );
 
-  if (!href || disabled) return content;
+  if (!href) return content;
 
   return (
     <Link href={href} className="block">
@@ -116,6 +105,12 @@ function StatCard({ title, value, loading, href, disabled }) {
     </Link>
   );
 }
+
+const CountBadge = ({ value, loading }) => (
+  <span className="ml-2 inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-gray-100 border">
+    {loading ? "…" : value}
+  </span>
+);
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -145,7 +140,6 @@ export default function DashboardPage() {
   const isCustomer = role === "customer";
 
   const wellsPageHref = isAdmin || isEmployee ? "/admin/wells" : "/wells";
-  const usersPageHref = "/admin/users";
 
   useEffect(() => {
     let isMounted = true;
@@ -306,14 +300,19 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Wells" value={stats.wells} loading={loadingStats} href={wellsPageHref} />
+        <StatCard
+          title="Total Wells"
+          value={stats.wells}
+          loading={loadingStats}
+          href={wellsPageHref}
+        />
 
         {isAdmin && (
           <StatCard
             title="Users"
             value={stats.users}
             loading={loadingStats}
-            href={usersPageHref}
+            href="/admin/users"
           />
         )}
 
@@ -324,113 +323,41 @@ export default function DashboardPage() {
         />
 
         {isAdmin && (
-          <StatCard title="Pending Changes" value={stats.pendingChanges} loading={loadingStats} />
+          <StatCard
+            title="Pending Changes"
+            value={stats.pendingChanges}
+            loading={loadingStats}
+            href="/admin/changes"
+          />
         )}
       </div>
 
+      <div className="bg-white border rounded-2xl p-4">
+        <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+          <div>
+            <div className="font-semibold">Search</div>
+            <div className="text-xs text-gray-500">
+              Filters the wells currently visible on the map.
+            </div>
+          </div>
+
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by lease/well, API, company, company man…"
+            className="w-full md:w-[420px] rounded-xl border px-3 py-2"
+          />
+        </div>
+      </div>
+
       {(isCustomer || isAdmin || isEmployee) && (
-        <div className="space-y-4">
+        <>
           <WellsMap
             wells={checkboxFilteredWells}
             expiringWindowDays={EXPIRING_WINDOW_DAYS}
             expiringOnly={showExpiring || showExpired}
             onVisibleWellsChange={setVisibleApis}
           />
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {(isAdmin || isEmployee) && (
-              <Link
-                href="/driver/my-day"
-                className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-              >
-                <h2 className="text-xl font-semibold mb-2">My Day</h2>
-                <p className="text-sm text-gray-600">
-                  View and update today’s job details, routes, and well site work.
-                </p>
-              </Link>
-            )}
-
-            <Link
-              href={wellsPageHref}
-              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-            >
-              <h2 className="text-xl font-semibold mb-2">
-                All Wells
-                <CountBadge value={stats.wells} loading={loadingStats} />
-              </h2>
-              <p className="text-sm text-gray-600">
-                View well data, anchor test results, and expiration dates.
-              </p>
-            </Link>
-
-            <Link
-              href="/account"
-              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-            >
-              <h2 className="text-xl font-semibold mb-2">Account</h2>
-              <p className="text-sm text-gray-600">
-                Manage your login info and notification preferences.
-              </p>
-            </Link>
-
-            {isAdmin && (
-              <>
-                <Link
-                  href="/admin/users"
-                  className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-                >
-                  <h2 className="text-xl font-semibold mb-2">
-                    Manage Users
-                    <CountBadge value={stats.users} loading={loadingStats} />
-                  </h2>
-                  <p className="text-sm text-gray-600">
-                    Create, edit, and reset passwords for employees and clients.
-                  </p>
-                </Link>
-
-                <Link
-                  href="/admin/changes"
-                  className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-                >
-                  <h2 className="text-xl font-semibold mb-2">
-                    Pending Changes
-                    <CountBadge value={stats.pendingChanges} loading={loadingStats} />
-                  </h2>
-                  <p className="text-sm text-gray-600">
-                    Review and approve edits before they go live.
-                  </p>
-                </Link>
-
-                <Link
-                  href="/admin/items"
-                  className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-                >
-                  <h2 className="text-xl font-semibold mb-2">Items & Pricing</h2>
-                  <p className="text-sm text-gray-600">
-                    Manage service types, charges, and billing rates.
-                  </p>
-                </Link>
-              </>
-            )}
-          </div>
-
-          <div className="bg-white border rounded-2xl p-4">
-            <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
-              <div>
-                <div className="font-semibold">Search</div>
-                <div className="text-xs text-gray-500">
-                  Filters the wells currently visible on the map.
-                </div>
-              </div>
-
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by lease/well, API, company, company man…"
-                className="w-full md:w-[420px] rounded-xl border px-3 py-2"
-              />
-            </div>
-          </div>
 
           <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
             <div className="p-4 border-b flex items-center justify-between gap-4">
@@ -505,6 +432,46 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+        </>
+      )}
+
+      {isAdmin && (
+        <div className="grid md:grid-cols-3 gap-6">
+          <Link
+            href="/admin/users"
+            className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+          >
+            <h2 className="text-xl font-semibold mb-2">
+              Manage Users
+              <CountBadge value={stats.users} loading={loadingStats} />
+            </h2>
+            <p className="text-sm text-gray-600">
+              Create, edit, and reset passwords for employees and clients.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/changes"
+            className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+          >
+            <h2 className="text-xl font-semibold mb-2">
+              Pending Changes
+              <CountBadge value={stats.pendingChanges} loading={loadingStats} />
+            </h2>
+            <p className="text-sm text-gray-600">
+              Review and approve edits before they go live.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/items"
+            className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+          >
+            <h2 className="text-xl font-semibold mb-2">Items & Pricing</h2>
+            <p className="text-sm text-gray-600">
+              Manage service types, charges, and billing rates.
+            </p>
+          </Link>
         </div>
       )}
     </div>
