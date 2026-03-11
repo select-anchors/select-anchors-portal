@@ -218,33 +218,35 @@ export default function DashboardPage() {
     });
   }, [wellsWithStatus, showExpiring, showExpired]);
 
-  const listWells = useMemo(() => {
-    let list = checkboxFilteredWells;
-
-    if (Array.isArray(visibleApis) && visibleApis.length > 0) {
-      const visibleSet = new Set(visibleApis);
-      list = list.filter((w) => visibleSet.has(w.api));
-    }
-
+  // search should affect BOTH map and list
+  const searchedWells = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      list = list.filter((w) => {
-        const lease = (w.lease_well_name || "").toLowerCase();
-        const api = (w.api || "").toLowerCase();
-        const company = (w.company_name || "").toLowerCase();
-        const companyMan = (w.company_man_name || "").toLowerCase();
+    if (!q) return checkboxFilteredWells;
 
-        return (
-          lease.includes(q) ||
-          api.includes(q) ||
-          company.includes(q) ||
-          companyMan.includes(q)
-        );
-      });
+    return checkboxFilteredWells.filter((w) => {
+      const lease = (w.lease_well_name || "").toLowerCase();
+      const api = (w.api || "").toLowerCase();
+      const company = (w.company_name || "").toLowerCase();
+      const companyMan = (w.company_man_name || "").toLowerCase();
+
+      return (
+        lease.includes(q) ||
+        api.includes(q) ||
+        company.includes(q) ||
+        companyMan.includes(q)
+      );
+    });
+  }, [checkboxFilteredWells, searchQuery]);
+
+  // list should only show searched wells that are currently visible on the map
+  const listWells = useMemo(() => {
+    if (!Array.isArray(visibleApis) || visibleApis.length === 0) {
+      return searchedWells;
     }
 
-    return list;
-  }, [checkboxFilteredWells, visibleApis, searchQuery]);
+    const visibleSet = new Set(visibleApis);
+    return searchedWells.filter((w) => visibleSet.has(w.api));
+  }, [searchedWells, visibleApis]);
 
   const emptyFilterLabel = useMemo(() => {
     if (!showExpiring && !showExpired) return "No wells found.";
@@ -256,14 +258,18 @@ export default function DashboardPage() {
   }, [showExpiring, showExpired, EXPIRING_WINDOW_DAYS]);
 
   const emptyListLabel = useMemo(() => {
-    const hasViewport = Array.isArray(visibleApis) && visibleApis.length > 0;
     const q = searchQuery.trim();
 
-    if (q && hasViewport) return "No wells match your search in the current map view.";
-    if (q) return "No wells match your search.";
-    if (hasViewport) return "No wells in the current map view.";
+    if (q && searchedWells.length === 0) return "No wells match your search.";
+    if (q && searchedWells.length > 0 && listWells.length === 0) {
+      return "No searched wells are in the current map view.";
+    }
+    if (!q && searchedWells.length > 0 && listWells.length === 0) {
+      return "No wells in the current map view.";
+    }
+
     return emptyFilterLabel;
-  }, [visibleApis, searchQuery, emptyFilterLabel]);
+  }, [searchQuery, searchedWells, listWells, emptyFilterLabel]);
 
   if (status === "loading") {
     return <div className="container py-10">Loading...</div>;
@@ -337,7 +343,7 @@ export default function DashboardPage() {
           <div>
             <div className="font-semibold">Search</div>
             <div className="text-xs text-gray-500">
-              Filters the wells currently visible on the map.
+              Filters both the map and the wells list.
             </div>
           </div>
 
@@ -353,7 +359,7 @@ export default function DashboardPage() {
       {(isCustomer || isAdmin || isEmployee) && (
         <>
           <WellsMap
-            wells={checkboxFilteredWells}
+            wells={searchedWells}
             expiringWindowDays={EXPIRING_WINDOW_DAYS}
             expiringOnly={showExpiring || showExpired}
             onVisibleWellsChange={setVisibleApis}
