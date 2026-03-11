@@ -4,13 +4,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import NotLoggedIn from "@/app/components/NotLoggedIn";
-import WellsMap from "@/app/components/WellsMap";
+import NotLoggedIn from "../components/NotLoggedIn";
+import WellsMap from "../components/WellsMap";
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
 
-  // If API returns "YYYY-MM-DD", treat it as a local date (prevents timezone shift)
   if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const [y, m, d] = dateStr.split("-").map(Number);
     const target = new Date(y, m - 1, d);
@@ -137,11 +136,9 @@ export default function DashboardPage() {
   const [showExpiring, setShowExpiring] = useState(false);
   const [showExpired, setShowExpired] = useState(false);
 
-  // ✅ NEW: map viewport + search filtering
-  const [visibleApis, setVisibleApis] = useState([]); // APIs currently visible in map view
+  const [visibleApis, setVisibleApis] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ---- IMPORTANT: ALL MEMOS ABOVE ANY RETURN ----
   const role = session?.user?.role || "customer";
   const isAdmin = role === "admin";
   const isEmployee = role === "employee";
@@ -150,7 +147,6 @@ export default function DashboardPage() {
   const wellsPageHref = isAdmin || isEmployee ? "/admin/wells" : "/wells";
   const usersPageHref = "/admin/users";
 
-  // Fetch stats (only after auth is resolved)
   useEffect(() => {
     let isMounted = true;
 
@@ -162,7 +158,7 @@ export default function DashboardPage() {
         const json = await res.json();
         if (isMounted) setStats(json);
       } catch {
-        // leave defaults
+        // keep defaults
       } finally {
         if (isMounted) setLoadingStats(false);
       }
@@ -174,7 +170,6 @@ export default function DashboardPage() {
     };
   }, [status]);
 
-  // Fetch wells (only after auth is resolved)
   useEffect(() => {
     let mounted = true;
 
@@ -184,7 +179,10 @@ export default function DashboardPage() {
       try {
         const res = await fetch("/api/wells", { cache: "no-store" });
         const json = await res.json();
-        if (mounted) setWells(Array.isArray(json) ? json : []);
+        if (mounted) {
+          const data = Array.isArray(json) ? json : Array.isArray(json?.wells) ? json.wells : [];
+          setWells(data);
+        }
       } catch {
         if (mounted) setWells([]);
       } finally {
@@ -198,10 +196,15 @@ export default function DashboardPage() {
     };
   }, [status]);
 
-  // Status enrich for cards + map + list
   const wellsWithStatus = useMemo(() => {
     return (wells || []).map((w) => {
-      const exp = w.current_expires_at ?? w.expiration_date ?? null;
+      const exp =
+        w.current_expires_at ??
+        w.latest_expires_at ??
+        w.expiration_date ??
+        w.expiration ??
+        null;
+
       return {
         ...w,
         _status: statusFromExpiration(exp, EXPIRING_WINDOW_DAYS),
@@ -211,8 +214,7 @@ export default function DashboardPage() {
     });
   }, [wells, EXPIRING_WINDOW_DAYS]);
 
-  // Filters controlled by the checkboxes
-  const filteredWells = useMemo(() => {
+  const checkboxFilteredWells = useMemo(() => {
     if (!showExpiring && !showExpired) return wellsWithStatus;
 
     return wellsWithStatus.filter((w) => {
@@ -222,21 +224,14 @@ export default function DashboardPage() {
     });
   }, [wellsWithStatus, showExpiring, showExpired]);
 
-  // ✅ FINAL list: (checkbox filters) + (map viewport) + (search)
   const listWells = useMemo(() => {
-    let list = filteredWells;
+    let list = checkboxFilteredWells;
 
-    // viewport filter (only show wells currently in the map bounds)
     if (Array.isArray(visibleApis) && visibleApis.length > 0) {
-      const set = new Set(visibleApis);
-      list = list.filter((w) => set.has(w.api));
-    } else {
-      // If map hasn't reported yet, don't hide everything.
-      // (You could change this to hide everything until map reports if you prefer.)
-      list = list;
+      const visibleSet = new Set(visibleApis);
+      list = list.filter((w) => visibleSet.has(w.api));
     }
 
-    // search filter
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       list = list.filter((w) => {
@@ -244,23 +239,29 @@ export default function DashboardPage() {
         const api = (w.api || "").toLowerCase();
         const company = (w.company_name || "").toLowerCase();
         const companyMan = (w.company_man_name || "").toLowerCase();
-        return lease.includes(q) || api.includes(q) || company.includes(q) || companyMan.includes(q);
+
+        return (
+          lease.includes(q) ||
+          api.includes(q) ||
+          company.includes(q) ||
+          companyMan.includes(q)
+        );
       });
     }
 
     return list;
-  }, [filteredWells, visibleApis, searchQuery]);
+  }, [checkboxFilteredWells, visibleApis, searchQuery]);
 
   const emptyFilterLabel = useMemo(() => {
     if (!showExpiring && !showExpired) return "No wells found.";
-    if (showExpiring && showExpired)
+    if (showExpiring && showExpired) {
       return `No wells expiring within ${EXPIRING_WINDOW_DAYS} days (or already expired).`;
+    }
     if (showExpiring) return `No wells expiring within ${EXPIRING_WINDOW_DAYS} days.`;
     return "No expired wells.";
   }, [showExpiring, showExpired, EXPIRING_WINDOW_DAYS]);
 
   const emptyListLabel = useMemo(() => {
-    // empty message should reflect combined filters
     const hasViewport = Array.isArray(visibleApis) && visibleApis.length > 0;
     const q = searchQuery.trim();
 
@@ -270,9 +271,13 @@ export default function DashboardPage() {
     return emptyFilterLabel;
   }, [visibleApis, searchQuery, emptyFilterLabel]);
 
-  // ---- NOW it’s safe to return conditionally ----
-  if (status === "loading") return <div className="container py-10">Loading...</div>;
-  if (!session) return <NotLoggedIn />;
+  if (status === "loading") {
+    return <div className="container py-10">Loading...</div>;
+  }
+
+  if (!session) {
+    return <NotLoggedIn />;
+  }
 
   return (
     <div className="container py-10 space-y-6">
@@ -281,18 +286,25 @@ export default function DashboardPage() {
 
         <div className="flex gap-3 text-sm bg-white border rounded-2xl px-4 py-2">
           <label className="flex items-center gap-2">
-            <input type="checkbox" checked={showExpiring} onChange={(e) => setShowExpiring(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={showExpiring}
+              onChange={(e) => setShowExpiring(e.target.checked)}
+            />
             <span>Expiring Soon (≤{EXPIRING_WINDOW_DAYS}d)</span>
           </label>
 
           <label className="flex items-center gap-2">
-            <input type="checkbox" checked={showExpired} onChange={(e) => setShowExpired(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={showExpired}
+              onChange={(e) => setShowExpired(e.target.checked)}
+            />
             <span>Expired</span>
           </label>
         </div>
       </div>
 
-      {/* Top stats cards */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Wells" value={stats.wells} loading={loadingStats} href={wellsPageHref} />
 
@@ -315,15 +327,13 @@ export default function DashboardPage() {
 
       {(isCustomer || isAdmin || isEmployee) && (
         <div className="space-y-4">
-          {/* MAP */}
           <WellsMap
-            wells={filteredWells}
+            wells={checkboxFilteredWells}
             expiringWindowDays={EXPIRING_WINDOW_DAYS}
             expiringOnly={showExpiring || showExpired}
             onVisibleWellsChange={setVisibleApis}
           />
 
-          {/* ✅ MOVED: tiles/cards now between map and list */}
           <div className="grid md:grid-cols-3 gap-6">
             {(isAdmin || isEmployee) && (
               <Link
@@ -331,7 +341,9 @@ export default function DashboardPage() {
                 className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
               >
                 <h2 className="text-xl font-semibold mb-2">My Day</h2>
-                <p className="text-sm text-gray-600">View and update today’s job details, routes, and well site work.</p>
+                <p className="text-sm text-gray-600">
+                  View and update today’s job details, routes, and well site work.
+                </p>
               </Link>
             )}
 
@@ -343,12 +355,19 @@ export default function DashboardPage() {
                 All Wells
                 <CountBadge value={stats.wells} loading={loadingStats} />
               </h2>
-              <p className="text-sm text-gray-600">View well data, anchor test results, and expiration dates.</p>
+              <p className="text-sm text-gray-600">
+                View well data, anchor test results, and expiration dates.
+              </p>
             </Link>
 
-            <Link href="/account" className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white">
+            <Link
+              href="/account"
+              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+            >
               <h2 className="text-xl font-semibold mb-2">Account</h2>
-              <p className="text-sm text-gray-600">Manage your login info and notification preferences.</p>
+              <p className="text-sm text-gray-600">
+                Manage your login info and notification preferences.
+              </p>
             </Link>
 
             {isAdmin && (
@@ -361,7 +380,9 @@ export default function DashboardPage() {
                     Manage Users
                     <CountBadge value={stats.users} loading={loadingStats} />
                   </h2>
-                  <p className="text-sm text-gray-600">Create, edit, and reset passwords for employees and clients.</p>
+                  <p className="text-sm text-gray-600">
+                    Create, edit, and reset passwords for employees and clients.
+                  </p>
                 </Link>
 
                 <Link
@@ -372,7 +393,9 @@ export default function DashboardPage() {
                     Pending Changes
                     <CountBadge value={stats.pendingChanges} loading={loadingStats} />
                   </h2>
-                  <p className="text-sm text-gray-600">Review and approve edits before they go live.</p>
+                  <p className="text-sm text-gray-600">
+                    Review and approve edits before they go live.
+                  </p>
                 </Link>
 
                 <Link
@@ -380,18 +403,21 @@ export default function DashboardPage() {
                   className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
                 >
                   <h2 className="text-xl font-semibold mb-2">Items & Pricing</h2>
-                  <p className="text-sm text-gray-600">Manage service types, charges, and billing rates.</p>
+                  <p className="text-sm text-gray-600">
+                    Manage service types, charges, and billing rates.
+                  </p>
                 </Link>
               </>
             )}
           </div>
 
-          {/* ✅ SEARCH BAR (filters within visible map wells + checkbox filters) */}
           <div className="bg-white border rounded-2xl p-4">
             <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
               <div>
                 <div className="font-semibold">Search</div>
-                <div className="text-xs text-gray-500">Filters the wells currently visible on the map.</div>
+                <div className="text-xs text-gray-500">
+                  Filters the wells currently visible on the map.
+                </div>
               </div>
 
               <input
@@ -403,7 +429,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* LIST */}
           <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
             <div className="p-4 border-b flex items-center justify-between gap-4">
               <div>
@@ -443,7 +468,10 @@ export default function DashboardPage() {
                           <span>
                             Last test: {w.last_test_date || "—"} • Expires: {w._exp_for_display || "—"}
                           </span>
-                          <ExpirationPill expirationDate={w._exp_for_display} windowDays={EXPIRING_WINDOW_DAYS} />
+                          <ExpirationPill
+                            expirationDate={w._exp_for_display}
+                            windowDays={EXPIRING_WINDOW_DAYS}
+                          />
                         </div>
 
                         <div className="mt-1">
@@ -476,6 +504,387 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+
+And here is the current app/components/WellsMap.jsx:
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+
+function parseLatLng(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  const nums = s.match(/-?\d+(\.\d+)?/g);
+  if (!nums || nums.length < 2) return null;
+
+  const a = Number(nums[0]);
+  const b = Number(nums[1]);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+
+  let lat = a;
+  let lng = b;
+
+  // If first number can't be lat but second can, swap.
+  if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) {
+    lat = b;
+    lng = a;
+  }
+
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+
+  // Handle "YYYY-MM-DD" as local date to avoid timezone shifts
+  if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const target = new Date(y, m - 1, d);
+    const now = new Date();
+    return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+
+  const now = new Date();
+  return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function statusFromExpiration(expirationDate, windowDays = 90) {
+  const d = daysUntil(expirationDate);
+  if (d === null) return "unknown";
+  if (d < 0) return "expired";
+  if (d <= windowDays) return "expiring";
+  return "good";
+}
+
+/**
+ * ✅ Shared Google Maps loader (fixes: blank map until refresh)
+ * Load the script ONCE for the whole app.
+ */
+function loadGoogleMaps(key) {
+  if (typeof window === "undefined") return Promise.resolve(false);
+
+  if (window.google?.maps) return Promise.resolve(true);
+
+  if (window.__googleMapsPromise) return window.__googleMapsPromise;
+
+  window.__googleMapsPromise = new Promise((resolve, reject) => {
+    try {
+      const existing = document.querySelector('script[data-google-maps="true"]');
+      if (existing) {
+        // If script exists, wait for google.maps to appear.
+        const start = Date.now();
+        const t = setInterval(() => {
+          if (window.google?.maps) {
+            clearInterval(t);
+            resolve(true);
+          } else if (Date.now() - start > 15000) {
+            clearInterval(t);
+            reject(new Error("Google Maps script loaded but google.maps did not initialize."));
+          }
+        }, 50);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.dataset.googleMaps = "true";
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+        key
+      )}&v=weekly&loading=async`;
+      script.async = true;
+      script.defer = true;
+
+      script.onload = () => resolve(true);
+      script.onerror = () =>
+        reject(new Error("Script load error (check API key / referrer restrictions)."));
+
+      document.head.appendChild(script);
+    } catch (e) {
+      reject(e);
+    }
+  });
+
+  return window.__googleMapsPromise;
+}
+
+function markerIcon(status) {
+  const color =
+    status === "expired"
+      ? "#DC2626"
+      : status === "expiring"
+      ? "#D97706"
+      : status === "good"
+      ? "#16A34A"
+      : "#6B7280";
+
+  const svg = encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
+      <path d="M16 0C8.3 0 2 6.3 2 14c0 10.5 14 28 14 28s14-17.5 14-28C30 6.3 23.7 0 16 0z" fill="${color}"/>
+      <circle cx="16" cy="14" r="6" fill="white"/>
+    </svg>
+  `);
+
+  const g = typeof window !== "undefined" ? window.google : null;
+  return {
+    url: `data:image/svg+xml,${svg}`,
+    scaledSize: g?.maps ? new g.maps.Size(28, 36) : undefined,
+    anchor: g?.maps ? new g.maps.Point(14, 36) : undefined,
+  };
+}
+
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function fmtDateLocal(d) {
+  if (!d) return "—";
+  if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    const [y, m, day] = d.split("-").map(Number);
+    return new Date(y, m - 1, day).toLocaleDateString();
+  }
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "—";
+  return dt.toLocaleDateString();
+}
+
+export default function WellsMap({
+  wells = [],
+  expiringWindowDays = 90,
+  expiringOnly = false,
+  onVisibleWellsChange, // ✅ NEW
+}) {
+  const mapRef = useRef(null);
+  const mapObjRef = useRef(null);
+  const markersRef = useRef([]);
+  const infoRef = useRef(null);
+
+  const [ready, setReady] = useState(false);
+  const [scriptError, setScriptError] = useState("");
+
+  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  // ✅ One-time loader
+  useEffect(() => {
+    let cancelled = false;
+
+    async function boot() {
+      if (!key) return;
+
+      try {
+        await loadGoogleMaps(key);
+        if (!cancelled) setReady(true);
+      } catch (err) {
+        console.error("Google Maps load failed:", err);
+        if (!cancelled) setScriptError(err?.message || "Google Maps failed to load.");
+      }
+    }
+
+    boot();
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+
+  const mapped = useMemo(() => {
+    const items = (wells || [])
+      .map((w) => {
+        const ll = parseLatLng(w.wellhead_coords);
+        if (!ll) return null;
+
+        // ✅ Use “best expiration field”
+        const exp =
+          w.current_expires_at ??
+          w.latest_expires_at ??
+          w.expiration_date ??
+          w.expiration ??
+          null;
+
+        const st = statusFromExpiration(exp, expiringWindowDays);
+
+        return {
+          ...w,
+          latlng: ll,
+          _status: st,
+          _days_left: daysUntil(exp),
+          _exp_for_display: exp,
+        };
+      })
+      .filter(Boolean);
+
+    return expiringOnly
+      ? items.filter((x) => x._status === "expiring" || x._status === "expired")
+      : items;
+  }, [wells, expiringOnly, expiringWindowDays]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!mapRef.current) return;
+    if (!window.google?.maps) return;
+
+    // Init once
+    if (!mapObjRef.current) {
+      const first = mapped[0]?.latlng || { lat: 32.0, lng: -103.0 }; // Permian-ish fallback
+
+      mapObjRef.current = new window.google.maps.Map(mapRef.current, {
+        center: first,
+        zoom: mapped.length ? 7 : 6,
+
+        // ✅ Satellite + labels ON by default:
+        mapTypeId: "hybrid",
+
+        // ✅ Let user switch to Map/Satellite/Hybrid:
+        mapTypeControl: true,
+        mapTypeControlOptions: {
+          position: window.google.maps.ControlPosition.TOP_RIGHT,
+        },
+
+        streetViewControl: false,
+        fullscreenControl: true,
+
+        zoomControl: true,
+        scrollwheel: true,
+        gestureHandling: "greedy",
+      });
+
+      infoRef.current = new window.google.maps.InfoWindow();
+
+      // ✅ NEW: whenever bounds change, notify dashboard which wells are visible
+      mapObjRef.current.addListener("idle", () => {
+        if (!onVisibleWellsChange) return;
+        const bounds = mapObjRef.current?.getBounds();
+        if (!bounds) return;
+
+        const visibleApis = mapped
+          .filter((w) => bounds.contains(new window.google.maps.LatLng(w.latlng.lat, w.latlng.lng)))
+          .map((w) => w.api)
+          .filter(Boolean);
+
+        onVisibleWellsChange(visibleApis);
+      });
+    }
+
+    // Clear markers
+    markersRef.current.forEach((m) => m.setMap(null));
+    markersRef.current = [];
+
+    const bounds = new window.google.maps.LatLngBounds();
+
+    for (const w of mapped) {
+      const pos = new window.google.maps.LatLng(w.latlng.lat, w.latlng.lng);
+      bounds.extend(pos);
+
+      const marker = new window.google.maps.Marker({
+        position: pos,
+        map: mapObjRef.current,
+        title: w.lease_well_name || w.api || "Well",
+        icon: markerIcon(w._status),
+      });
+
+      marker.addListener("click", () => {
+        const name = escapeHtml(w.lease_well_name || "—");
+        const api = escapeHtml(w.api || "—");
+        const company = escapeHtml(w.company_name || "—");
+        const lastTest = escapeHtml(fmtDateLocal(w.last_test_date));
+        const exp = escapeHtml(fmtDateLocal(w._exp_for_display));
+        const daysLeft = w._days_left;
+
+        const daysText =
+          typeof daysLeft === "number"
+            ? daysLeft < 0
+              ? `${Math.abs(daysLeft)} days overdue`
+              : `${daysLeft} days left`
+            : "—";
+
+        const wellHref = `/wells/${encodeURIComponent(w.api || "")}`;
+
+        const jobHref = `/jobs/new?api=${encodeURIComponent(w.api || "")}&lease_well_name=${encodeURIComponent(
+          w.lease_well_name || ""
+        )}&company_name=${encodeURIComponent(w.company_name || "")}`;
+
+        const html = `
+          <div style="font-family: ui-sans-serif, system-ui; max-width: 260px;">
+            <div style="font-weight: 800; font-size: 14px; margin-bottom: 6px;">
+              <a href="${wellHref}" style="color:#111827; text-decoration:underline;">${name}</a>
+            </div>
+
+            <div style="font-size: 12px; color: #374151; margin-bottom: 8px;">
+              <div><span style="color:#6B7280;">API:</span> <span style="font-family: ui-monospace;">${api}</span></div>
+              <div><span style="color:#6B7280;">Company:</span> ${company}</div>
+              <div><span style="color:#6B7280;">Last test:</span> ${lastTest}</div>
+              <div><span style="color:#6B7280;">Expires:</span> ${exp}</div>
+              <div><span style="color:#6B7280;">Status:</span> ${escapeHtml(daysText)}</div>
+            </div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <a href="${jobHref}" style="
+                display:inline-block; padding:8px 10px; border-radius:12px;
+                background:#2f4f4f; color:white; text-decoration:none; font-size:12px;
+              ">Request Test</a>
+
+              <a href="${wellHref}" style="
+                display:inline-block; padding:8px 10px; border-radius:12px;
+                border:1px solid #D1D5DB; color:#111827; text-decoration:none; font-size:12px;
+              ">View Well</a>
+            </div>
+          </div>
+        `;
+
+        infoRef.current.setContent(html);
+        infoRef.current.open(mapObjRef.current, marker);
+      });
+
+      markersRef.current.push(marker);
+    }
+
+    if (mapped.length) {
+      mapObjRef.current.fitBounds(bounds, 40);
+    }
+
+    // ✅ NEW: if no wells, report empty visible set
+    if (!mapped.length && onVisibleWellsChange) {
+      onVisibleWellsChange([]);
+    }
+  }, [ready, mapped, onVisibleWellsChange]);
+
+  if (!key) {
+    return (
+      <div className="bg-white border rounded-2xl p-4 text-sm text-red-600">
+        Missing <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code>. Add it in your env vars to enable the dashboard map.
+      </div>
+    );
+  }
+
+  if (scriptError) {
+    return (
+      <div className="bg-white border rounded-2xl p-4 text-sm text-red-600">
+        Google Maps failed to load: {scriptError}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
+      <div className="p-4 border-b">
+        <div className="font-semibold">Wells Map</div>
+        <div className="text-xs text-gray-500">
+          Showing {mapped.length} well{mapped.length === 1 ? "" : "s"}{" "}
+          {expiringOnly ? "(expiring/expired only)" : ""}
+        </div>
+      </div>
+
+      <div ref={mapRef} style={{ width: "100%", height: 420 }} />
     </div>
   );
 }
