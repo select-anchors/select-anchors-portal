@@ -1,6 +1,5 @@
 // app/api/wells/[api]/route.js
 import { NextResponse } from "next/server";
-<<<<<<< Updated upstream
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../../lib/nextauth-options";
 import { q } from "../../../../lib/db";
@@ -15,9 +14,6 @@ function noStoreJson(data, init = {}) {
   res.headers.set("Expires", "0");
   return res;
 }
-=======
-import { q } from "../../../../lib/db";
->>>>>>> Stashed changes
 
 function emptyToNullDate(v) {
   if (v === "" || v === undefined) return null;
@@ -131,8 +127,7 @@ export async function PUT(req, { params }) {
 
     const testedAt = emptyToNullDate(current_tested_at);
     const expiresAt = emptyToNullDate(current_expires_at);
-    const shouldWriteTest =
-      current_tested_at !== undefined || current_expires_at !== undefined;
+    const shouldWriteTest = current_tested_at !== undefined || current_expires_at !== undefined;
 
     const updatedWell = await q(
       `
@@ -219,10 +214,7 @@ export async function PUT(req, { params }) {
 
           const newTestId = inserted.rows?.[0]?.id;
           if (newTestId) {
-            await q(
-              `UPDATE wells SET current_test_id = $1 WHERE api = $2`,
-              [newTestId, api]
-            );
+            await q(`UPDATE wells SET current_test_id = $1 WHERE api = $2`, [newTestId, api]);
             currentTestId = newTestId;
           }
         }
