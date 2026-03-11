@@ -308,13 +308,14 @@ export default function DashboardPage() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Wells" value={stats.wells} loading={loadingStats} href={wellsPageHref} />
 
-        <StatCard
-          title="Users"
-          value={stats.users}
-          loading={loadingStats}
-          href={isAdmin ? usersPageHref : undefined}
-          disabled={!isAdmin}
-        />
+        {isAdmin && (
+          <StatCard
+            title="Users"
+            value={stats.users}
+            loading={loadingStats}
+            href={usersPageHref}
+          />
+        )}
 
         <StatCard
           title={`Upcoming Tests (≤${EXPIRING_WINDOW_DAYS}d)`}
@@ -322,7 +323,9 @@ export default function DashboardPage() {
           loading={loadingStats}
         />
 
-        <StatCard title="Pending Changes" value={stats.pendingChanges} loading={loadingStats} />
+        {isAdmin && (
+          <StatCard title="Pending Changes" value={stats.pendingChanges} loading={loadingStats} />
+        )}
       </div>
 
       {(isCustomer || isAdmin || isEmployee) && (
