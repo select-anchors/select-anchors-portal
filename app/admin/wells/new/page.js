@@ -3,7 +3,6 @@
 
 import { useSession } from "next-auth/react";
 import { useState } from "react";
-<<<<<<< Updated upstream
 import NotLoggedIn from "../../../components/NotLoggedIn";
 
 function Field({ label, children }) {
@@ -43,9 +42,6 @@ function Card({ title, children }) {
     </div>
   );
 }
-=======
-import NotLoggedIn from "../../../../app/components/NotLoggedIn";
->>>>>>> Stashed changes
 
 export default function NewWellPage() {
   const { data: session, status } = useSession();
@@ -58,23 +54,18 @@ export default function NewWellPage() {
     wellhead_coords: "",
     county: "",
     state: "",
-
     company_name: "",
     company_phone: "",
     company_email: "",
     company_address: "",
-
     company_man_name: "",
     company_man_phone: "",
     company_man_email: "",
-
     previous_anchor_company: "",
     previous_anchor_work: "",
     directions_other_notes: "",
-
     need_by: "",
     status: "pending",
-
     customer_id: "",
     customer: "",
   });
@@ -99,8 +90,7 @@ export default function NewWellPage() {
       if (!res.ok) throw new Error(j?.error || "Failed to save");
 
       setMsg("Well created.");
-      setForm((p) => ({
-        ...p,
+      setForm({
         lease_well_name: "",
         api: "",
         wellhead_coords: "",
@@ -120,7 +110,7 @@ export default function NewWellPage() {
         status: "pending",
         customer_id: "",
         customer: "",
-      }));
+      });
     } catch (e2) {
       setMsg(e2?.message || "Failed to save");
     } finally {
@@ -204,11 +194,7 @@ export default function NewWellPage() {
             </Field>
 
             <Field label="State (2-letter)">
-              <TextInput
-                value={form.state}
-                onChange={(e) => upd("state", e.target.value.toUpperCase())}
-                placeholder="NM"
-              />
+              <TextInput value={form.state} onChange={(e) => upd("state", e.target.value.toUpperCase())} placeholder="NM" />
             </Field>
           </div>
         </Card>
@@ -216,10 +202,7 @@ export default function NewWellPage() {
         <Card title="History & Notes">
           <div className="grid md:grid-cols-2 gap-6">
             <Field label="Previous Anchor Company">
-              <TextInput
-                value={form.previous_anchor_company}
-                onChange={(e) => upd("previous_anchor_company", e.target.value)}
-              />
+              <TextInput value={form.previous_anchor_company} onChange={(e) => upd("previous_anchor_company", e.target.value)} />
             </Field>
 
             <Field label="Need By (optional)">
