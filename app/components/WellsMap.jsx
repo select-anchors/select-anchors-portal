@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MarkerClusterer } from "@googlemaps/markerclusterer";
 
 function parseLatLng(raw) {
   if (!raw) return null;
@@ -95,15 +96,18 @@ function loadGoogleMaps(key) {
   return window.__googleMapsPromise;
 }
 
+function getStatusColor(status) {
+  return status === "expired"
+    ? "#DC2626"
+    : status === "expiring"
+    ? "#D97706"
+    : status === "good"
+    ? "#16A34A"
+    : "#6B7280";
+}
+
 function markerIcon(status) {
-  const color =
-    status === "expired"
-      ? "#DC2626"
-      : status === "expiring"
-      ? "#D97706"
-      : status === "good"
-      ? "#16A34A"
-      : "#6B7280";
+  const color = getStatusColor(status);
 
   const svg = encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
@@ -140,6 +144,56 @@ function fmtDateLocal(d) {
   return dt.toLocaleDateString();
 }
 
+function summarizeStatuses(markers) {
+  const summary = {
+    expired: 0,
+    expiring: 0,
+    good: 0,
+    unknown: 0,
+  };
+
+  for (const marker of markers || []) {
+    const s = marker.__status || "unknown";
+    if (summary[s] === undefined) summary.unknown += 1;
+    else summary[s] += 1;
+  }
+
+  return summary;
+}
+
+function dominantClusterStatus(summary) {
+  if ((summary.expired || 0) > 0) return "expired";
+  if ((summary.expiring || 0) > 0) return "expiring";
+  if ((summary.good || 0) > 0) return "good";
+  return "unknown";
+}
+
+function clusterSvg(count, summary, dominantStatus) {
+  const fill = getStatusColor(dominantStatus);
+
+  const expired = summary.expired || 0;
+  const expiring = summary.expiring || 0;
+  const good = summary.good || 0;
+
+  const breakdown = `R${expired} Y${expiring} G${good}`;
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="78" height="78" viewBox="0 0 78 78">
+      <circle cx="39" cy="39" r="34" fill="${fill}" opacity="0.18"/>
+      <circle cx="39" cy="39" r="27" fill="${fill}" opacity="0.95"/>
+      <circle cx="39" cy="39" r="20" fill="white" opacity="0.18"/>
+
+      <text x="39" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="white">
+        ${count}
+      </text>
+
+      <text x="39" y="52" text-anchor="middle" font-family="Arial, sans-serif" font-size="8.5" font-weight="700" fill="white">
+        ${breakdown}
+      </text>
+    </svg>
+  `;
+}
+
 export default function WellsMap({
   wells = [],
   expiringWindowDays = 90,
@@ -151,9 +205,11 @@ export default function WellsMap({
   const markersRef = useRef([]);
   const infoRef = useRef(null);
   const idleListenerRef = useRef(null);
+  const clustererRef = useRef(null);
 
   const [ready, setReady] = useState(false);
   const [scriptError, setScriptError] = useState("");
+  const [visibleCount, setVisibleCount] = useState(0);
 
   const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -234,6 +290,12 @@ export default function WellsMap({
       infoRef.current = new window.google.maps.InfoWindow();
     }
 
+    if (clustererRef.current) {
+      clustererRef.current.clearMarkers();
+      clustererRef.current.setMap(null);
+      clustererRef.current = null;
+    }
+
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
@@ -253,6 +315,7 @@ export default function WellsMap({
       marker.__wellApi = w.api;
       marker.__lat = w.latlng.lat;
       marker.__lng = w.latlng.lng;
+      marker.__status = w._status;
 
       marker.addListener("click", () => {
         const name = escapeHtml(w.lease_well_name || "—");
@@ -310,12 +373,38 @@ export default function WellsMap({
       markersRef.current.push(marker);
     }
 
+    clustererRef.current = new MarkerClusterer({
+      map: mapObjRef.current,
+      markers: markersRef.current,
+      renderer: {
+        render: ({ count, position, markers }) => {
+          const summary = summarizeStatuses(markers);
+          const clusterStatus = dominantClusterStatus(summary);
+          const svg = clusterSvg(count, summary, clusterStatus);
+
+          return new window.google.maps.Marker({
+            position,
+            icon: {
+              url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+              scaledSize: new window.google.maps.Size(64, 64),
+              anchor: new window.google.maps.Point(32, 32),
+            },
+            label: undefined,
+            zIndex: 1000 + count,
+          });
+        },
+      },
+    });
+
     if (mapped.length) {
       mapObjRef.current.fitBounds(bounds, 40);
+    } else {
+      mapObjRef.current.setCenter({ lat: 32.0, lng: -103.0 });
+      mapObjRef.current.setZoom(6);
     }
 
     const emitVisibleWells = () => {
-      if (!mapObjRef.current || !window.google?.maps || !onVisibleWellsChange) return;
+      if (!mapObjRef.current || !window.google?.maps) return;
 
       const mapBounds = mapObjRef.current.getBounds();
       if (!mapBounds) return;
@@ -328,7 +417,11 @@ export default function WellsMap({
         .map((marker) => marker.__wellApi)
         .filter(Boolean);
 
-      onVisibleWellsChange(visible);
+      setVisibleCount(visible.length);
+
+      if (onVisibleWellsChange) {
+        onVisibleWellsChange(visible);
+      }
     };
 
     if (idleListenerRef.current) {
@@ -346,6 +439,12 @@ export default function WellsMap({
       if (idleListenerRef.current && window.google?.maps?.event) {
         window.google.maps.event.removeListener(idleListenerRef.current);
         idleListenerRef.current = null;
+      }
+
+      if (clustererRef.current) {
+        clustererRef.current.clearMarkers();
+        clustererRef.current.setMap(null);
+        clustererRef.current = null;
       }
     };
   }, [ready, mapped, onVisibleWellsChange]);
@@ -371,7 +470,7 @@ export default function WellsMap({
       <div className="p-4 border-b">
         <div className="font-semibold">Wells Map</div>
         <div className="text-xs text-gray-500">
-          Showing {mapped.length} well{mapped.length === 1 ? "" : "s"}{" "}
+          Showing {visibleCount} of {mapped.length} well{mapped.length === 1 ? "" : "s"} in current view{" "}
           {expiringOnly ? "(expiring/expired only)" : ""}
         </div>
       </div>
