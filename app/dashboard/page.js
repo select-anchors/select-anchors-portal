@@ -218,7 +218,6 @@ export default function DashboardPage() {
     });
   }, [wellsWithStatus, showExpiring, showExpired]);
 
-  // search should affect BOTH map and list
   const searchedWells = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return checkboxFilteredWells;
@@ -238,7 +237,6 @@ export default function DashboardPage() {
     });
   }, [checkboxFilteredWells, searchQuery]);
 
-  // list should only show searched wells that are currently visible on the map
   const listWells = useMemo(() => {
     if (!Array.isArray(visibleApis) || visibleApis.length === 0) {
       return searchedWells;
