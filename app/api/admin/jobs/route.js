@@ -1,8 +1,8 @@
 // app/api/admin/jobs/route.js
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/nextauth-options";
-import { q } from "@/lib/db";
+import { authOptions } from "../../../../lib/nextauth-options";
+import { q } from "../../../../lib/db";
 
 function isUuid(v) {
   return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);

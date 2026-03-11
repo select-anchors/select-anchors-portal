@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import NotLoggedIn from "@/app/components/NotLoggedIn";
+import NotLoggedIn from "../../../app/components/NotLoggedIn";
 
 function formatDate(d) {
   if (!d) return "—";

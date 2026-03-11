@@ -3,6 +3,7 @@
 
 import { useSession } from "next-auth/react";
 import { useState } from "react";
+<<<<<<< Updated upstream
 import NotLoggedIn from "../../../components/NotLoggedIn";
 
 function Field({ label, children }) {
@@ -42,6 +43,9 @@ function Card({ title, children }) {
     </div>
   );
 }
+=======
+import NotLoggedIn from "../../../../app/components/NotLoggedIn";
+>>>>>>> Stashed changes
 
 export default function NewWellPage() {
   const { data: session, status } = useSession();

@@ -4,8 +4,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+<<<<<<< Updated upstream
 import NotLoggedIn from "../../components/NotLoggedIn";
 import WellLocationMap from "../../components/WellLocationMap";
+=======
+import NotLoggedIn from "../../../app/components/NotLoggedIn";
+>>>>>>> Stashed changes
 
 function fmtDate(d) {
   if (!d) return "—";

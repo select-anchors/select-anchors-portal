@@ -1,7 +1,7 @@
 // app/api/admin/users/[id]/send-reset/route.js
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/nextauth-options";
+import { authOptions } from "../../../../../../lib/nextauth-options";
 import { sql } from "@vercel/postgres";
 import crypto from "crypto";
 import nodemailer from "nodemailer";

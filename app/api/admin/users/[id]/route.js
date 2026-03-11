@@ -1,6 +1,6 @@
 // app/api/admin/users/[id]/route.js
 import { NextResponse } from "next/server";
-import { q } from "@/lib/db";
+import { q } from "../../../../../lib/db";
 
 // GET /api/admin/users/:id  -> fetch single user
 export async function GET(_req, { params }) {

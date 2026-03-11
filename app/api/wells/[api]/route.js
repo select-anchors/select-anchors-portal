@@ -1,5 +1,6 @@
 // app/api/wells/[api]/route.js
 import { NextResponse } from "next/server";
+<<<<<<< Updated upstream
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../../lib/nextauth-options";
 import { q } from "../../../../lib/db";
@@ -14,6 +15,9 @@ function noStoreJson(data, init = {}) {
   res.headers.set("Expires", "0");
   return res;
 }
+=======
+import { q } from "../../../../lib/db";
+>>>>>>> Stashed changes
 
 function emptyToNullDate(v) {
   if (v === "" || v === undefined) return null;

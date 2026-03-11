@@ -1,4 +1,3 @@
-// app/page.js
 export const dynamic = "force-dynamic";
 
 import { getServerSession } from "next-auth";

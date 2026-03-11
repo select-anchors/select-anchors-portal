@@ -1,8 +1,8 @@
 // app/api/driver/my-day/route.js
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/nextauth-options";
-import { q } from "@/lib/db";
+import { authOptions } from "../../../../lib/nextauth-options";
+import { q } from "../../../../lib/db";
 
 export async function GET() {
   const session = await getServerSession(authOptions);

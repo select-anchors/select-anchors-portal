@@ -1,5 +1,5 @@
 // app/api/admin/items/[id]/route.js
-import { q } from "@/lib/db";
+import { q } from "../../../../../lib/db";
 
 export async function PUT(req, { params }) {
   const id = params.id;

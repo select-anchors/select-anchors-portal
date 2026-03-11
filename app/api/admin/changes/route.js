@@ -1,6 +1,6 @@
 // app/api/admin/changes/route.js
 import { NextResponse } from "next/server";
-import { q } from "@/lib/db";
+import { q } from "../../../../lib/db";
 
 // List pending
 export async function GET() {

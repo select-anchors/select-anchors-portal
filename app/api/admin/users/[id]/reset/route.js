@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/nextauth-options";
-import { q } from "@/lib/db";
+import { authOptions } from "../../../../../../lib/nextauth-options";
+import { q } from "../../../../../../lib/db";
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);

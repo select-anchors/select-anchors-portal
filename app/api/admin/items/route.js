@@ -1,5 +1,5 @@
 // app/api/admin/items/route.js
-import { q } from "@/lib/db";
+import { q } from "../../../../lib/db";
 
 // List
 export async function GET() {

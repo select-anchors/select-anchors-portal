@@ -1,8 +1,8 @@
 // app/api/jobs/[id]/route.js
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/nextauth-options";
-import { q } from "@/lib/db";
+import { authOptions } from "../../../../lib/nextauth-options";
+import { q } from "../../../../lib/db";
 
 export async function GET(_req, { params }) {
   const session = await getServerSession(authOptions);

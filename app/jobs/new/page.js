@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import NotLoggedIn from "@/app/components/NotLoggedIn";
+import NotLoggedIn from "../../../app/components/NotLoggedIn";
 
 export default function NewCustomerJobRequestPage() {
   const { data: session, status } = useSession();

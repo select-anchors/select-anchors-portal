@@ -1,8 +1,12 @@
 // app/api/stats/route.js
 import { NextResponse } from "next/server";
+<<<<<<< Updated upstream
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/nextauth-options";
 import { q } from "@/lib/db";
+=======
+import { q } from "../../../lib/db";
+>>>>>>> Stashed changes
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -34,8 +38,18 @@ export async function GET() {
       return noStoreJson({ error: "Unauthorized" }, { status: 401 });
     }
 
+<<<<<<< Updated upstream
     const role = session.user.role || "customer";
     const userId = session.user.id;
+=======
+  const upcomingTests = await safeCount(`
+    SELECT COUNT(*) AS count
+    FROM wells
+    WHERE
+      (current_expires_at IS NOT NULL AND current_expires_at <= NOW() + INTERVAL '30 days') OR
+      (current_expires_at IS NOT NULL AND current_expires_at <= NOW() + INTERVAL '30 days');
+  `);
+>>>>>>> Stashed changes
 
     // ADMIN: full global stats
     if (role === "admin") {

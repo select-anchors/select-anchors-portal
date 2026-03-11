@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import NotLoggedIn from "@/app/components/NotLoggedIn";
+import NotLoggedIn from "../../../app/components/NotLoggedIn";
 
 export default function MyDayPage() {
   const { data: session, status } = useSession();

@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import NotLoggedIn from "@/app/components/NotLoggedIn";
+import NotLoggedIn from "../../../app/components/NotLoggedIn";
 
 function formatDate(d) {
   if (!d) return "—";

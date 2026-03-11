@@ -1,8 +1,8 @@
 // app/api/jobs/route.js
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/nextauth-options";
-import { q } from "@/lib/db";
+import { authOptions } from "../../../lib/nextauth-options";
+import { q } from "../../../lib/db";
 
 // POST /api/jobs  (customer creates a job request)
 export async function POST(req) {

@@ -5,7 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+<<<<<<< Updated upstream
 import NotLoggedIn from "../../../../components/NotLoggedIn";
+=======
+import NotLoggedIn from "../../../../../app/components/NotLoggedIn";
+>>>>>>> Stashed changes
 
 const US_STATES = [
   { code: "", name: "Select…" },

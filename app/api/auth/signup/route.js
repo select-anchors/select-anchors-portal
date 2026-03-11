@@ -1,4 +1,4 @@
-import { q } from "@/lib/db";
+import { q } from "../../../../lib/db";
 import bcrypt from "bcrypt";
 
 export async function POST(req) {

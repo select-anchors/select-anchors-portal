@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import NotLoggedIn from "@/app/components/NotLoggedIn";
+import NotLoggedIn from "../../app/components/NotLoggedIn";
 
 export default function AccountPage() {
   const { data: session, status } = useSession();
