@@ -1,3 +1,4 @@
+// app/wells/[api]/page.js
 "use client";
 
 import Link from "next/link";
@@ -21,7 +22,6 @@ function fmtDate(d) {
 function daysUntil(dateStr) {
   if (!dateStr) return null;
 
-  // Treat YYYY-MM-DD as local date (prevents timezone shift)
   if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const [y, m, d] = dateStr.split("-").map(Number);
     const target = new Date(y, m - 1, d);
@@ -46,6 +46,7 @@ function statusFromExpiration(expirationDate, windowDays = 90) {
 
 function StatusPill({ status, daysLeft }) {
   const s = status || "unknown";
+
   const cls =
     s === "expired"
       ? "bg-red-50 text-red-700 border-red-200"
@@ -67,11 +68,11 @@ function StatusPill({ status, daysLeft }) {
   return (
     <span className={`inline-flex items-center px-3 py-1 text-sm rounded-full border ${cls}`}>
       {label}
-      {typeof daysLeft === "number" ? (
+      {typeof daysLeft === "number" && (
         <span className="ml-2 text-xs opacity-80">
           {daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
         </span>
-      ) : null}
+      )}
     </span>
   );
 }
@@ -122,11 +123,15 @@ export default function WellDetailPage({ params }) {
 
     (async () => {
       try {
-        const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, { cache: "no-store" });
+        const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, {
+          cache: "no-store",
+        });
+
         if (!res.ok) throw new Error("Not found");
+
         const j = await res.json();
-        if (!mounted) return;
-        setWell(j ?? null);
+
+        if (mounted) setWell(j ?? null);
       } catch (err) {
         console.error("Error loading well detail:", err);
         if (mounted) setWell(null);
@@ -162,7 +167,6 @@ export default function WellDetailPage({ params }) {
 
   const w = well;
 
-  // ✅ Fix 1 (best fields)
   const lastTest = w.current_tested_at ?? w.last_test_date ?? null;
   const expires =
     w.current_expires_at ??
@@ -173,7 +177,6 @@ export default function WellDetailPage({ params }) {
 
   const EXPIRING_WINDOW_DAYS = 90;
 
-  // ✅ No hooks here (prevents React #310)
   const computedStatus = statusFromExpiration(expires, EXPIRING_WINDOW_DAYS);
   const daysLeft = daysUntil(expires);
 
@@ -205,28 +208,26 @@ export default function WellDetailPage({ params }) {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-  <StatusPill status={computedStatus} daysLeft={daysLeft} />
-</div>
+            <StatusPill status={computedStatus} daysLeft={daysLeft} />
+          </div>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex flex-wrap gap-2">
-            {isStaff && (
-              <Link
-                href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
-                className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
-              >
-                Edit
-              </Link>
-            )}
-
+        <div className="flex flex-wrap gap-2">
+          {isStaff && (
             <Link
-              href={isStaff ? "/admin/wells" : "/wells"}
-              className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+              href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
+              className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
             >
-              All Wells
+              Edit
             </Link>
-          </div>
+          )}
+
+          <Link
+            href={isStaff ? "/admin/wells" : "/wells"}
+            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+          >
+            All Wells
+          </Link>
         </div>
       </div>
 
@@ -235,23 +236,28 @@ export default function WellDetailPage({ params }) {
         title={w.lease_well_name ? `${w.lease_well_name} Location` : "Well Location"}
       />
 
+      {/* Company */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">Company</h2>
         </div>
+
         <div className="p-6 grid md:grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-gray-600">Company</div>
             <div className="font-medium">{w.company_name ?? "—"}</div>
           </div>
+
           <div>
             <div className="text-sm text-gray-600">Phone</div>
             <div className="font-medium">{w.company_phone ?? "—"}</div>
           </div>
+
           <div>
             <div className="text-sm text-gray-600">Email</div>
             <div className="font-medium">{w.company_email ?? "—"}</div>
           </div>
+
           <div className="md:col-span-2">
             <div className="text-sm text-gray-600">Address</div>
             <div className="font-medium">{w.company_address ?? "—"}</div>
@@ -259,19 +265,23 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
+      {/* Company Man */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">Company Man</h2>
         </div>
+
         <div className="p-6 grid md:grid-cols-3 gap-4">
           <div>
             <div className="text-sm text-gray-600">Name</div>
             <div className="font-medium">{w.company_man_name ?? "—"}</div>
           </div>
+
           <div>
             <div className="text-sm text-gray-600">Phone</div>
             <div className="font-medium">{w.company_man_phone ?? "—"}</div>
           </div>
+
           <div>
             <div className="text-sm text-gray-600">Email</div>
             <div className="font-medium break-all">{w.company_man_email ?? "—"}</div>
@@ -279,18 +289,22 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
+      {/* Test Dates */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">Test Dates</h2>
         </div>
+
         <div className="p-6 grid md:grid-cols-2 gap-6">
           <div>
             <div className="text-sm text-gray-600">Last Test Date</div>
             <div className="font-medium">{fmtDate(lastTest)}</div>
           </div>
+
           <div>
             <div className="text-sm text-gray-600">Expiration Date</div>
             <div className="font-medium">{fmtDate(expires)}</div>
+
             <div className="mt-2">
               <ExpirationBadge daysLeft={daysLeft} />
             </div>
@@ -298,15 +312,18 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
+      {/* Notes */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">History & Notes</h2>
         </div>
+
         <div className="p-6 grid md:grid-cols-2 gap-6">
           <div>
             <div className="text-sm text-gray-600">Previous Anchor Work</div>
             <div className="font-medium whitespace-pre-wrap">{w.previous_anchor_work ?? "—"}</div>
           </div>
+
           <div>
             <div className="text-sm text-gray-600">Directions & Other Notes</div>
             <div className="font-medium whitespace-pre-wrap">{w.directions_other_notes ?? "—"}</div>
