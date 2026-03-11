@@ -19,6 +19,7 @@ function emptyToNullDate(v) {
   if (v === "" || v === undefined) return null;
   return v;
 }
+
 function emptyToNullText(v) {
   if (v === "" || v === undefined) return null;
   return v;
@@ -70,7 +71,6 @@ export async function GET(_req, { params }) {
       return noStoreJson({ error: "Not found" }, { status: 404 });
     }
 
-    // Optional: restrict customers to only their wells
     const role = session.user.role || "customer";
     if (role === "customer" && well.customer_id !== session.user.id) {
       return noStoreJson({ error: "Forbidden" }, { status: 403 });
@@ -96,7 +96,6 @@ export async function PUT(req, { params }) {
     const api = decodeURIComponent(params.api);
     const body = await req.json();
 
-    // Load existing for permission check
     const existing = await loadWellByApi(api);
     if (!existing) return noStoreJson({ error: "Not found" }, { status: 404 });
 
@@ -120,18 +119,16 @@ export async function PUT(req, { params }) {
       state,
       county,
       wellhead_coords,
-
-      // Only staff should change these (optional)
       customer,
       customer_id,
-
       current_tested_at,
       current_expires_at,
     } = body;
 
     const testedAt = emptyToNullDate(current_tested_at);
     const expiresAt = emptyToNullDate(current_expires_at);
-    const shouldWriteTest = current_tested_at !== undefined || current_expires_at !== undefined;
+    const shouldWriteTest =
+      current_tested_at !== undefined || current_expires_at !== undefined;
 
     const updatedWell = await q(
       `
@@ -152,10 +149,8 @@ export async function PUT(req, { params }) {
         state                   = $13,
         county                  = $14,
         wellhead_coords         = $15,
-
         customer                = CASE WHEN $16 THEN COALESCE($17, customer) ELSE customer END,
         customer_id             = CASE WHEN $16 THEN COALESCE($18, customer_id) ELSE customer_id END,
-
         updated_at              = NOW()
       WHERE api = $19
       RETURNING id, api, current_test_id
@@ -176,7 +171,7 @@ export async function PUT(req, { params }) {
         emptyToNullText(state),
         emptyToNullText(county),
         emptyToNullText(wellhead_coords),
-        isStaff, // gate staff-only fields
+        isStaff,
         emptyToNullText(customer),
         customer_id ?? null,
         api,
@@ -220,13 +215,14 @@ export async function PUT(req, { params }) {
 
           const newTestId = inserted.rows?.[0]?.id;
           if (newTestId) {
-            await q(`UPDATE wells SET current_test_id = $1 WHERE api = $2`, [newTestId, api]);
+            await q(
+              `UPDATE wells SET current_test_id = $1 WHERE api = $2`,
+              [newTestId, api]
+            );
             currentTestId = newTestId;
           }
         }
 
-        // ✅ CRITICAL FIX:
-        // Keep wells.current_* in sync so /api/wells + /api/stats update immediately.
         await q(
           `
           UPDATE wells
