@@ -1,5 +1,7 @@
 // app/api/stats/route.js
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/nextauth-options";
 import { q } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -26,21 +28,108 @@ async function safeCount(sql, params = []) {
 
 export async function GET() {
   try {
-    const wells = await safeCount(`SELECT COUNT(*) FROM wells`);
-    const users = await safeCount(`SELECT COUNT(*) FROM users`);
-    const pendingChanges = await safeCount(`SELECT COUNT(*) FROM changes WHERE status = 'pending'`);
+    const session = await getServerSession(authOptions);
 
-    // ✅ upcomingTests uses COALESCE(wells.current_expires_at, well_tests.expires_at)
-    const upcomingTests = await safeCount(`
+    if (!session?.user?.id) {
+      return noStoreJson({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const role = session.user.role || "customer";
+    const userId = session.user.id;
+
+    // ADMIN: full global stats
+    if (role === "admin") {
+      const wells = await safeCount(`SELECT COUNT(*) FROM wells`);
+      const users = await safeCount(`SELECT COUNT(*) FROM users`);
+      const pendingChanges = await safeCount(`
+        SELECT COUNT(*) FROM changes WHERE status = 'pending'
+      `);
+
+      const upcomingTests = await safeCount(`
+        SELECT COUNT(*)
+        FROM wells w
+        LEFT JOIN well_tests t ON t.id = w.current_test_id
+        WHERE COALESCE(w.current_expires_at, t.expires_at) IS NOT NULL
+          AND COALESCE(w.current_expires_at, t.expires_at) <= (CURRENT_DATE + INTERVAL '90 days')
+      `);
+
+      return noStoreJson({ wells, users, pendingChanges, upcomingTests });
+    }
+
+    // EMPLOYEE: full wells/upcoming tests, but no user-management stats
+    if (role === "employee") {
+      const wells = await safeCount(`SELECT COUNT(*) FROM wells`);
+
+      const upcomingTests = await safeCount(`
+        SELECT COUNT(*)
+        FROM wells w
+        LEFT JOIN well_tests t ON t.id = w.current_test_id
+        WHERE COALESCE(w.current_expires_at, t.expires_at) IS NOT NULL
+          AND COALESCE(w.current_expires_at, t.expires_at) <= (CURRENT_DATE + INTERVAL '90 days')
+      `);
+
+      return noStoreJson({
+        wells,
+        users: 0,
+        pendingChanges: 0,
+        upcomingTests,
+      });
+    }
+
+    // CUSTOMER: scope stats by the logged-in user's company_name
+    const userResult = await q(
+      `
+      SELECT company_name
+      FROM users
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [userId]
+    );
+
+    const companyName = userResult.rows?.[0]?.company_name?.trim() || "";
+
+    if (!companyName) {
+      return noStoreJson({
+        wells: 0,
+        users: 0,
+        pendingChanges: 0,
+        upcomingTests: 0,
+      });
+    }
+
+    const wells = await safeCount(
+      `
+      SELECT COUNT(*)
+      FROM wells w
+      WHERE LOWER(TRIM(COALESCE(w.company_name, ''))) = LOWER(TRIM($1))
+      `,
+      [companyName]
+    );
+
+    const upcomingTests = await safeCount(
+      `
       SELECT COUNT(*)
       FROM wells w
       LEFT JOIN well_tests t ON t.id = w.current_test_id
-      WHERE COALESCE(w.current_expires_at, t.expires_at) IS NOT NULL
+      WHERE LOWER(TRIM(COALESCE(w.company_name, ''))) = LOWER(TRIM($1))
+        AND COALESCE(w.current_expires_at, t.expires_at) IS NOT NULL
         AND COALESCE(w.current_expires_at, t.expires_at) <= (CURRENT_DATE + INTERVAL '90 days')
-    `);
+      `,
+      [companyName]
+    );
 
-    return noStoreJson({ wells, users, pendingChanges, upcomingTests });
+    return noStoreJson({
+      wells,
+      users: 0,
+      pendingChanges: 0,
+      upcomingTests,
+    });
   } catch (e) {
-    return noStoreJson({ wells: 0, users: 0, pendingChanges: 0, upcomingTests: 0 }, { status: 200 });
+    console.error("GET /api/stats error:", e);
+    return noStoreJson(
+      { wells: 0, users: 0, pendingChanges: 0, upcomingTests: 0 },
+      { status: 200 }
+    );
   }
 }
