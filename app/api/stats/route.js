@@ -1,12 +1,8 @@
 // app/api/stats/route.js
 import { NextResponse } from "next/server";
-<<<<<<< Updated upstream
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/nextauth-options";
 import { q } from "@/lib/db";
-=======
-import { q } from "../../../lib/db";
->>>>>>> Stashed changes
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -38,20 +34,9 @@ export async function GET() {
       return noStoreJson({ error: "Unauthorized" }, { status: 401 });
     }
 
-<<<<<<< Updated upstream
     const role = session.user.role || "customer";
     const userId = session.user.id;
-=======
-  const upcomingTests = await safeCount(`
-    SELECT COUNT(*) AS count
-    FROM wells
-    WHERE
-      (current_expires_at IS NOT NULL AND current_expires_at <= NOW() + INTERVAL '30 days') OR
-      (current_expires_at IS NOT NULL AND current_expires_at <= NOW() + INTERVAL '30 days');
-  `);
->>>>>>> Stashed changes
 
-    // ADMIN: full global stats
     if (role === "admin") {
       const wells = await safeCount(`SELECT COUNT(*) FROM wells`);
       const users = await safeCount(`SELECT COUNT(*) FROM users`);
@@ -70,7 +55,6 @@ export async function GET() {
       return noStoreJson({ wells, users, pendingChanges, upcomingTests });
     }
 
-    // EMPLOYEE: full wells/upcoming tests, but no user-management stats
     if (role === "employee") {
       const wells = await safeCount(`SELECT COUNT(*) FROM wells`);
 
@@ -90,7 +74,6 @@ export async function GET() {
       });
     }
 
-    // CUSTOMER: scope stats by the logged-in user's company_name
     const userResult = await q(
       `
       SELECT company_name
