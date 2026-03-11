@@ -16,7 +16,6 @@ function parseLatLng(raw) {
   let lat = a;
   let lng = b;
 
-  // If first number can't be lat but second can, swap.
   if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) {
     lat = b;
     lng = a;
@@ -29,7 +28,6 @@ function parseLatLng(raw) {
 function daysUntil(dateStr) {
   if (!dateStr) return null;
 
-  // Handle "YYYY-MM-DD" as local date to avoid timezone shifts
   if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const [y, m, d] = dateStr.split("-").map(Number);
     const target = new Date(y, m - 1, d);
@@ -37,11 +35,11 @@ function daysUntil(dateStr) {
     return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   }
 
-  const dt = new Date(dateStr);
-  if (Number.isNaN(dt.getTime())) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
 
   const now = new Date();
-  return Math.ceil((dt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function statusFromExpiration(expirationDate, windowDays = 90) {
@@ -52,13 +50,8 @@ function statusFromExpiration(expirationDate, windowDays = 90) {
   return "good";
 }
 
-/**
- * ✅ Shared Google Maps loader (fixes: blank map until refresh)
- * Load the script ONCE for the whole app.
- */
 function loadGoogleMaps(key) {
   if (typeof window === "undefined") return Promise.resolve(false);
-
   if (window.google?.maps) return Promise.resolve(true);
 
   if (window.__googleMapsPromise) return window.__googleMapsPromise;
@@ -66,6 +59,7 @@ function loadGoogleMaps(key) {
   window.__googleMapsPromise = new Promise((resolve, reject) => {
     try {
       const existing = document.querySelector('script[data-google-maps="true"]');
+
       if (existing) {
         const start = Date.now();
         const t = setInterval(() => {
@@ -89,7 +83,8 @@ function loadGoogleMaps(key) {
       script.defer = true;
 
       script.onload = () => resolve(true);
-      script.onerror = () => reject(new Error("Script load error (check API key / referrer restrictions)."));
+      script.onerror = () =>
+        reject(new Error("Script load error (check API key / referrer restrictions)."));
 
       document.head.appendChild(script);
     } catch (e) {
@@ -149,21 +144,19 @@ export default function WellsMap({
   wells = [],
   expiringWindowDays = 90,
   expiringOnly = false,
-  onVisibleWellsChange, // ✅ NEW
+  onVisibleWellsChange,
 }) {
   const mapRef = useRef(null);
   const mapObjRef = useRef(null);
   const markersRef = useRef([]);
   const infoRef = useRef(null);
-  const idleListenerRef = useRef(null); // ✅ NEW
-  const lastVisibleKeyRef = useRef(""); // ✅ NEW (dedupe spam)
+  const idleListenerRef = useRef(null);
 
   const [ready, setReady] = useState(false);
   const [scriptError, setScriptError] = useState("");
 
   const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-  // ✅ One-time loader
   useEffect(() => {
     let cancelled = false;
 
@@ -215,72 +208,32 @@ export default function WellsMap({
       : items;
   }, [wells, expiringOnly, expiringWindowDays]);
 
-  // ✅ helper: report visible wells based on current bounds
-  function reportVisible() {
-    try {
-      const map = mapObjRef.current;
-      if (!map) return;
-      const bounds = map.getBounds?.();
-      if (!bounds) return;
-
-      const visible = mapped
-        .filter((w) => {
-          if (!w?.latlng) return false;
-          const pos = new window.google.maps.LatLng(w.latlng.lat, w.latlng.lng);
-          return bounds.contains(pos);
-        })
-        .map((w) => w.api)
-        .filter(Boolean);
-
-      // prevent spamming parent state if nothing changed
-      const key = visible.slice().sort().join("|");
-      if (key === lastVisibleKeyRef.current) return;
-      lastVisibleKeyRef.current = key;
-
-      if (typeof onVisibleWellsChange === "function") {
-        onVisibleWellsChange(visible);
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-
   useEffect(() => {
     if (!ready) return;
     if (!mapRef.current) return;
     if (!window.google?.maps) return;
 
-    // Init once
     if (!mapObjRef.current) {
-      const first = mapped[0]?.latlng || { lat: 32.0, lng: -103.0 }; // Permian-ish fallback
+      const first = mapped[0]?.latlng || { lat: 32.0, lng: -103.0 };
 
       mapObjRef.current = new window.google.maps.Map(mapRef.current, {
         center: first,
         zoom: mapped.length ? 7 : 6,
-
         mapTypeId: "hybrid",
         mapTypeControl: true,
         mapTypeControlOptions: {
           position: window.google.maps.ControlPosition.TOP_RIGHT,
         },
-
         streetViewControl: false,
         fullscreenControl: true,
-
         zoomControl: true,
         scrollwheel: true,
         gestureHandling: "greedy",
       });
 
       infoRef.current = new window.google.maps.InfoWindow();
-
-      // ✅ attach idle listener ONCE
-      idleListenerRef.current = mapObjRef.current.addListener("idle", () => {
-        reportVisible();
-      });
     }
 
-    // Clear markers
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
@@ -296,6 +249,10 @@ export default function WellsMap({
         title: w.lease_well_name || w.api || "Well",
         icon: markerIcon(w._status),
       });
+
+      marker.__wellApi = w.api;
+      marker.__lat = w.latlng.lat;
+      marker.__lng = w.latlng.lng;
 
       marker.addListener("click", () => {
         const name = escapeHtml(w.lease_well_name || "—");
@@ -355,21 +312,43 @@ export default function WellsMap({
 
     if (mapped.length) {
       mapObjRef.current.fitBounds(bounds, 40);
-      // after fitBounds, idle will fire and reportVisible() will run
-    } else {
-      // no wells => report empty
-      if (typeof onVisibleWellsChange === "function") onVisibleWellsChange([]);
     }
 
-    // also report immediately in case idle doesn’t fire (rare)
-    setTimeout(() => reportVisible(), 50);
+    const emitVisibleWells = () => {
+      if (!mapObjRef.current || !window.google?.maps || !onVisibleWellsChange) return;
+
+      const mapBounds = mapObjRef.current.getBounds();
+      if (!mapBounds) return;
+
+      const visible = markersRef.current
+        .filter((marker) => {
+          const pos = new window.google.maps.LatLng(marker.__lat, marker.__lng);
+          return mapBounds.contains(pos);
+        })
+        .map((marker) => marker.__wellApi)
+        .filter(Boolean);
+
+      onVisibleWellsChange(visible);
+    };
+
+    if (idleListenerRef.current) {
+      window.google.maps.event.removeListener(idleListenerRef.current);
+      idleListenerRef.current = null;
+    }
+
+    idleListenerRef.current = mapObjRef.current.addListener("idle", emitVisibleWells);
+
+    setTimeout(() => {
+      emitVisibleWells();
+    }, 0);
 
     return () => {
-      // don’t remove idle listener on every render; map persists across updates
-      // but if component unmounts, Google handles it; if you want, you can clean up here:
-      // idleListenerRef.current?.remove?.();
+      if (idleListenerRef.current && window.google?.maps?.event) {
+        window.google.maps.event.removeListener(idleListenerRef.current);
+        idleListenerRef.current = null;
+      }
     };
-  }, [ready, mapped]); // ✅ re-run when mapped list changes
+  }, [ready, mapped, onVisibleWellsChange]);
 
   if (!key) {
     return (
