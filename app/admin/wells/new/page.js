@@ -48,7 +48,6 @@ export default function NewWellPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // ✅ These keys MATCH your POST /api/wells route
   const [form, setForm] = useState({
     lease_well_name: "",
     api: "",
@@ -72,7 +71,6 @@ export default function NewWellPage() {
     need_by: "",
     status: "pending",
 
-    // Optional: set customer_id if you want (admin assigns)
     customer_id: "",
     customer: "",
   });
@@ -202,7 +200,11 @@ export default function NewWellPage() {
             </Field>
 
             <Field label="State (2-letter)">
-              <TextInput value={form.state} onChange={(e) => upd("state", e.target.value.toUpperCase())} placeholder="NM" />
+              <TextInput
+                value={form.state}
+                onChange={(e) => upd("state", e.target.value.toUpperCase())}
+                placeholder="NM"
+              />
             </Field>
           </div>
         </Card>
@@ -210,7 +212,10 @@ export default function NewWellPage() {
         <Card title="History & Notes">
           <div className="grid md:grid-cols-2 gap-6">
             <Field label="Previous Anchor Company">
-              <TextInput value={form.previous_anchor_company} onChange={(e) => upd("previous_anchor_company", e.target.value)} />
+              <TextInput
+                value={form.previous_anchor_company}
+                onChange={(e) => upd("previous_anchor_company", e.target.value)}
+              />
             </Field>
 
             <Field label="Need By (optional)">
