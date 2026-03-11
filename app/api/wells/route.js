@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../lib/nextauth-options";
 import { q } from "../../../lib/db";
-<<<<<<< Updated upstream
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,8 +14,6 @@ function noStoreJson(data, init = {}) {
   res.headers.set("Expires", "0");
   return res;
 }
-=======
->>>>>>> Stashed changes
 
 // GET /api/wells -> list wells
 export async function GET() {
