@@ -1,12 +1,7 @@
-// app/admin/users/page.js
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-<<<<<<< Updated upstream
-=======
-import NotLoggedIn from "../../../app/components/NotLoggedIn";
->>>>>>> Stashed changes
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
