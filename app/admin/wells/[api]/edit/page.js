@@ -92,17 +92,14 @@ export default function EditWellPage({ params }) {
     previous_anchor_work: "",
     directions_other_notes: "",
 
-    // editable test dates
     current_tested_at: "",
     current_expires_at: "",
   });
 
-  // ✅ IMPORTANT: hooks must always run. So we declare this useEffect unconditionally.
   useEffect(() => {
     let mounted = true;
 
     async function load() {
-      // Don’t fetch until session is resolved and user is allowed
       if (status !== "authenticated" || !canEdit) return;
 
       try {
@@ -132,7 +129,6 @@ export default function EditWellPage({ params }) {
 
           previous_anchor_work: w.previous_anchor_work || "",
           directions_other_notes: w.directions_other_notes || "",
-
 
           current_tested_at: w.current_tested_at || "",
           current_expires_at: w.current_expires_at || "",
@@ -183,7 +179,6 @@ export default function EditWellPage({ params }) {
 
       const updated = await res.json().catch(() => null);
 
-      // Keep the form synced with DB (esp test dates)
       if (updated) {
         setForm((prev) => ({
           ...prev,
@@ -201,7 +196,6 @@ export default function EditWellPage({ params }) {
     }
   }
 
-  // ✅ Now it’s safe to do early returns (hooks already declared above)
   if (status === "loading") return <div className="container py-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
   if (!canEdit) return <div className="container py-8">Not authorized.</div>;
@@ -352,11 +346,7 @@ export default function EditWellPage({ params }) {
               />
               <div className="text-xs text-gray-500 mt-1">Leave blank for NULL.</div>
             </div>
-
-            
           </div>
-
-          
         </div>
 
         <div className="space-y-3">
@@ -364,11 +354,21 @@ export default function EditWellPage({ params }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">Previous Anchor Work</label>
-              <textarea rows={4} className="w-full" value={form.previous_anchor_work} onChange={updateField("previous_anchor_work")} />
+              <textarea
+                rows={4}
+                className="w-full"
+                value={form.previous_anchor_work}
+                onChange={updateField("previous_anchor_work")}
+              />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Directions & Other Notes</label>
-              <textarea rows={4} className="w-full" value={form.directions_other_notes} onChange={updateField("directions_other_notes")} />
+              <textarea
+                rows={4}
+                className="w-full"
+                value={form.directions_other_notes}
+                onChange={updateField("directions_other_notes")}
+              />
             </div>
           </div>
         </div>
