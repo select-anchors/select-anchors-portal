@@ -5,11 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-<<<<<<< Updated upstream
 import NotLoggedIn from "../../../../components/NotLoggedIn";
-=======
-import NotLoggedIn from "../../../../../app/components/NotLoggedIn";
->>>>>>> Stashed changes
 
 const US_STATES = [
   { code: "", name: "Select…" },
@@ -83,19 +79,15 @@ export default function EditWellPage({ params }) {
     wellhead_coords: "",
     county: "",
     state: "",
-
     company_name: "",
     company_email: "",
     company_phone: "",
     company_address: "",
-
     company_man_name: "",
     company_man_email: "",
     company_man_phone: "",
-
     previous_anchor_work: "",
     directions_other_notes: "",
-
     current_tested_at: "",
     current_expires_at: "",
   });
@@ -121,19 +113,15 @@ export default function EditWellPage({ params }) {
           wellhead_coords: w.wellhead_coords || "",
           county: w.county || "",
           state: w.state || "",
-
           company_name: w.company_name || "",
           company_email: w.company_email || "",
           company_phone: w.company_phone || "",
           company_address: w.company_address || "",
-
           company_man_name: w.company_man_name || "",
           company_man_email: w.company_man_email || "",
           company_man_phone: w.company_man_phone || "",
-
           previous_anchor_work: w.previous_anchor_work || "",
           directions_other_notes: w.directions_other_notes || "",
-
           current_tested_at: w.current_tested_at || "",
           current_expires_at: w.current_expires_at || "",
         });
@@ -358,21 +346,11 @@ export default function EditWellPage({ params }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">Previous Anchor Work</label>
-              <textarea
-                rows={4}
-                className="w-full"
-                value={form.previous_anchor_work}
-                onChange={updateField("previous_anchor_work")}
-              />
+              <textarea rows={4} className="w-full" value={form.previous_anchor_work} onChange={updateField("previous_anchor_work")} />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Directions & Other Notes</label>
-              <textarea
-                rows={4}
-                className="w-full"
-                value={form.directions_other_notes}
-                onChange={updateField("directions_other_notes")}
-              />
+              <textarea rows={4} className="w-full" value={form.directions_other_notes} onChange={updateField("directions_other_notes")} />
             </div>
           </div>
         </div>
