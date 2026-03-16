@@ -172,16 +172,16 @@ function clusterSvg(count, dominantStatus) {
   const fill = getStatusColor(dominantStatus);
 
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-      <circle cx="32" cy="32" r="28" fill="${fill}" opacity="0.20"/>
-      <circle cx="32" cy="32" r="22" fill="${fill}" opacity="0.96"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="24" fill="${fill}" opacity="0.20"/>
+      <circle cx="28" cy="28" r="18" fill="${fill}" stroke="white" stroke-width="3"/>
 
       <text
-        x="32"
-        y="38"
+        x="28"
+        y="33"
         text-anchor="middle"
         font-family="Arial, sans-serif"
-        font-size="18"
+        font-size="16"
         font-weight="700"
         fill="white"
       >
@@ -383,8 +383,8 @@ export default function WellsMap({
       position,
       icon: {
         url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-        scaledSize: new window.google.maps.Size(64, 64),
-        anchor: new window.google.maps.Point(32, 32),
+        scaledSize: new window.google.maps.Size(56, 56),
+anchor: new window.google.maps.Point(28, 28),
       },
       label: undefined,
       zIndex: 1000 + count,
