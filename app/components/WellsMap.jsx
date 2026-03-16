@@ -168,27 +168,24 @@ function dominantClusterStatus(summary) {
   return "unknown";
 }
 
-function clusterSvg(count, summary, dominantStatus) {
+function clusterSvg(count, dominantStatus) {
   const fill = getStatusColor(dominantStatus);
 
-  const expired = summary.expired || 0;
-  const expiring = summary.expiring || 0;
-  const good = summary.good || 0;
-
-  const breakdown = `R${expired} Y${expiring} G${good}`;
-
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="78" height="78" viewBox="0 0 78 78">
-      <circle cx="39" cy="39" r="34" fill="${fill}" opacity="0.18"/>
-      <circle cx="39" cy="39" r="27" fill="${fill}" opacity="0.95"/>
-      <circle cx="39" cy="39" r="20" fill="white" opacity="0.18"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+      <circle cx="32" cy="32" r="28" fill="${fill}" opacity="0.20"/>
+      <circle cx="32" cy="32" r="22" fill="${fill}" opacity="0.96"/>
 
-      <text x="39" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="white">
+      <text
+        x="32"
+        y="38"
+        text-anchor="middle"
+        font-family="Arial, sans-serif"
+        font-size="18"
+        font-weight="700"
+        fill="white"
+      >
         ${count}
-      </text>
-
-      <text x="39" y="52" text-anchor="middle" font-family="Arial, sans-serif" font-size="8.5" font-weight="700" fill="white">
-        ${breakdown}
       </text>
     </svg>
   `;
@@ -376,24 +373,24 @@ export default function WellsMap({
     clustererRef.current = new MarkerClusterer({
       map: mapObjRef.current,
       markers: markersRef.current,
-      renderer: {
-        render: ({ count, position, markers }) => {
-          const summary = summarizeStatuses(markers);
-          const clusterStatus = dominantClusterStatus(summary);
-          const svg = clusterSvg(count, summary, clusterStatus);
+     renderer: {
+  render: ({ count, position, markers }) => {
+    const summary = summarizeStatuses(markers);
+    const clusterStatus = dominantClusterStatus(summary);
+    const svg = clusterSvg(count, clusterStatus);
 
-          return new window.google.maps.Marker({
-            position,
-            icon: {
-              url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-              scaledSize: new window.google.maps.Size(64, 64),
-              anchor: new window.google.maps.Point(32, 32),
-            },
-            label: undefined,
-            zIndex: 1000 + count,
-          });
-        },
+    return new window.google.maps.Marker({
+      position,
+      icon: {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new window.google.maps.Size(64, 64),
+        anchor: new window.google.maps.Point(32, 32),
       },
+      label: undefined,
+      zIndex: 1000 + count,
+    });
+  },
+},
     });
 
     if (mapped.length) {
