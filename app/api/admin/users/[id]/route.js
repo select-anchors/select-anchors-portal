@@ -1,88 +1,62 @@
 // app/api/admin/users/[id]/route.js
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../../../../lib/nextauth-options";
 import { q } from "../../../../../lib/db";
+import { getDefaultPermissions } from "../../../../../lib/permissions";
 
-// GET /api/admin/users/:id  -> fetch single user
-export async function GET(_req, { params }) {
-  try {
-    const id = String(params.id || "").trim();
-    if (!id) {
-      return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
-    }
-
-    // Works whether id is UUID or int, because we compare as text
-    const { rows } = await q(
-      `
-      SELECT
-        id,
-        name,
-        email,
-        role,
-        is_active,
-        created_at
-      FROM users
-      WHERE id::text = $1
-      LIMIT 1
-      `,
-      [id]
-    );
-
-    if (rows.length === 0) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    return NextResponse.json(rows[0]);
-  } catch (err) {
-    console.error("GET /api/admin/users/[id] error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+async function requireAdmin() {
+  const session = await getServerSession(authOptions);
+  if (!session || session.user?.role !== "admin") {
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
   }
+  return { session };
 }
 
-// PUT /api/admin/users/:id  -> update user fields
-export async function PUT(req, { params }) {
-  try {
-    const id = String(params.id || "").trim();
-    if (!id) {
-      return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
-    }
+export async function PATCH(req, { params }) {
+  const gate = await requireAdmin();
+  if (gate.error) return gate.error;
 
+  try {
+    const id = params.id;
     const body = await req.json();
 
-    const { name, email, role, is_active } = body;
+    const allowedRoles = ["admin", "employee", "customer"];
+    const role = body.role;
+
+    if (!allowedRoles.includes(role)) {
+      return NextResponse.json(
+        { error: "Invalid role" },
+        { status: 400 }
+      );
+    }
+
+    const mergedPermissions = {
+      ...getDefaultPermissions(role),
+      ...(body.permissions_json || {}),
+    };
 
     const { rows } = await q(
       `
       UPDATE users
       SET
-        name      = COALESCE($1, name),
-        email     = COALESCE($2, email),
-        role      = COALESCE($3, role),
-        is_active = COALESCE($4, is_active)
-      WHERE id::text = $5
-      RETURNING
-        id,
-        name,
-        email,
-        role,
-        is_active,
-        created_at
+        role = $1,
+        permissions_json = $2::jsonb
+      WHERE id = $3
+      RETURNING id, role, permissions_json
       `,
-      [
-        name ?? null,
-        email ?? null,
-        role ?? null,
-        typeof is_active === "boolean" ? is_active : null,
-        id,
-      ]
+      [role, JSON.stringify(mergedPermissions), id]
     );
 
-    if (rows.length === 0) {
+    if (!rows.length) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json(rows[0]);
+    return NextResponse.json({ ok: true, user: rows[0] });
   } catch (err) {
-    console.error("PUT /api/admin/users/[id] error:", err);
+    console.error("[ADMIN_USER_PATCH_ERROR]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
