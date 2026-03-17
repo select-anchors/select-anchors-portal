@@ -2,17 +2,17 @@
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
+import { hasPermission } from "../../lib/permissions";
 
 export default function Header() {
-  const { data, status } = useSession();
-  const role = data?.user?.role || "customer";
+  const { data } = useSession();
   const isLoggedIn = !!data?.user;
 
-  const isAdmin = role === "admin";
-  const isEmployee = role === "employee";
+  const canViewAllWells = hasPermission(data, "can_view_all_wells");
+  const canUseDispatch = hasPermission(data, "can_use_dispatch");
+  const canManageUsers = hasPermission(data, "can_manage_users");
 
-  // ✅ One source of truth for "All Wells" destination
-  const wellsHref = isAdmin || isEmployee ? "/admin/wells" : "/wells";
+  const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
 
   return (
     <header className="border-b bg-white">
@@ -39,13 +39,13 @@ export default function Header() {
             </Link>
           )}
 
-          {(isAdmin || isEmployee) && (
+          {isLoggedIn && canUseDispatch && (
             <Link href="/driver/my-day" className="hover:underline">
               My Day
             </Link>
           )}
 
-          {isAdmin && (
+          {isLoggedIn && canManageUsers && (
             <Link href="/admin/users" className="hover:underline">
               Users
             </Link>
