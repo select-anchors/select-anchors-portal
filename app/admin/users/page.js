@@ -4,7 +4,21 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../../components/NotLoggedIn";
-import { resolvePermissions } from "../../../lib/permissions";
+import { resolvePermissions, getDefaultPermissions } from "../../../lib/permissions";
+
+const PERMISSION_LABELS = {
+  can_view_all_wells: "View All Wells",
+  can_edit_wells: "Edit Wells",
+  can_bulk_edit_wells: "Bulk Edit",
+  can_edit_company_contacts: "Edit Contacts",
+  can_export_csv: "Export CSV",
+  can_transfer_well_ownership: "Transfer Ownership",
+  can_manage_users: "Manage Users",
+  can_reset_passwords: "Reset Passwords",
+  can_manage_items_pricing: "Items & Pricing",
+  can_approve_changes: "Approve Changes",
+  can_use_dispatch: "Dispatch",
+};
 
 function PermissionBadge({ label, enabled }) {
   return (
@@ -27,6 +41,11 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [savingId, setSavingId] = useState("");
+
+  const [editingUserId, setEditingUserId] = useState("");
+  const [editRole, setEditRole] = useState("customer");
+  const [editPermissions, setEditPermissions] = useState({});
 
   const [form, setForm] = useState({
     name: "",
@@ -149,6 +168,60 @@ export default function AdminUsersPage() {
     }
   }
 
+  function startEditingUser(user) {
+    setEditingUserId(user.id);
+    setEditRole(user.role);
+    setEditPermissions(resolvePermissions(user.role, user.permissions_json || null));
+  }
+
+  function cancelEditingUser() {
+    setEditingUserId("");
+    setEditRole("customer");
+    setEditPermissions({});
+  }
+
+  function onEditRoleChange(nextRole) {
+    setEditRole(nextRole);
+    setEditPermissions(getDefaultPermissions(nextRole));
+  }
+
+  function togglePermission(key) {
+    setEditPermissions((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  }
+
+  async function saveUserAccess(userId) {
+    try {
+      setSavingId(userId);
+
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          role: editRole,
+          permissions_json: editPermissions,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        alert(json?.error || "Failed to save access controls");
+        return;
+      }
+
+      await loadUsers();
+      cancelEditingUser();
+      alert("Access controls updated");
+    } catch (err) {
+      console.error(err);
+      alert("Error saving access controls");
+    } finally {
+      setSavingId("");
+    }
+  }
+
   if (status === "loading") return <div className="container py-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
   if (!isAdmin) return <div className="container py-8">Not authorized.</div>;
@@ -252,12 +325,10 @@ export default function AdminUsersPage() {
           <div className="divide-y">
             {users.map((u) => {
               const perms = resolvePermissions(u.role, u.permissions_json || null);
+              const isEditing = editingUserId === u.id;
 
               return (
-                <div
-                  key={u.id}
-                  className="p-6 flex flex-col gap-4"
-                >
+                <div key={u.id} className="p-6 flex flex-col gap-4">
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     <div className="space-y-1">
                       <div className="font-semibold">{u.name || "Unnamed User"}</div>
@@ -271,6 +342,12 @@ export default function AdminUsersPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => startEditingUser(u)}
+                        className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
+                      >
+                        Edit Access
+                      </button>
                       <button
                         onClick={() => sendReset(u.id)}
                         className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
@@ -286,22 +363,70 @@ export default function AdminUsersPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium text-gray-700">Access & Controls</div>
-                    <div className="flex flex-wrap gap-2">
-                      <PermissionBadge label="View All Wells" enabled={perms.can_view_all_wells} />
-                      <PermissionBadge label="Edit Wells" enabled={perms.can_edit_wells} />
-                      <PermissionBadge label="Bulk Edit" enabled={perms.can_bulk_edit_wells} />
-                      <PermissionBadge label="Edit Contacts" enabled={perms.can_edit_company_contacts} />
-                      <PermissionBadge label="Export CSV" enabled={perms.can_export_csv} />
-                      <PermissionBadge label="Transfer Ownership" enabled={perms.can_transfer_well_ownership} />
-                      <PermissionBadge label="Manage Users" enabled={perms.can_manage_users} />
-                      <PermissionBadge label="Reset Passwords" enabled={perms.can_reset_passwords} />
-                      <PermissionBadge label="Items & Pricing" enabled={perms.can_manage_items_pricing} />
-                      <PermissionBadge label="Approve Changes" enabled={perms.can_approve_changes} />
-                      <PermissionBadge label="Dispatch" enabled={perms.can_use_dispatch} />
+                  {!isEditing && (
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium text-gray-700">Access & Controls</div>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
+                          <PermissionBadge key={key} label={label} enabled={perms[key]} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {isEditing && (
+                    <div className="border rounded-2xl p-4 bg-gray-50 space-y-4">
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Role</label>
+                          <select
+                            value={editRole}
+                            onChange={(e) => onEditRoleChange(e.target.value)}
+                            className="w-full rounded-lg border px-3 py-2"
+                          >
+                            <option value="customer">Customer</option>
+                            <option value="employee">Employee</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-sm font-medium mb-2">Access & Controls</div>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
+                            <label
+                              key={key}
+                              className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!!editPermissions[key]}
+                                onChange={() => togglePermission(key)}
+                              />
+                              <span>{label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => saveUserAccess(u.id)}
+                          disabled={savingId === u.id}
+                          className="rounded-xl bg-[#2f4f4f] text-white px-4 py-2 hover:opacity-90 disabled:opacity-60"
+                        >
+                          {savingId === u.id ? "Saving..." : "Save Access"}
+                        </button>
+                        <button
+                          onClick={cancelEditingUser}
+                          className="rounded-xl border px-4 py-2 hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
