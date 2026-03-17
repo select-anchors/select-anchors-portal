@@ -24,15 +24,16 @@ export async function GET() {
 
   const { rows } = await q(
     `SELECT id,
-            name,
-            email,
-            role,
-            is_active,
-            phone,
-            company_name,
-            created_at
-       FROM users
-      ORDER BY created_at DESC`
+       name,
+       email,
+       role,
+       is_active,
+       phone,
+       company_name,
+       permissions_json,
+       created_at
+FROM users
+ORDER BY created_at DESC`
   );
 
   return NextResponse.json({ users: rows });
