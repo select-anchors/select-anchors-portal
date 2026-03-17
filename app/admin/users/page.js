@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import NotLoggedIn from "../../components/NotLoggedIn";
 
 export default function AdminUsersPage() {
+  const { data: session, status } = useSession();
+
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-
   const [error, setError] = useState("");
+
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -18,40 +22,45 @@ export default function AdminUsersPage() {
     password: "",
   });
 
- async function loadUsers() {
-  try {
-    setLoading(true);
-    setError("");
+  const role = session?.user?.role;
+  const isAdmin = role === "admin";
 
-    const res = await fetch("/api/admin/users", { cache: "no-store" });
-    const data = await res.json();
+  async function loadUsers() {
+    try {
+      setLoading(true);
+      setError("");
 
-    if (!res.ok) {
-      throw new Error(data?.error || `Failed to load users (${res.status})`);
+      const res = await fetch("/api/admin/users", { cache: "no-store" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || `Failed to load users (${res.status})`);
+      }
+
+      setUsers(Array.isArray(data) ? data : Array.isArray(data?.users) ? data.users : []);
+    } catch (e) {
+      console.error("Failed to load users", e);
+      setUsers([]);
+      setError(e?.message || "Failed to load users");
+    } finally {
+      setLoading(false);
     }
-
-    setUsers(Array.isArray(data) ? data : Array.isArray(data?.users) ? data.users : []);
-  } catch (e) {
-    console.error("Failed to load users", e);
-    setUsers([]);
-    setError(e?.message || "Failed to load users");
-  } finally {
-    setLoading(false);
   }
-}
-{error && (
-  <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
-    {error}
-  </div>
-)}
+
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (status === "authenticated" && isAdmin) {
+      loadUsers();
+    } else if (status !== "loading") {
+      setLoading(false);
+    }
+  }, [status, isAdmin]);
 
   async function onCreate(e) {
     e.preventDefault();
     try {
       setCreating(true);
+      setError("");
+
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -125,6 +134,10 @@ export default function AdminUsersPage() {
     }
   }
 
+  if (status === "loading") return <div className="container py-8">Loading…</div>;
+  if (!session) return <NotLoggedIn />;
+  if (!isAdmin) return <div className="container py-8">Not authorized.</div>;
+
   return (
     <div className="container py-8 space-y-8">
       <div className="flex items-center justify-between">
@@ -136,6 +149,12 @@ export default function AdminUsersPage() {
           Back to Dashboard
         </Link>
       </div>
+
+      {error && (
+        <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <form
         onSubmit={onCreate}
