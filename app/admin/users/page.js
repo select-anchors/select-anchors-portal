@@ -8,6 +8,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -17,20 +18,32 @@ export default function AdminUsersPage() {
     password: "",
   });
 
-  async function loadUsers() {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/admin/users", { cache: "no-store" });
-      const data = await res.json();
-      setUsers(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error("Failed to load users", e);
-      setUsers([]);
-    } finally {
-      setLoading(false);
-    }
-  }
+ async function loadUsers() {
+  try {
+    setLoading(true);
+    setError("");
 
+    const res = await fetch("/api/admin/users", { cache: "no-store" });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data?.error || `Failed to load users (${res.status})`);
+    }
+
+    setUsers(Array.isArray(data) ? data : Array.isArray(data?.users) ? data.users : []);
+  } catch (e) {
+    console.error("Failed to load users", e);
+    setUsers([]);
+    setError(e?.message || "Failed to load users");
+  } finally {
+    setLoading(false);
+  }
+}
+{error && (
+  <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
+    {error}
+  </div>
+)}
   useEffect(() => {
     loadUsers();
   }, []);
