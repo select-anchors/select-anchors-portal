@@ -4,6 +4,21 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../../components/NotLoggedIn";
+import { resolvePermissions } from "../../../lib/permissions";
+
+function PermissionBadge({ label, enabled }) {
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-1 rounded-full text-xs border ${
+        enabled
+          ? "bg-green-50 text-green-700 border-green-200"
+          : "bg-gray-50 text-gray-600 border-gray-200"
+      }`}
+    >
+      {label}: {enabled ? "Yes" : "No"}
+    </span>
+  );
+}
 
 export default function AdminUsersPage() {
   const { data: session, status } = useSession();
@@ -19,7 +34,7 @@ export default function AdminUsersPage() {
     phone: "",
     company_name: "",
     role: "customer",
-    password: "",
+    sendReset: true,
   });
 
   const role = session?.user?.role;
@@ -79,7 +94,7 @@ export default function AdminUsersPage() {
         phone: "",
         company_name: "",
         role: "customer",
-        password: "",
+        sendReset: true,
       });
 
       await loadUsers();
@@ -201,15 +216,20 @@ export default function AdminUsersPage() {
             <option value="admin">Admin</option>
           </select>
 
-          <input
-            className="border rounded-lg px-3 py-2"
-            placeholder="Temporary password"
-            type="password"
-            value={form.password}
-            onChange={(e) =>
-              setForm((s) => ({ ...s, password: e.target.value }))
-            }
-          />
+          <label className="flex items-center gap-2 rounded-lg border px-3 py-2">
+            <input
+              type="checkbox"
+              checked={form.sendReset}
+              onChange={(e) =>
+                setForm((s) => ({ ...s, sendReset: e.target.checked }))
+              }
+            />
+            <span className="text-sm">Send password setup email</span>
+          </label>
+        </div>
+
+        <div className="text-xs text-gray-500">
+          New users will be created with the default access for their selected role.
         </div>
 
         <button
@@ -230,38 +250,61 @@ export default function AdminUsersPage() {
           <div className="p-6 text-sm text-gray-500">No users found.</div>
         ) : (
           <div className="divide-y">
-            {users.map((u) => (
-              <div
-                key={u.id}
-                className="p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-              >
-                <div className="space-y-1">
-                  <div className="font-semibold">{u.name || "Unnamed User"}</div>
-                  <div className="text-sm text-gray-600">{u.email}</div>
-                  <div className="text-sm text-gray-600">
-                    {u.company_name || "No company"} · {u.role}
-                  </div>
-                  {u.phone && (
-                    <div className="text-sm text-gray-500">{u.phone}</div>
-                  )}
-                </div>
+            {users.map((u) => {
+              const perms = resolvePermissions(u.role, u.permissions_json || null);
 
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => sendReset(u.id)}
-                    className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
-                  >
-                    Email Reset
-                  </button>
-                  <button
-                    onClick={() => manualReset(u.id)}
-                    className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
-                  >
-                    Set Temp Password
-                  </button>
+              return (
+                <div
+                  key={u.id}
+                  className="p-6 flex flex-col gap-4"
+                >
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="font-semibold">{u.name || "Unnamed User"}</div>
+                      <div className="text-sm text-gray-600">{u.email}</div>
+                      <div className="text-sm text-gray-600">
+                        {u.company_name || "No company"} · {u.role}
+                      </div>
+                      {u.phone && (
+                        <div className="text-sm text-gray-500">{u.phone}</div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => sendReset(u.id)}
+                        className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
+                      >
+                        Email Reset
+                      </button>
+                      <button
+                        onClick={() => manualReset(u.id)}
+                        className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
+                      >
+                        Set Temp Password
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-gray-700">Access & Controls</div>
+                    <div className="flex flex-wrap gap-2">
+                      <PermissionBadge label="View All Wells" enabled={perms.can_view_all_wells} />
+                      <PermissionBadge label="Edit Wells" enabled={perms.can_edit_wells} />
+                      <PermissionBadge label="Bulk Edit" enabled={perms.can_bulk_edit_wells} />
+                      <PermissionBadge label="Edit Contacts" enabled={perms.can_edit_company_contacts} />
+                      <PermissionBadge label="Export CSV" enabled={perms.can_export_csv} />
+                      <PermissionBadge label="Transfer Ownership" enabled={perms.can_transfer_well_ownership} />
+                      <PermissionBadge label="Manage Users" enabled={perms.can_manage_users} />
+                      <PermissionBadge label="Reset Passwords" enabled={perms.can_reset_passwords} />
+                      <PermissionBadge label="Items & Pricing" enabled={perms.can_manage_items_pricing} />
+                      <PermissionBadge label="Approve Changes" enabled={perms.can_approve_changes} />
+                      <PermissionBadge label="Dispatch" enabled={perms.can_use_dispatch} />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
