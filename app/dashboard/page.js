@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../components/NotLoggedIn";
 import WellsMap from "../components/WellsMap";
+import { hasPermission } from "../../lib/permissions";
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
@@ -134,12 +135,13 @@ export default function DashboardPage() {
   const [visibleApis, setVisibleApis] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const role = session?.user?.role || "customer";
-  const isAdmin = role === "admin";
-  const isEmployee = role === "employee";
-  const isCustomer = role === "customer";
+  const canViewAllWells = hasPermission(session, "can_view_all_wells");
+  const canManageUsers = hasPermission(session, "can_manage_users");
+  const canApproveChanges = hasPermission(session, "can_approve_changes");
+  const canManageItemsPricing = hasPermission(session, "can_manage_items_pricing");
+  const canUseDispatch = hasPermission(session, "can_use_dispatch");
 
-  const wellsPageHref = isAdmin || isEmployee ? "/admin/wells" : "/wells";
+  const wellsPageHref = canViewAllWells ? "/admin/wells" : "/wells";
 
   useEffect(() => {
     let isMounted = true;
@@ -152,7 +154,6 @@ export default function DashboardPage() {
         const json = await res.json();
         if (isMounted) setStats(json);
       } catch {
-        // keep defaults
       } finally {
         if (isMounted) setLoadingStats(false);
       }
@@ -206,7 +207,7 @@ export default function DashboardPage() {
         _exp_for_display: exp,
       };
     });
-  }, [wells, EXPIRING_WINDOW_DAYS]);
+  }, [wells]);
 
   const checkboxFilteredWells = useMemo(() => {
     if (!showExpiring && !showExpired) return wellsWithStatus;
@@ -253,7 +254,7 @@ export default function DashboardPage() {
     }
     if (showExpiring) return `No wells expiring within ${EXPIRING_WINDOW_DAYS} days.`;
     return "No expired wells.";
-  }, [showExpiring, showExpired, EXPIRING_WINDOW_DAYS]);
+  }, [showExpiring, showExpired]);
 
   const emptyListLabel = useMemo(() => {
     const q = searchQuery.trim();
@@ -311,7 +312,7 @@ export default function DashboardPage() {
           href={wellsPageHref}
         />
 
-        {isAdmin && (
+        {canManageUsers && (
           <StatCard
             title="Users"
             value={stats.users}
@@ -326,7 +327,7 @@ export default function DashboardPage() {
           loading={loadingStats}
         />
 
-        {isAdmin && (
+        {canApproveChanges && (
           <StatCard
             title="Pending Changes"
             value={stats.pendingChanges}
@@ -354,128 +355,132 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {(isCustomer || isAdmin || isEmployee) && (
-        <>
-          <WellsMap
-            wells={searchedWells}
-            expiringWindowDays={EXPIRING_WINDOW_DAYS}
-            expiringOnly={showExpiring || showExpired}
-            onVisibleWellsChange={setVisibleApis}
-          />
+      <>
+        <WellsMap
+          wells={searchedWells}
+          expiringWindowDays={EXPIRING_WINDOW_DAYS}
+          expiringOnly={showExpiring || showExpired}
+          onVisibleWellsChange={setVisibleApis}
+        />
 
-          <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b flex items-center justify-between gap-4">
-              <div>
-                <div className="font-semibold">Wells in View</div>
-                <div className="text-xs text-gray-500">
-                  Showing {listWells.length} well{listWells.length === 1 ? "" : "s"} from the current map view.
-                </div>
+        <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
+          <div className="p-4 border-b flex items-center justify-between gap-4">
+            <div>
+              <div className="font-semibold">Wells in View</div>
+              <div className="text-xs text-gray-500">
+                Showing {listWells.length} well{listWells.length === 1 ? "" : "s"} from the current map view.
               </div>
-
-              <Link href={wellsPageHref} className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50">
-                Open Wells Page →
-              </Link>
             </div>
 
-            <div className="p-4">
-              {loadingWells ? (
-                <div className="text-sm text-gray-600">Loading wells…</div>
-              ) : listWells.length === 0 ? (
-                <div className="text-sm text-gray-600">{emptyListLabel}</div>
-              ) : (
-                <div className="space-y-3">
-                  {listWells.map((w) => (
-                    <div
-                      key={w.api || `${w.lease_well_name}-x`}
-                      className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
-                    >
-                      <div className="space-y-1">
-                        <Link href={`/wells/${encodeURIComponent(w.api || "")}`} className="font-semibold underline">
-                          {w.lease_well_name || "—"}
-                        </Link>
+            <Link href={wellsPageHref} className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50">
+              Open Wells Page →
+            </Link>
+          </div>
 
-                        <div className="text-xs text-gray-600">
-                          API: <span className="font-mono">{w.api || "—"}</span>
-                        </div>
+          <div className="p-4">
+            {loadingWells ? (
+              <div className="text-sm text-gray-600">Loading wells…</div>
+            ) : listWells.length === 0 ? (
+              <div className="text-sm text-gray-600">{emptyListLabel}</div>
+            ) : (
+              <div className="space-y-3">
+                {listWells.map((w) => (
+                  <div
+                    key={w.api || `${w.lease_well_name}-x`}
+                    className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                  >
+                    <div className="space-y-1">
+                      <Link href={`/wells/${encodeURIComponent(w.api || "")}`} className="font-semibold underline">
+                        {w.lease_well_name || "—"}
+                      </Link>
 
-                        <div className="text-xs text-gray-600 flex flex-wrap items-center gap-2">
-                          <span>
-                            Last test: {w.last_test_date || "—"} • Expires: {w._exp_for_display || "—"}
-                          </span>
-                          <ExpirationPill
-                            expirationDate={w._exp_for_display}
-                            windowDays={EXPIRING_WINDOW_DAYS}
-                          />
-                        </div>
-
-                        <div className="mt-1">
-                          <StatusPill status={w._status} />
-                        </div>
+                      <div className="text-xs text-gray-600">
+                        API: <span className="font-mono">{w.api || "—"}</span>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        <Link
-                          href={`/wells/${encodeURIComponent(w.api || "")}`}
-                          className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
-                        >
-                          View
-                        </Link>
+                      <div className="text-xs text-gray-600 flex flex-wrap items-center gap-2">
+                        <span>
+                          Last test: {w.last_test_date || "—"} • Expires: {w._exp_for_display || "—"}
+                        </span>
+                        <ExpirationPill
+                          expirationDate={w._exp_for_display}
+                          windowDays={EXPIRING_WINDOW_DAYS}
+                        />
+                      </div>
 
-                        <Link
-                          href={`/jobs/new?api=${encodeURIComponent(w.api || "")}&lease_well_name=${encodeURIComponent(
-                            w.lease_well_name || ""
-                          )}&company_name=${encodeURIComponent(w.company_name || "")}`}
-                          className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
-                        >
-                          Request Test
-                        </Link>
+                      <div className="mt-1">
+                        <StatusPill status={w._status} />
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/wells/${encodeURIComponent(w.api || "")}`}
+                        className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
+                      >
+                        View
+                      </Link>
+
+                      <Link
+                        href={`/jobs/new?api=${encodeURIComponent(w.api || "")}&lease_well_name=${encodeURIComponent(
+                          w.lease_well_name || ""
+                        )}&company_name=${encodeURIComponent(w.company_name || "")}`}
+                        className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
+                      >
+                        Request Test
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </>
-      )}
+        </div>
+      </>
 
-      {isAdmin && (
+      {(canManageUsers || canApproveChanges || canManageItemsPricing) && (
         <div className="grid md:grid-cols-3 gap-6">
-          <Link
-            href="/admin/users"
-            className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-          >
-            <h2 className="text-xl font-semibold mb-2">
-              Manage Users
-              <CountBadge value={stats.users} loading={loadingStats} />
-            </h2>
-            <p className="text-sm text-gray-600">
-              Create, edit, and reset passwords for employees and clients.
-            </p>
-          </Link>
+          {canManageUsers && (
+            <Link
+              href="/admin/users"
+              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+            >
+              <h2 className="text-xl font-semibold mb-2">
+                Manage Users
+                <CountBadge value={stats.users} loading={loadingStats} />
+              </h2>
+              <p className="text-sm text-gray-600">
+                Create, edit, and reset passwords for employees and clients.
+              </p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/changes"
-            className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-          >
-            <h2 className="text-xl font-semibold mb-2">
-              Pending Changes
-              <CountBadge value={stats.pendingChanges} loading={loadingStats} />
-            </h2>
-            <p className="text-sm text-gray-600">
-              Review and approve edits before they go live.
-            </p>
-          </Link>
+          {canApproveChanges && (
+            <Link
+              href="/admin/changes"
+              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+            >
+              <h2 className="text-xl font-semibold mb-2">
+                Pending Changes
+                <CountBadge value={stats.pendingChanges} loading={loadingStats} />
+              </h2>
+              <p className="text-sm text-gray-600">
+                Review and approve edits before they go live.
+              </p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/items"
-            className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
-          >
-            <h2 className="text-xl font-semibold mb-2">Items & Pricing</h2>
-            <p className="text-sm text-gray-600">
-              Manage service types, charges, and billing rates.
-            </p>
-          </Link>
+          {canManageItemsPricing && (
+            <Link
+              href="/admin/items"
+              className="block p-6 border rounded-2xl shadow-sm hover:shadow-md transition bg-white"
+            >
+              <h2 className="text-xl font-semibold mb-2">Items & Pricing</h2>
+              <p className="text-sm text-gray-600">
+                Manage service types, charges, and billing rates.
+              </p>
+            </Link>
+          )}
         </div>
       )}
     </div>
