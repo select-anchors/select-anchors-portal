@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../../lib/nextauth-options";
 import { q } from "../../../../lib/db";
+import { hasPermission } from "../../../../lib/permissions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -51,6 +52,10 @@ export async function GET(req) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  if (!hasPermission(session, "can_export_csv")) {
+    return new Response("Forbidden", { status: 403 });
+  }
+
   const role = session.user.role || "customer";
   const userId = session.user.id;
 
@@ -94,14 +99,17 @@ export async function GET(req) {
     const scopedCompany = userRes.rows?.[0]?.company_name?.trim() || "";
 
     if (!scopedCompany) {
-      return new Response("Lease / Well Name,API,Company Name,Company Man,County,State,Wellhead Coords,Last Test Date,Expiration Date,Status,Days Left\n", {
-        status: 200,
-        headers: {
-          "Content-Type": "text/csv; charset=utf-8",
-          "Content-Disposition": `attachment; filename="wells-export.csv"`,
-          "Cache-Control": "no-store",
-        },
-      });
+      return new Response(
+        "Lease / Well Name,API,Company Name,Company Man,County,State,Wellhead Coords,Last Test Date,Expiration Date,Status,Days Left\n",
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": `attachment; filename="wells-export.csv"`,
+            "Cache-Control": "no-store",
+          },
+        }
+      );
     }
 
     where.push(`LOWER(TRIM(COALESCE(w.company_name, ''))) = LOWER(TRIM(${bind(scopedCompany)}))`);
