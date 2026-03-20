@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../../components/NotLoggedIn";
 import WellLocationMap from "../../components/WellLocationMap";
+import { hasPermission } from "../../../lib/permissions";
 
 function fmtDate(d) {
   if (!d) return "—";
@@ -118,6 +119,13 @@ export default function WellDetailPage({ params }) {
   const [well, setWell] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const canViewAllWells = hasPermission(session, "can_view_all_wells");
+  const canEditWells = hasPermission(session, "can_edit_wells");
+  const canEditCompanyContacts = hasPermission(session, "can_edit_company_contacts");
+  const canEdit = canEditWells || canEditCompanyContacts;
+
+  const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
+
   useEffect(() => {
     let mounted = true;
 
@@ -149,15 +157,13 @@ export default function WellDetailPage({ params }) {
   if (!session) return <NotLoggedIn />;
   if (loading) return <div className="container py-10">Loading well…</div>;
 
-  const isStaff = session?.user?.role === "admin" || session?.user?.role === "employee";
-
   if (!well) {
     return (
       <div className="container py-10">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h1 className="text-xl font-semibold mb-2">Well not found</h1>
           <p className="text-gray-600 mb-4">API: {apiParam}</p>
-          <Link href={isStaff ? "/admin/wells" : "/wells"} className="underline text-[#2f4f4f]">
+          <Link href={wellsHref} className="underline text-[#2f4f4f]">
             ← Back to All Wells
           </Link>
         </div>
@@ -176,7 +182,6 @@ export default function WellDetailPage({ params }) {
     null;
 
   const EXPIRING_WINDOW_DAYS = 90;
-
   const computedStatus = statusFromExpiration(expires, EXPIRING_WINDOW_DAYS);
   const daysLeft = daysUntil(expires);
 
@@ -213,7 +218,7 @@ export default function WellDetailPage({ params }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {isStaff && (
+          {canEdit && (
             <Link
               href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
               className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
@@ -223,7 +228,7 @@ export default function WellDetailPage({ params }) {
           )}
 
           <Link
-            href={isStaff ? "/admin/wells" : "/wells"}
+            href={wellsHref}
             className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
           >
             All Wells
@@ -236,7 +241,6 @@ export default function WellDetailPage({ params }) {
         title={w.lease_well_name ? `${w.lease_well_name} Location` : "Well Location"}
       />
 
-      {/* Company */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">Company</h2>
@@ -265,7 +269,6 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
-      {/* Company Man */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">Company Man</h2>
@@ -289,7 +292,6 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
-      {/* Test Dates */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">Test Dates</h2>
@@ -312,7 +314,6 @@ export default function WellDetailPage({ params }) {
         </div>
       </div>
 
-      {/* Notes */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">History & Notes</h2>
