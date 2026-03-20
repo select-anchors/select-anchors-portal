@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import NotLoggedIn from "../../../../components/NotLoggedIn";
+import { hasPermission } from "../../../../../lib/permissions";
 
 const US_STATES = [
   { code: "", name: "Select…" },
@@ -66,8 +67,12 @@ export default function EditWellPage({ params }) {
   const router = useRouter();
   const apiParam = decodeURIComponent(params.api);
 
-  const role = session?.user?.role;
-  const canEdit = role === "admin" || role === "employee";
+  const canEditWells = hasPermission(session, "can_edit_wells");
+  const canViewAllWells = hasPermission(session, "can_view_all_wells");
+  const canEditCompanyContacts = hasPermission(session, "can_edit_company_contacts");
+
+  const canEdit = canEditWells || canEditCompanyContacts;
+  const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -211,7 +216,7 @@ export default function EditWellPage({ params }) {
             View Well
           </Link>
           <Link
-            href="/admin/wells"
+            href={wellsHref}
             className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 text-sm"
           >
             All Wells
@@ -236,12 +241,12 @@ export default function EditWellPage({ params }) {
 
           <div>
             <label className="block text-sm text-gray-600 mb-1">Lease / Well Name</label>
-            <input className="w-full" value={form.lease_well_name} onChange={updateField("lease_well_name")} />
+            <input className="w-full rounded-xl border px-3 py-2" value={form.lease_well_name} onChange={updateField("lease_well_name")} />
           </div>
 
           <div>
             <label className="block text-sm text-gray-600 mb-1">Wellhead Coords (lat,lng)</label>
-            <input className="w-full" value={form.wellhead_coords} onChange={updateField("wellhead_coords")} />
+            <input className="w-full rounded-xl border px-3 py-2" value={form.wellhead_coords} onChange={updateField("wellhead_coords")} />
             <div className="text-xs text-gray-500 mt-1 flex items-center gap-3">
               <span>Optional. Format: lat,lng</span>
               {googleMapsHref && (
@@ -255,12 +260,12 @@ export default function EditWellPage({ params }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">County</label>
-              <input className="w-full" value={form.county} onChange={updateField("county")} />
+              <input className="w-full rounded-xl border px-3 py-2" value={form.county} onChange={updateField("county")} />
             </div>
 
             <div>
               <label className="block text-sm text-gray-600 mb-1">State</label>
-              <select className="w-full" value={form.state} onChange={updateField("state")}>
+              <select className="w-full rounded-xl border px-3 py-2" value={form.state} onChange={updateField("state")}>
                 {US_STATES.map((s) => (
                   <option key={s.code} value={s.code}>
                     {s.code ? `${s.code} — ${s.name}` : s.name}
@@ -276,19 +281,19 @@ export default function EditWellPage({ params }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">Company Name</label>
-              <input className="w-full" value={form.company_name} onChange={updateField("company_name")} />
+              <input className="w-full rounded-xl border px-3 py-2" value={form.company_name} onChange={updateField("company_name")} />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Company Phone</label>
-              <input className="w-full" value={form.company_phone} onChange={updateField("company_phone")} />
+              <input className="w-full rounded-xl border px-3 py-2" value={form.company_phone} onChange={updateField("company_phone")} />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Company Email</label>
-              <input className="w-full" value={form.company_email} onChange={updateField("company_email")} />
+              <input className="w-full rounded-xl border px-3 py-2" value={form.company_email} onChange={updateField("company_email")} />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm text-gray-600 mb-1">Company Address</label>
-              <input className="w-full" value={form.company_address} onChange={updateField("company_address")} />
+              <input className="w-full rounded-xl border px-3 py-2" value={form.company_address} onChange={updateField("company_address")} />
             </div>
           </div>
         </div>
@@ -298,15 +303,15 @@ export default function EditWellPage({ params }) {
           <div className="grid md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">Name</label>
-              <input className="w-full" value={form.company_man_name} onChange={updateField("company_man_name")} />
+              <input className="w-full rounded-xl border px-3 py-2" value={form.company_man_name} onChange={updateField("company_man_name")} />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Phone</label>
-              <input className="w-full" value={form.company_man_phone} onChange={updateField("company_man_phone")} />
+              <input className="w-full rounded-xl border px-3 py-2" value={form.company_man_phone} onChange={updateField("company_man_phone")} />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Email</label>
-              <input className="w-full" value={form.company_man_email} onChange={updateField("company_man_email")} />
+              <input className="w-full rounded-xl border px-3 py-2" value={form.company_man_email} onChange={updateField("company_man_email")} />
             </div>
           </div>
         </div>
@@ -316,27 +321,23 @@ export default function EditWellPage({ params }) {
 
           <div className="grid md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Last Test Date (from tests)</label>
+              <label className="block text-sm text-gray-600 mb-1">Last Test Date</label>
               <input
                 type="date"
-                className="w-full"
+                className="w-full rounded-xl border px-3 py-2"
                 value={form.current_tested_at || ""}
                 onChange={updateField("current_tested_at")}
               />
-              <div className="text-xs text-gray-500 mt-1">
-                Editing this updates the latest entry in <code>well_tests</code>.
-              </div>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Expiration Date (from tests)</label>
+              <label className="block text-sm text-gray-600 mb-1">Expiration Date</label>
               <input
                 type="date"
-                className="w-full"
+                className="w-full rounded-xl border px-3 py-2"
                 value={form.current_expires_at || ""}
                 onChange={updateField("current_expires_at")}
               />
-              <div className="text-xs text-gray-500 mt-1">Leave blank for NULL.</div>
             </div>
           </div>
         </div>
@@ -346,11 +347,11 @@ export default function EditWellPage({ params }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">Previous Anchor Work</label>
-              <textarea rows={4} className="w-full" value={form.previous_anchor_work} onChange={updateField("previous_anchor_work")} />
+              <textarea rows={4} className="w-full rounded-xl border px-3 py-2" value={form.previous_anchor_work} onChange={updateField("previous_anchor_work")} />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Directions & Other Notes</label>
-              <textarea rows={4} className="w-full" value={form.directions_other_notes} onChange={updateField("directions_other_notes")} />
+              <textarea rows={4} className="w-full rounded-xl border px-3 py-2" value={form.directions_other_notes} onChange={updateField("directions_other_notes")} />
             </div>
           </div>
         </div>
@@ -358,7 +359,7 @@ export default function EditWellPage({ params }) {
         <div className="flex items-center justify-end gap-3 pt-4 border-t">
           <button
             type="button"
-            onClick={() => router.push("/admin/wells")}
+            onClick={() => router.push(wellsHref)}
             className="px-4 py-2 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm"
           >
             Cancel
