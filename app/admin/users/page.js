@@ -8,13 +8,17 @@ import { resolvePermissions, getDefaultPermissions } from "../../../lib/permissi
 
 const PERMISSION_LABELS = {
   can_view_all_wells: "View All Wells",
+  can_view_all_company_wells: "View Company Wells",
   can_edit_wells: "Edit Wells",
   can_bulk_edit_wells: "Bulk Edit",
   can_edit_company_contacts: "Edit Contacts",
   can_export_csv: "Export CSV",
   can_transfer_well_ownership: "Transfer Ownership",
   can_manage_users: "Manage Users",
+  can_manage_company_users: "Manage Company Users",
+  can_edit_company_users: "Edit Company Users",
   can_reset_passwords: "Reset Passwords",
+  can_reset_company_passwords: "Reset Company Passwords",
   can_manage_items_pricing: "Items & Pricing",
   can_approve_changes: "Approve Changes",
   can_use_dispatch: "Dispatch",
@@ -38,6 +42,7 @@ export default function AdminUsersPage() {
   const { data: session, status } = useSession();
 
   const [users, setUsers] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
@@ -46,6 +51,7 @@ export default function AdminUsersPage() {
   const [editingUserId, setEditingUserId] = useState("");
   const [editRole, setEditRole] = useState("customer");
   const [editPermissions, setEditPermissions] = useState({});
+  const [editCompanyId, setEditCompanyId] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -71,10 +77,12 @@ export default function AdminUsersPage() {
         throw new Error(data?.error || `Failed to load users (${res.status})`);
       }
 
-      setUsers(Array.isArray(data) ? data : Array.isArray(data?.users) ? data.users : []);
+      setUsers(Array.isArray(data?.users) ? data.users : []);
+      setCompanies(Array.isArray(data?.companies) ? data.companies : []);
     } catch (e) {
       console.error("Failed to load users", e);
       setUsers([]);
+      setCompanies([]);
       setError(e?.message || "Failed to load users");
     } finally {
       setLoading(false);
@@ -171,12 +179,20 @@ export default function AdminUsersPage() {
   function startEditingUser(user) {
     setEditingUserId(user.id);
     setEditRole(user.role);
-    setEditPermissions(resolvePermissions(user.role, user.permissions_json || null));
+    setEditCompanyId(user.company_id || "");
+    setEditPermissions(
+      resolvePermissions(
+        user.role,
+        user.company_permissions_json || null,
+        user.permissions_json || null
+      )
+    );
   }
 
   function cancelEditingUser() {
     setEditingUserId("");
     setEditRole("customer");
+    setEditCompanyId("");
     setEditPermissions({});
   }
 
@@ -201,6 +217,7 @@ export default function AdminUsersPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           role: editRole,
+          company_id: editCompanyId || null,
           permissions_json: editPermissions,
         }),
       });
@@ -272,7 +289,7 @@ export default function AdminUsersPage() {
           />
           <input
             className="border rounded-lg px-3 py-2"
-            placeholder="Company name"
+            placeholder="Company name (creates or links company)"
             value={form.company_name}
             onChange={(e) =>
               setForm((s) => ({ ...s, company_name: e.target.value }))
@@ -302,7 +319,7 @@ export default function AdminUsersPage() {
         </div>
 
         <div className="text-xs text-gray-500">
-          New users will be created with the default access for their selected role.
+          Role = base access. Company = ownership/scope. User access edits below are per-user overrides.
         </div>
 
         <button
@@ -324,7 +341,11 @@ export default function AdminUsersPage() {
         ) : (
           <div className="divide-y">
             {users.map((u) => {
-              const perms = resolvePermissions(u.role, u.permissions_json || null);
+              const perms = resolvePermissions(
+                u.role,
+                u.company_permissions_json || null,
+                u.permissions_json || null
+              );
               const isEditing = editingUserId === u.id;
 
               return (
@@ -346,7 +367,7 @@ export default function AdminUsersPage() {
                         onClick={() => startEditingUser(u)}
                         className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
                       >
-                        Edit Access
+                        Edit User Override
                       </button>
                       <button
                         onClick={() => sendReset(u.id)}
@@ -365,7 +386,7 @@ export default function AdminUsersPage() {
 
                   {!isEditing && (
                     <div className="space-y-2">
-                      <div className="text-sm font-medium text-gray-700">Access & Controls</div>
+                      <div className="text-sm font-medium text-gray-700">Resolved Access</div>
                       <div className="flex flex-wrap gap-2">
                         {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
                           <PermissionBadge key={key} label={label} enabled={perms[key]} />
@@ -389,10 +410,30 @@ export default function AdminUsersPage() {
                             <option value="admin">Admin</option>
                           </select>
                         </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Company</label>
+                          <select
+                            value={editCompanyId}
+                            onChange={(e) => setEditCompanyId(e.target.value)}
+                            className="w-full rounded-lg border px-3 py-2"
+                          >
+                            <option value="">No company assigned</option>
+                            {companies.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-gray-500">
+                        These checkboxes are per-user overrides. Later, we can add company-level access templates on top of this.
                       </div>
 
                       <div>
-                        <div className="text-sm font-medium mb-2">Access & Controls</div>
+                        <div className="text-sm font-medium mb-2">User Override Permissions</div>
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
                           {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
                             <label
@@ -416,7 +457,7 @@ export default function AdminUsersPage() {
                           disabled={savingId === u.id}
                           className="rounded-xl bg-[#2f4f4f] text-white px-4 py-2 hover:opacity-90 disabled:opacity-60"
                         >
-                          {savingId === u.id ? "Saving..." : "Save Access"}
+                          {savingId === u.id ? "Saving..." : "Save User Override"}
                         </button>
                         <button
                           onClick={cancelEditingUser}
