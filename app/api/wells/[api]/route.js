@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../../lib/nextauth-options";
 import { q } from "../../../../lib/db";
+import { hasPermission } from "../../../../lib/permissions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -31,9 +32,15 @@ async function loadWellByApi(api) {
     SELECT
       w.id,
       w.api,
+      w.company_id,
       w.lease_well_name,
-      w.company_name, w.company_email, w.company_phone, w.company_address,
-      w.company_man_name, w.company_man_email, w.company_man_phone,
+      w.company_name,
+      w.company_email,
+      w.company_phone,
+      w.company_address,
+      w.company_man_name,
+      w.company_man_email,
+      w.company_man_phone,
       w.previous_anchor_company,
       w.previous_anchor_work,
       w.directions_other_notes,
@@ -71,9 +78,13 @@ export async function GET(_req, { params }) {
       return noStoreJson({ error: "Not found" }, { status: 404 });
     }
 
-    const role = session.user.role || "customer";
-    if (role === "customer" && well.customer_id !== session.user.id) {
-      return noStoreJson({ error: "Forbidden" }, { status: 403 });
+    const canViewAllWells = hasPermission(session, "can_view_all_wells");
+    const companyId = session.user.company_id || null;
+
+    if (!canViewAllWells) {
+      if (!companyId || well.company_id !== companyId) {
+        return noStoreJson({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     return noStoreJson(well);
@@ -89,18 +100,27 @@ export async function PUT(req, { params }) {
     return noStoreJson({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const role = session.user.role || "customer";
-  const isStaff = role === "admin" || role === "employee";
+  const canViewAllWells = hasPermission(session, "can_view_all_wells");
+  const canEditWells = hasPermission(session, "can_edit_wells");
+  const companyId = session.user.company_id || null;
+
+  if (!canEditWells) {
+    return noStoreJson({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     const api = decodeURIComponent(params.api);
     const body = await req.json();
 
     const existing = await loadWellByApi(api);
-    if (!existing) return noStoreJson({ error: "Not found" }, { status: 404 });
+    if (!existing) {
+      return noStoreJson({ error: "Not found" }, { status: 404 });
+    }
 
-    if (!isStaff && existing.customer_id !== session.user.id) {
-      return noStoreJson({ error: "Forbidden" }, { status: 403 });
+    if (!canViewAllWells) {
+      if (!companyId || existing.company_id !== companyId) {
+        return noStoreJson({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     const {
@@ -127,7 +147,8 @@ export async function PUT(req, { params }) {
 
     const testedAt = emptyToNullDate(current_tested_at);
     const expiresAt = emptyToNullDate(current_expires_at);
-    const shouldWriteTest = current_tested_at !== undefined || current_expires_at !== undefined;
+    const shouldWriteTest =
+      current_tested_at !== undefined || current_expires_at !== undefined;
 
     const updatedWell = await q(
       `
@@ -170,7 +191,7 @@ export async function PUT(req, { params }) {
         emptyToNullText(state),
         emptyToNullText(county),
         emptyToNullText(wellhead_coords),
-        isStaff,
+        canViewAllWells,
         emptyToNullText(customer),
         customer_id ?? null,
         api,
@@ -214,7 +235,10 @@ export async function PUT(req, { params }) {
 
           const newTestId = inserted.rows?.[0]?.id;
           if (newTestId) {
-            await q(`UPDATE wells SET current_test_id = $1 WHERE api = $2`, [newTestId, api]);
+            await q(
+              `UPDATE wells SET current_test_id = $1 WHERE api = $2`,
+              [newTestId, api]
+            );
             currentTestId = newTestId;
           }
         }
