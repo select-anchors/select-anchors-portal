@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../../components/NotLoggedIn";
+import { hasPermission } from "../../../lib/permissions";
 
 function fmtDate(d) {
   if (!d) return "—";
@@ -128,8 +129,10 @@ export default function AdminWellsPage() {
   const [sortKey, setSortKey] = useState("lease_well_name");
   const [sortDir, setSortDir] = useState("asc");
 
-  const role = session?.user?.role;
-  const canSee = role === "admin" || role === "employee";
+  const canSee = hasPermission(session, "can_view_all_wells");
+const canBulkEdit = hasPermission(session, "can_bulk_edit_wells");
+const canExportCsv = hasPermission(session, "can_export_csv");
+const canEditWells = hasPermission(session, "can_edit_wells");;
 
   function SortableTh({ label, column }) {
     const active = sortKey === column;
@@ -422,20 +425,33 @@ export default function AdminWellsPage() {
         <h1 className="text-2xl font-bold">All Wells</h1>
 
         <div className="flex gap-2 flex-wrap">
-          <a
-            href={exportHref}
-            className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-          >
-            Export CSV
-          </a>
+  {canExportCsv && (
+    <a
+      href={exportHref}
+      className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+    >
+      Export CSV
+    </a>
+  )}
 
-          <Link
-            href="/admin/wells/new"
-            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
-          >
-            New Well
-          </Link>
-        </div>
+  {canBulkEdit && (
+    <Link
+      href="/admin/wells/bulk-edit"
+      className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+    >
+      Bulk Edit
+    </Link>
+  )}
+
+  {canEditWells && (
+    <Link
+      href="/admin/wells/new"
+      className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+    >
+      New Well
+    </Link>
+  )}
+</div>
       </div>
 
       {error && (
@@ -659,13 +675,15 @@ export default function AdminWellsPage() {
                   </td>
                   <td className="p-3">
                     <div className="flex gap-2">
-                      <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
-                        View
-                      </Link>
-                      <Link href={`/admin/wells/${encodeURIComponent(w.api)}/edit`} className="underline">
-                        Edit
-                      </Link>
-                    </div>
+  <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
+    View
+  </Link>
+  {canEditWells && (
+    <Link href={`/admin/wells/${encodeURIComponent(w.api)}/edit`} className="underline">
+      Edit
+    </Link>
+  )}
+</div>
                   </td>
                 </tr>
               ))
