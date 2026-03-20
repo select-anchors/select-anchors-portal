@@ -25,12 +25,36 @@ export async function PATCH(req, { params }) {
 
     const allowedRoles = ["admin", "employee", "customer"];
     const role = body.role;
+    const companyId = body.company_id || null;
 
     if (!allowedRoles.includes(role)) {
       return NextResponse.json(
         { error: "Invalid role" },
         { status: 400 }
       );
+    }
+
+    let companyRow = null;
+
+    if (companyId) {
+      const companyRes = await q(
+        `
+        SELECT id, name
+        FROM companies
+        WHERE id = $1
+        LIMIT 1
+        `,
+        [companyId]
+      );
+
+      companyRow = companyRes.rows[0] || null;
+
+      if (!companyRow) {
+        return NextResponse.json(
+          { error: "Invalid company" },
+          { status: 400 }
+        );
+      }
     }
 
     const mergedPermissions = {
@@ -43,11 +67,19 @@ export async function PATCH(req, { params }) {
       UPDATE users
       SET
         role = $1,
-        permissions_json = $2::jsonb
-      WHERE id = $3
-      RETURNING id, role, permissions_json
+        company_id = $2,
+        company_name = $3,
+        permissions_json = $4::jsonb
+      WHERE id = $5
+      RETURNING id, role, company_id, company_name, permissions_json
       `,
-      [role, JSON.stringify(mergedPermissions), id]
+      [
+        role,
+        companyRow?.id ?? null,
+        companyRow?.name ?? null,
+        JSON.stringify(mergedPermissions),
+        id,
+      ]
     );
 
     if (!rows.length) {
