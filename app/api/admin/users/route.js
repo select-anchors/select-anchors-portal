@@ -7,6 +7,10 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { getDefaultPermissions } from "../../../../lib/permissions";
 
+function normalizeCompanyName(name) {
+  return String(name || "").trim().replace(/\s+/g, " ");
+}
+
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
   if (!session || session.user?.role !== "admin") {
@@ -18,25 +22,82 @@ async function requireAdmin() {
   return { session };
 }
 
+async function getOrCreateCompany(companyName, role) {
+  let cleanName = normalizeCompanyName(companyName);
+
+  if (!cleanName && (role === "admin" || role === "employee")) {
+    cleanName = "Select Anchors";
+  }
+
+  if (!cleanName) {
+    return null;
+  }
+
+  const normalized = cleanName.toLowerCase();
+
+  const existing = await q(
+    `
+    SELECT id, name, permissions_json
+    FROM companies
+    WHERE normalized_name = $1
+    LIMIT 1
+    `,
+    [normalized]
+  );
+
+  if (existing.rows[0]) {
+    return existing.rows[0];
+  }
+
+  const inserted = await q(
+    `
+    INSERT INTO companies (name, normalized_name, permissions_json)
+    VALUES ($1, $2, '{}'::jsonb)
+    RETURNING id, name, permissions_json
+    `,
+    [cleanName, normalized]
+  );
+
+  return inserted.rows[0];
+}
+
 export async function GET() {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
 
-  const { rows } = await q(
-    `SELECT id,
-            name,
-            email,
-            role,
-            is_active,
-            phone,
-            company_name,
-            permissions_json,
-            created_at
-       FROM users
-      ORDER BY created_at DESC`
+  const usersRes = await q(
+    `
+    SELECT
+      u.id,
+      u.name,
+      u.email,
+      u.role,
+      u.is_active,
+      u.phone,
+      u.company_id,
+      COALESCE(u.company_name, c.name, '') AS company_name,
+      u.permissions_json,
+      c.permissions_json AS company_permissions_json,
+      u.created_at
+    FROM users u
+    LEFT JOIN companies c ON c.id = u.company_id
+    ORDER BY u.created_at DESC
+    `
   );
 
-  return NextResponse.json({ users: rows });
+  const companiesRes = await q(
+    `
+    SELECT id, name, permissions_json
+    FROM companies
+    WHERE is_active = TRUE
+    ORDER BY name ASC
+    `
+  );
+
+  return NextResponse.json({
+    users: usersRes.rows,
+    companies: companiesRes.rows,
+  });
 }
 
 export async function POST(req) {
@@ -86,19 +147,32 @@ export async function POST(req) {
       );
     }
 
+    const company = await getOrCreateCompany(company_name, role);
     const defaultPermissions = getDefaultPermissions(role);
 
     const { rows } = await q(
-      `INSERT INTO users (name, email, role, is_active, phone, company_name, permissions_json)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
-       RETURNING id, email`,
+      `
+      INSERT INTO users (
+        name,
+        email,
+        role,
+        is_active,
+        phone,
+        company_id,
+        company_name,
+        permissions_json
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+      RETURNING id, email
+      `,
       [
         rawName || null,
         email,
         role,
         !!is_active,
         phone,
-        company_name,
+        company?.id ?? null,
+        company?.name ?? null,
         JSON.stringify(defaultPermissions),
       ]
     );
