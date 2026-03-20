@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../lib/nextauth-options";
 import { q } from "../../../lib/db";
+import { hasPermission } from "../../../lib/permissions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,24 +16,24 @@ function noStoreJson(data, init = {}) {
   return res;
 }
 
-// GET /api/wells -> list wells
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return noStoreJson({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const role = session.user.role || "customer";
-  const userId = session.user.id;
+  const canViewAllWells = hasPermission(session, "can_view_all_wells");
+  const companyId = session.user.company_id || null;
 
   try {
     const baseSelect = `
       SELECT
         w.id,
+        w.company_id,
         w.lease_well_name,
         w.api,
         w.wellhead_coords,
-        w.company_name,
+        COALESCE(w.company_name, c.name, '') AS company_name,
         w.company_man_name,
 
         TO_CHAR(COALESCE(w.current_tested_at, t.tested_at), 'YYYY-MM-DD') AS last_test_date,
@@ -43,10 +44,10 @@ export async function GET() {
 
       FROM wells w
       LEFT JOIN well_tests t ON t.id = w.current_test_id
+      LEFT JOIN companies c ON c.id = w.company_id
     `;
 
-    // Admin + employee: all wells
-    if (role === "admin" || role === "employee") {
+    if (canViewAllWells) {
       const { rows } = await q(
         `
         ${baseSelect}
@@ -58,31 +59,18 @@ export async function GET() {
       return noStoreJson(rows);
     }
 
-    // Customer: scope by the logged-in user's company_name
-    const userResult = await q(
-      `
-      SELECT company_name
-      FROM users
-      WHERE id = $1
-      LIMIT 1
-      `,
-      [userId]
-    );
-
-    const companyName = userResult.rows?.[0]?.company_name?.trim() || "";
-
-    if (!companyName) {
+    if (!companyId) {
       return noStoreJson([]);
     }
 
     const { rows } = await q(
       `
       ${baseSelect}
-      WHERE LOWER(TRIM(COALESCE(w.company_name, ''))) = LOWER(TRIM($1))
+      WHERE w.company_id = $1
       ORDER BY w.id DESC, w.lease_well_name ASC
       LIMIT 500
       `,
-      [companyName]
+      [companyId]
     );
 
     return noStoreJson(rows);
