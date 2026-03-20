@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/nextauth-options";
 import { q } from "@/lib/db";
+import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -34,15 +35,17 @@ export async function GET() {
       return noStoreJson({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const role = session.user.role || "customer";
-    const userId = session.user.id;
+    const canViewAllWells = hasPermission(session, "can_view_all_wells");
+    const canManageUsers = hasPermission(session, "can_manage_users");
+    const canApproveChanges = hasPermission(session, "can_approve_changes");
+    const companyId = session.user.company_id || null;
 
-    if (role === "admin") {
+    if (canViewAllWells) {
       const wells = await safeCount(`SELECT COUNT(*) FROM wells`);
-      const users = await safeCount(`SELECT COUNT(*) FROM users`);
-      const pendingChanges = await safeCount(`
-        SELECT COUNT(*) FROM changes WHERE status = 'pending'
-      `);
+      const users = canManageUsers ? await safeCount(`SELECT COUNT(*) FROM users`) : 0;
+      const pendingChanges = canApproveChanges
+        ? await safeCount(`SELECT COUNT(*) FROM changes WHERE status = 'pending'`)
+        : 0;
 
       const upcomingTests = await safeCount(`
         SELECT COUNT(*)
@@ -55,38 +58,7 @@ export async function GET() {
       return noStoreJson({ wells, users, pendingChanges, upcomingTests });
     }
 
-    if (role === "employee") {
-      const wells = await safeCount(`SELECT COUNT(*) FROM wells`);
-
-      const upcomingTests = await safeCount(`
-        SELECT COUNT(*)
-        FROM wells w
-        LEFT JOIN well_tests t ON t.id = w.current_test_id
-        WHERE COALESCE(w.current_expires_at, t.expires_at) IS NOT NULL
-          AND COALESCE(w.current_expires_at, t.expires_at) <= (CURRENT_DATE + INTERVAL '90 days')
-      `);
-
-      return noStoreJson({
-        wells,
-        users: 0,
-        pendingChanges: 0,
-        upcomingTests,
-      });
-    }
-
-    const userResult = await q(
-      `
-      SELECT company_name
-      FROM users
-      WHERE id = $1
-      LIMIT 1
-      `,
-      [userId]
-    );
-
-    const companyName = userResult.rows?.[0]?.company_name?.trim() || "";
-
-    if (!companyName) {
+    if (!companyId) {
       return noStoreJson({
         wells: 0,
         users: 0,
@@ -98,10 +70,10 @@ export async function GET() {
     const wells = await safeCount(
       `
       SELECT COUNT(*)
-      FROM wells w
-      WHERE LOWER(TRIM(COALESCE(w.company_name, ''))) = LOWER(TRIM($1))
+      FROM wells
+      WHERE company_id = $1
       `,
-      [companyName]
+      [companyId]
     );
 
     const upcomingTests = await safeCount(
@@ -109,11 +81,11 @@ export async function GET() {
       SELECT COUNT(*)
       FROM wells w
       LEFT JOIN well_tests t ON t.id = w.current_test_id
-      WHERE LOWER(TRIM(COALESCE(w.company_name, ''))) = LOWER(TRIM($1))
+      WHERE w.company_id = $1
         AND COALESCE(w.current_expires_at, t.expires_at) IS NOT NULL
         AND COALESCE(w.current_expires_at, t.expires_at) <= (CURRENT_DATE + INTERVAL '90 days')
       `,
-      [companyName]
+      [companyId]
     );
 
     return noStoreJson({
