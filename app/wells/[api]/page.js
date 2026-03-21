@@ -121,10 +121,6 @@ export default function WellDetailPage({ params }) {
 
   const canViewAllWells = hasPermission(session, "can_view_all_wells");
   const canEditWells = hasPermission(session, "can_edit_wells");
-  const canEditCompanyContacts = hasPermission(session, "can_edit_company_contacts");
-  const canEdit = canEditWells || canEditCompanyContacts;
-
-  const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
 
   useEffect(() => {
     let mounted = true;
@@ -163,7 +159,7 @@ export default function WellDetailPage({ params }) {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h1 className="text-xl font-semibold mb-2">Well not found</h1>
           <p className="text-gray-600 mb-4">API: {apiParam}</p>
-          <Link href={wellsHref} className="underline text-[#2f4f4f]">
+          <Link href={canViewAllWells ? "/admin/wells" : "/wells"} className="underline text-[#2f4f4f]">
             ← Back to All Wells
           </Link>
         </div>
@@ -184,6 +180,9 @@ export default function WellDetailPage({ params }) {
   const EXPIRING_WINDOW_DAYS = 90;
   const computedStatus = statusFromExpiration(expires, EXPIRING_WINDOW_DAYS);
   const daysLeft = daysUntil(expires);
+
+  const editHref = `/admin/wells/${encodeURIComponent(w.api)}/edit`;
+  const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
 
   return (
     <div className="container py-10 space-y-6">
@@ -218,9 +217,9 @@ export default function WellDetailPage({ params }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {canEdit && (
+          {canEditWells && (
             <Link
-              href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
+              href={editHref}
               className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
             >
               Edit
