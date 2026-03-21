@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../components/NotLoggedIn";
+import { hasPermission } from "../../lib/permissions";
 
 function fmtDate(d) {
   if (!d) return "—";
@@ -121,6 +122,9 @@ export default function CustomerWellsPage() {
   const [lastTestTo, setLastTestTo] = useState("");
   const [expFrom, setExpFrom] = useState("");
   const [expTo, setExpTo] = useState("");
+
+  const canExportCsv = hasPermission(session, "can_export_csv");
+  const canEditWells = hasPermission(session, "can_edit_wells");
 
   useEffect(() => {
     let mounted = true;
@@ -303,7 +307,6 @@ export default function CustomerWellsPage() {
     if (type === "expiring90") {
       setStatusFilter("expiring");
       setStatusWindow("90");
-      return;
     }
   }
 
@@ -315,12 +318,14 @@ export default function CustomerWellsPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-bold">Wells</h1>
 
-        <a
-          href={exportHref}
-          className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-        >
-          Export CSV
-        </a>
+        {canExportCsv && (
+          <a
+            href={exportHref}
+            className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+          >
+            Export CSV
+          </a>
+        )}
       </div>
 
       <div className="bg-white border rounded-2xl p-4 space-y-4">
@@ -328,7 +333,7 @@ export default function CustomerWellsPage() {
 
         <div className="flex gap-2 flex-wrap">
           <button
-            onClick={() => clearFilters()}
+            onClick={clearFilters}
             className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm"
           >
             All Wells
@@ -471,12 +476,14 @@ export default function CustomerWellsPage() {
             Clear Filters
           </button>
 
-          <a
-            href={exportHref}
-            className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 text-sm"
-          >
-            Export Current Results
-          </a>
+          {canExportCsv && (
+            <a
+              href={exportHref}
+              className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 text-sm"
+            >
+              Export Current Results
+            </a>
+          )}
         </div>
       </div>
 
@@ -522,12 +529,22 @@ export default function CustomerWellsPage() {
                   <td className="p-3">{fmtDate(w._last_test_for_display)}</td>
                   <td className="p-3">{fmtDate(w._exp_for_display)}</td>
                   <td className="p-3">
-                    <ExpirationPill expirationDate={w._exp_for_display} windowDays={Number(statusWindow) || 90} />
+                    <ExpirationPill
+                      expirationDate={w._exp_for_display}
+                      windowDays={Number(statusWindow) || 90}
+                    />
                   </td>
                   <td className="p-3">
-                    <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
-                      View
-                    </Link>
+                    <div className="flex gap-2">
+                      <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
+                        View
+                      </Link>
+                      {canEditWells && (
+                        <Link href={`/admin/wells/${encodeURIComponent(w.api)}/edit`} className="underline">
+                          Edit
+                        </Link>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
