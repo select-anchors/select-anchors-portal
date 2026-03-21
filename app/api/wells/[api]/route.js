@@ -64,6 +64,164 @@ async function loadWellByApi(api) {
   return rows?.[0] ?? null;
 }
 
+function buildDiff(existing, incoming, allowedFields) {
+  const diff = {};
+
+  for (const field of allowedFields) {
+    if (!(field in incoming)) continue;
+
+    const nextValue =
+      field === "current_tested_at" || field === "current_expires_at"
+        ? emptyToNullDate(incoming[field])
+        : emptyToNullText(incoming[field]);
+
+    const currentValue =
+      field === "current_tested_at" || field === "current_expires_at"
+        ? emptyToNullDate(existing[field])
+        : emptyToNullText(existing[field]);
+
+    if (nextValue !== currentValue) {
+      diff[field] = nextValue;
+    }
+  }
+
+  return diff;
+}
+
+async function applyWellUpdate(api, changes, canAssignCustomer) {
+  const {
+    lease_well_name,
+    company_name,
+    company_email,
+    company_phone,
+    company_address,
+    company_man_name,
+    company_man_email,
+    company_man_phone,
+    previous_anchor_company,
+    previous_anchor_work,
+    directions_other_notes,
+    status,
+    state,
+    county,
+    wellhead_coords,
+    customer,
+    customer_id,
+    current_tested_at,
+    current_expires_at,
+  } = changes;
+
+  const testedAt = emptyToNullDate(current_tested_at);
+  const expiresAt = emptyToNullDate(current_expires_at);
+  const shouldWriteTest =
+    current_tested_at !== undefined || current_expires_at !== undefined;
+
+  const updatedWell = await q(
+    `
+    UPDATE wells
+    SET
+      lease_well_name         = COALESCE($1, lease_well_name),
+      company_name            = COALESCE($2, company_name),
+      company_email           = COALESCE($3, company_email),
+      company_phone           = COALESCE($4, company_phone),
+      company_address         = COALESCE($5, company_address),
+      company_man_name        = COALESCE($6, company_man_name),
+      company_man_email       = COALESCE($7, company_man_email),
+      company_man_phone       = COALESCE($8, company_man_phone),
+      previous_anchor_company = COALESCE($9, previous_anchor_company),
+      previous_anchor_work    = COALESCE($10, previous_anchor_work),
+      directions_other_notes  = COALESCE($11, directions_other_notes),
+      status                  = COALESCE($12, status),
+      state                   = COALESCE($13, state),
+      county                  = COALESCE($14, county),
+      wellhead_coords         = COALESCE($15, wellhead_coords),
+      customer                = CASE WHEN $16 THEN COALESCE($17, customer) ELSE customer END,
+      customer_id             = CASE WHEN $16 THEN COALESCE($18, customer_id) ELSE customer_id END,
+      updated_at              = NOW()
+    WHERE api = $19
+    RETURNING id, api, current_test_id
+    `,
+    [
+      emptyToNullText(lease_well_name),
+      emptyToNullText(company_name),
+      emptyToNullText(company_email),
+      emptyToNullText(company_phone),
+      emptyToNullText(company_address),
+      emptyToNullText(company_man_name),
+      emptyToNullText(company_man_email),
+      emptyToNullText(company_man_phone),
+      emptyToNullText(previous_anchor_company),
+      emptyToNullText(previous_anchor_work),
+      emptyToNullText(directions_other_notes),
+      emptyToNullText(status),
+      emptyToNullText(state),
+      emptyToNullText(county),
+      emptyToNullText(wellhead_coords),
+      canAssignCustomer,
+      emptyToNullText(customer),
+      customer_id ?? null,
+      api,
+    ]
+  );
+
+  if (updatedWell.rows.length === 0) {
+    throw new Error("Not found");
+  }
+
+  let currentTestId = updatedWell.rows[0].current_test_id;
+
+  if (shouldWriteTest) {
+    const hasAnyValue = Boolean(testedAt || expiresAt);
+
+    if (hasAnyValue) {
+      if (currentTestId) {
+        await q(
+          `
+          UPDATE well_tests
+          SET
+            tested_at  = COALESCE($1, tested_at),
+            expires_at = $2
+          WHERE id = $3
+          `,
+          [testedAt, expiresAt, currentTestId]
+        );
+      } else {
+        const inserted = await q(
+          `
+          INSERT INTO well_tests (
+            well_api,
+            tested_at,
+            expires_at,
+            tested_by_company
+          ) VALUES ($1, $2, $3, $4)
+          RETURNING id
+          `,
+          [api, testedAt, expiresAt, "Manual edit (approved/admin)"]
+        );
+
+        const newTestId = inserted.rows?.[0]?.id;
+        if (newTestId) {
+          await q(`UPDATE wells SET current_test_id = $1 WHERE api = $2`, [newTestId, api]);
+          currentTestId = newTestId;
+        }
+      }
+
+      await q(
+        `
+        UPDATE wells
+        SET
+          current_tested_at = COALESCE($1, current_tested_at),
+          current_expires_at = $2
+        WHERE api = $3
+        `,
+        [testedAt, expiresAt, api]
+      );
+    }
+  }
+
+  return await loadWellByApi(api);
+}
+
 export async function GET(_req, { params }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -100,11 +258,13 @@ export async function PUT(req, { params }) {
     return noStoreJson({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const role = session.user.role || "customer";
   const canViewAllWells = hasPermission(session, "can_view_all_wells");
   const canEditWells = hasPermission(session, "can_edit_wells");
+  const canEditCompanyContacts = hasPermission(session, "can_edit_company_contacts");
   const companyId = session.user.company_id || null;
 
-  if (!canEditWells) {
+  if (!canEditWells && !canEditCompanyContacts) {
     return noStoreJson({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -123,141 +283,119 @@ export async function PUT(req, { params }) {
       }
     }
 
-    const {
-      lease_well_name,
-      company_name,
-      company_email,
-      company_phone,
-      company_address,
-      company_man_name,
-      company_man_email,
-      company_man_phone,
-      previous_anchor_company,
-      previous_anchor_work,
-      directions_other_notes,
-      status,
-      state,
-      county,
-      wellhead_coords,
-      customer,
-      customer_id,
-      current_tested_at,
-      current_expires_at,
-    } = body;
+    const adminEditableFields = [
+      "lease_well_name",
+      "company_name",
+      "company_email",
+      "company_phone",
+      "company_address",
+      "company_man_name",
+      "company_man_email",
+      "company_man_phone",
+      "previous_anchor_company",
+      "previous_anchor_work",
+      "directions_other_notes",
+      "status",
+      "state",
+      "county",
+      "wellhead_coords",
+      "customer",
+      "customer_id",
+      "current_tested_at",
+      "current_expires_at",
+    ];
 
-    const testedAt = emptyToNullDate(current_tested_at);
-    const expiresAt = emptyToNullDate(current_expires_at);
-    const shouldWriteTest =
-      current_tested_at !== undefined || current_expires_at !== undefined;
+    const employeeEditableFields = [
+      "lease_well_name",
+      "company_name",
+      "company_email",
+      "company_phone",
+      "company_address",
+      "company_man_name",
+      "company_man_email",
+      "company_man_phone",
+      "previous_anchor_company",
+      "previous_anchor_work",
+      "directions_other_notes",
+      "status",
+      "state",
+      "county",
+      "wellhead_coords",
+    ];
 
-    const updatedWell = await q(
+    const customerEditableFields = [
+      "company_email",
+      "company_phone",
+      "company_address",
+      "company_man_name",
+      "company_man_email",
+      "company_man_phone",
+      "previous_anchor_work",
+      "directions_other_notes",
+    ];
+
+    let allowedFields = [];
+
+    if (role === "admin") {
+      allowedFields = adminEditableFields;
+    } else if (role === "employee") {
+      allowedFields = employeeEditableFields;
+    } else {
+      allowedFields = customerEditableFields;
+    }
+
+    const diff = buildDiff(existing, body, allowedFields);
+
+    if (Object.keys(diff).length === 0) {
+      return noStoreJson({
+        ok: true,
+        mode: "noop",
+        message: "No changes detected.",
+      });
+    }
+
+    // Admin updates apply immediately
+    if (role === "admin") {
+      const well = await applyWellUpdate(api, diff, true);
+      return noStoreJson({
+        ok: true,
+        mode: "applied",
+        message: "Well updated successfully.",
+        well,
+      });
+    }
+
+    // Employee + customer updates become pending approval
+    await q(
       `
-      UPDATE wells
-      SET
-        lease_well_name         = $1,
-        company_name            = $2,
-        company_email           = $3,
-        company_phone           = $4,
-        company_address         = $5,
-        company_man_name        = $6,
-        company_man_email       = $7,
-        company_man_phone       = $8,
-        previous_anchor_company = $9,
-        previous_anchor_work    = $10,
-        directions_other_notes  = $11,
-        status                  = $12,
-        state                   = $13,
-        county                  = $14,
-        wellhead_coords         = $15,
-        customer                = CASE WHEN $16 THEN COALESCE($17, customer) ELSE customer END,
-        customer_id             = CASE WHEN $16 THEN COALESCE($18, customer_id) ELSE customer_id END,
-        updated_at              = NOW()
-      WHERE api = $19
-      RETURNING id, api, current_test_id
+      INSERT INTO pending_changes (
+        kind,
+        submitted_by,
+        status,
+        payload
+      )
+      VALUES ($1, $2, 'pending', $3::jsonb)
       `,
       [
-        emptyToNullText(lease_well_name),
-        emptyToNullText(company_name),
-        emptyToNullText(company_email),
-        emptyToNullText(company_phone),
-        emptyToNullText(company_address),
-        emptyToNullText(company_man_name),
-        emptyToNullText(company_man_email),
-        emptyToNullText(company_man_phone),
-        emptyToNullText(previous_anchor_company),
-        emptyToNullText(previous_anchor_work),
-        emptyToNullText(directions_other_notes),
-        emptyToNullText(status),
-        emptyToNullText(state),
-        emptyToNullText(county),
-        emptyToNullText(wellhead_coords),
-        canViewAllWells,
-        emptyToNullText(customer),
-        customer_id ?? null,
-        api,
+        "well_update_request",
+        session.user.email || session.user.name || "Unknown user",
+        JSON.stringify({
+          api,
+          requested_by_user_id: session.user.id,
+          requested_by_name: session.user.name || "",
+          requested_by_email: session.user.email || "",
+          requested_by_role: role,
+          changes: diff,
+          existing_snapshot: existing,
+        }),
       ]
     );
 
-    if (updatedWell.rows.length === 0) {
-      return noStoreJson({ error: "Not found" }, { status: 404 });
-    }
-
-    let currentTestId = updatedWell.rows[0].current_test_id;
-
-    if (shouldWriteTest) {
-      const hasAnyValue = Boolean(testedAt || expiresAt);
-
-      if (hasAnyValue) {
-        if (currentTestId) {
-          await q(
-            `
-            UPDATE well_tests
-            SET
-              tested_at  = COALESCE($1, tested_at),
-              expires_at = $2
-            WHERE id = $3
-            `,
-            [testedAt, expiresAt, currentTestId]
-          );
-        } else {
-          const inserted = await q(
-            `
-            INSERT INTO well_tests (
-              well_api,
-              tested_at,
-              expires_at,
-              tested_by_company
-            ) VALUES ($1, $2, $3, $4)
-            RETURNING id
-            `,
-            [api, testedAt, expiresAt, "Manual edit (admin)"]
-          );
-
-          const newTestId = inserted.rows?.[0]?.id;
-          if (newTestId) {
-            await q(
-              `UPDATE wells SET current_test_id = $1 WHERE api = $2`,
-              [newTestId, api]
-            );
-            currentTestId = newTestId;
-          }
-        }
-
-        await q(
-          `
-          UPDATE wells
-          SET
-            current_tested_at = COALESCE($1, current_tested_at),
-            current_expires_at = $2
-          WHERE api = $3
-          `,
-          [testedAt, expiresAt, api]
-        );
-      }
-    }
-
-    const well = await loadWellByApi(api);
-    return noStoreJson(well);
+    return noStoreJson({
+      ok: true,
+      mode: "pending",
+      message: "Your changes were submitted for admin approval.",
+    });
   } catch (err) {
     console.error("PUT /api/wells/[api] error:", err);
     return noStoreJson({ error: String(err?.message || err) }, { status: 500 });
