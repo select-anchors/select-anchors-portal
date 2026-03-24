@@ -44,7 +44,9 @@ function daysUntil(dateStr) {
   if (Number.isNaN(target.getTime())) return null;
 
   const now = new Date();
-  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.ceil(
+    (target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  );
 }
 
 function statusFromExpiration(expirationDate, windowDays = 90) {
@@ -128,29 +130,30 @@ function ExpirationBadge({ daysLeft }) {
 
 export default function WellDetailPage({ params }) {
   const { data: session, status } = useSession();
-  const apiParam = decodeURIComponent(params.api);
+
+  const apiParam = useMemo(() => {
+    return params?.api ? decodeURIComponent(params.api) : null;
+  }, [params]);
 
   const [well, setWell] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const canViewAllWells = hasPermission(session, "can_view_all_wells");
-  const canEditWells = hasPermission(session, "can_edit_wells");
-  const canEditCompanyContacts = hasPermission(
-    session,
-    "can_edit_company_contacts"
-  );
+  const canViewAllWells =
+    !!session && hasPermission(session, "can_view_all_wells");
+  const canEditWells = !!session && hasPermission(session, "can_edit_wells");
+  const canEditCompanyContacts =
+    !!session && hasPermission(session, "can_edit_company_contacts");
 
-  const canEdit = canEditWells || canEditCompanyContacts;
+  const canShowEdit = canEditWells || canEditCompanyContacts;
   const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
-  const editHref = `/wells/${encodeURIComponent(apiParam)}/edit`;
 
   useEffect(() => {
     let mounted = true;
 
     async function loadWell() {
-      try {
-        setLoading(true);
+      if (!apiParam) return;
 
+      try {
         const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, {
           cache: "no-store",
         });
@@ -158,6 +161,7 @@ export default function WellDetailPage({ params }) {
         if (!res.ok) throw new Error("Not found");
 
         const j = await res.json();
+
         if (mounted) setWell(j ?? null);
       } catch (err) {
         console.error("Error loading well detail:", err);
@@ -167,40 +171,16 @@ export default function WellDetailPage({ params }) {
       }
     }
 
-    if (status === "authenticated") {
-      loadWell();
-    }
+    loadWell();
 
     return () => {
       mounted = false;
     };
-  }, [apiParam, status]);
-
-  const derived = useMemo(() => {
-    if (!well) return null;
-
-    const lastTest = well.current_tested_at ?? well.last_test_date ?? null;
-    const expires =
-      well.current_expires_at ??
-      well.latest_expires_at ??
-      well.expiration_date ??
-      well.expiration ??
-      null;
-
-    const EXPIRING_WINDOW_DAYS = 90;
-    const computedStatus = statusFromExpiration(expires, EXPIRING_WINDOW_DAYS);
-    const daysLeft = daysUntil(expires);
-
-    return {
-      lastTest,
-      expires,
-      computedStatus,
-      daysLeft,
-    };
-  }, [well]);
+  }, [apiParam]);
 
   if (status === "loading") return <div className="container py-10">Loading…</div>;
   if (!session) return <NotLoggedIn />;
+  if (!apiParam) return <div className="container py-10">Loading…</div>;
   if (loading) return <div className="container py-10">Loading well…</div>;
 
   if (!well) {
@@ -217,34 +197,48 @@ export default function WellDetailPage({ params }) {
     );
   }
 
-  const { lastTest, expires, computedStatus, daysLeft } = derived;
+  const w = well;
+
+  const lastTest = w.current_tested_at ?? w.last_test_date ?? null;
+  const expires =
+    w.current_expires_at ??
+    w.latest_expires_at ??
+    w.expiration_date ??
+    w.expiration ??
+    null;
+
+  const EXPIRING_WINDOW_DAYS = 90;
+  const computedStatus = statusFromExpiration(expires, EXPIRING_WINDOW_DAYS);
+  const daysLeft = daysUntil(expires);
+
+  const editHref = `/admin/wells/${encodeURIComponent(w.api)}/edit`;
 
   return (
     <div className="container py-10 space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">
-            {well.lease_well_name ?? "Untitled Well"}
+            {w.lease_well_name ?? "Untitled Well"}
           </h1>
 
           <div className="mt-1 space-y-1">
             <p className="text-sm text-gray-700">
               <span className="text-gray-600">API:</span>{" "}
-              <span className="font-mono">{well.api}</span>
+              <span className="font-mono">{w.api}</span>
             </p>
 
-            {well.wellhead_coords && (
+            {w.wellhead_coords && (
               <p className="text-sm text-gray-700">
                 <span className="text-gray-600">Well Head GPS:</span>{" "}
                 <a
                   className="text-blue-600 underline break-all"
                   href={`https://maps.google.com/?q=${encodeURIComponent(
-                    well.wellhead_coords
+                    w.wellhead_coords
                   )}`}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  {well.wellhead_coords}
+                  {w.wellhead_coords}
                 </a>
               </p>
             )}
@@ -256,7 +250,7 @@ export default function WellDetailPage({ params }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {canEdit && (
+          {canShowEdit && (
             <Link
               href={editHref}
               className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
@@ -275,11 +269,9 @@ export default function WellDetailPage({ params }) {
       </div>
 
       <WellLocationMap
-        coords={well.wellhead_coords}
+        coords={w.wellhead_coords}
         title={
-          well.lease_well_name
-            ? `${well.lease_well_name} Location`
-            : "Well Location"
+          w.lease_well_name ? `${w.lease_well_name} Location` : "Well Location"
         }
       />
 
@@ -291,22 +283,22 @@ export default function WellDetailPage({ params }) {
         <div className="p-6 grid md:grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-gray-600">Company</div>
-            <div className="font-medium">{well.company_name ?? "—"}</div>
+            <div className="font-medium">{w.company_name ?? "—"}</div>
           </div>
 
           <div>
             <div className="text-sm text-gray-600">Phone</div>
-            <div className="font-medium">{well.company_phone ?? "—"}</div>
+            <div className="font-medium">{w.company_phone ?? "—"}</div>
           </div>
 
           <div>
             <div className="text-sm text-gray-600">Email</div>
-            <div className="font-medium">{well.company_email ?? "—"}</div>
+            <div className="font-medium">{w.company_email ?? "—"}</div>
           </div>
 
           <div className="md:col-span-2">
             <div className="text-sm text-gray-600">Address</div>
-            <div className="font-medium">{well.company_address ?? "—"}</div>
+            <div className="font-medium">{w.company_address ?? "—"}</div>
           </div>
         </div>
       </div>
@@ -319,18 +311,18 @@ export default function WellDetailPage({ params }) {
         <div className="p-6 grid md:grid-cols-3 gap-4">
           <div>
             <div className="text-sm text-gray-600">Name</div>
-            <div className="font-medium">{well.company_man_name ?? "—"}</div>
+            <div className="font-medium">{w.company_man_name ?? "—"}</div>
           </div>
 
           <div>
             <div className="text-sm text-gray-600">Phone</div>
-            <div className="font-medium">{well.company_man_phone ?? "—"}</div>
+            <div className="font-medium">{w.company_man_phone ?? "—"}</div>
           </div>
 
           <div>
             <div className="text-sm text-gray-600">Email</div>
             <div className="font-medium break-all">
-              {well.company_man_email ?? "—"}
+              {w.company_man_email ?? "—"}
             </div>
           </div>
         </div>
@@ -367,14 +359,14 @@ export default function WellDetailPage({ params }) {
           <div>
             <div className="text-sm text-gray-600">Previous Anchor Work</div>
             <div className="font-medium whitespace-pre-wrap">
-              {well.previous_anchor_work ?? "—"}
+              {w.previous_anchor_work ?? "—"}
             </div>
           </div>
 
           <div>
             <div className="text-sm text-gray-600">Directions & Other Notes</div>
             <div className="font-medium whitespace-pre-wrap">
-              {well.directions_other_notes ?? "—"}
+              {w.directions_other_notes ?? "—"}
             </div>
           </div>
         </div>
