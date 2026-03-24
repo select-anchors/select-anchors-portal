@@ -7,14 +7,16 @@ import { hasPermission } from "../../lib/permissions";
 
 export default function Header() {
   const { data: session, status } = useSession();
+
   const isLoggedIn = !!session?.user;
+  const sessionReady = status === "authenticated" && !!session;
 
   const canViewAllWells =
-    !!session && hasPermission(session, "can_view_all_wells");
+    sessionReady && hasPermission(session, "can_view_all_wells");
   const canUseDispatch =
-    !!session && hasPermission(session, "can_use_dispatch");
+    sessionReady && hasPermission(session, "can_use_dispatch");
   const canManageUsers =
-    !!session && hasPermission(session, "can_manage_users");
+    sessionReady && hasPermission(session, "can_manage_users");
 
   const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
 
@@ -67,11 +69,11 @@ export default function Header() {
                 Logout
               </button>
             </>
-          ) : status !== "loading" ? (
+          ) : (
             <Link href="/login" className="rounded-xl border px-3 py-1">
               Login
             </Link>
-          ) : null}
+          )}
         </nav>
       </div>
     </header>
