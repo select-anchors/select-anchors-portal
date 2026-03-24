@@ -1,3 +1,4 @@
+// app/page.js
 export const dynamic = "force-dynamic";
 
 import { getServerSession } from "next-auth";
@@ -11,16 +12,5 @@ export default async function Home() {
     redirect("/login");
   }
 
-  switch (session.user.role) {
-    case "admin":
-      redirect("/dashboard");
-    case "employee":
-      redirect("/driver/my-day");
-    case "customer":
-      redirect("/wells");
-    default:
-      redirect("/login");
-  }
-
-  return null;
+  redirect("/dashboard");
 }
