@@ -560,13 +560,13 @@ export default function CustomerWellsPage() {
                         View
                       </Link>
                       {canEdit && (
-                        <Link
-                          href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
-                          className="underline"
-                        >
-                          Edit
-                        </Link>
-                      )}
+  <Link
+    href={`/wells/${encodeURIComponent(w.api)}/edit`}
+    className="underline"
+  >
+    Edit
+  </Link>
+)}
                     </div>
                   </td>
                 </tr>
