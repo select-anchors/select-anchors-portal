@@ -65,11 +65,16 @@ const US_STATES = [
 export default function EditWellPage({ params }) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const apiParam = decodeURIComponent(params.api);
 
-  const canEditWells = hasPermission(session, "can_edit_wells");
-  const canViewAllWells = hasPermission(session, "can_view_all_wells");
-  const canEditCompanyContacts = hasPermission(session, "can_edit_company_contacts");
+  const apiParam = useMemo(() => {
+    return params?.api ? decodeURIComponent(params.api) : null;
+  }, [params]);
+
+  const canEditWells = !!session && hasPermission(session, "can_edit_wells");
+  const canViewAllWells =
+    !!session && hasPermission(session, "can_view_all_wells");
+  const canEditCompanyContacts =
+    !!session && hasPermission(session, "can_edit_company_contacts");
 
   const canEdit = canEditWells || canEditCompanyContacts;
   const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
@@ -100,15 +105,18 @@ export default function EditWellPage({ params }) {
   useEffect(() => {
     let mounted = true;
 
-    async function load() {
-      if (status !== "authenticated" || !canEdit) return;
+    async function loadWell() {
+      if (status !== "authenticated" || !canEdit || !apiParam) return;
 
       try {
         setLoading(true);
+
         const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, {
           cache: "no-store",
         });
+
         if (!res.ok) throw new Error("Not found");
+
         const w = await res.json();
 
         if (!mounted) return;
@@ -140,7 +148,8 @@ export default function EditWellPage({ params }) {
       }
     }
 
-    load();
+    loadWell();
+
     return () => {
       mounted = false;
     };
@@ -169,22 +178,26 @@ export default function EditWellPage({ params }) {
         body: JSON.stringify(form),
       });
 
+      const payload = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || "Failed to save changes.");
+        throw new Error(payload.error || "Failed to save changes.");
       }
 
-      const updated = await res.json().catch(() => null);
-
-      if (updated) {
+      if (payload?.mode === "pending") {
+        setSuccess(payload.message || "Your changes were submitted for approval.");
+      } else if (payload?.well) {
         setForm((prev) => ({
           ...prev,
-          current_tested_at: updated.current_tested_at ?? prev.current_tested_at,
-          current_expires_at: updated.current_expires_at ?? prev.current_expires_at,
+          current_tested_at:
+            payload.well.current_tested_at ?? prev.current_tested_at,
+          current_expires_at:
+            payload.well.current_expires_at ?? prev.current_expires_at,
         }));
+        setSuccess(payload.message || "Well updated successfully.");
+      } else {
+        setSuccess(payload.message || "Changes saved.");
       }
-
-      setSuccess("Well updated successfully.");
     } catch (e) {
       console.error("Error saving well:", e);
       setError(e.message || "Failed to save changes.");
@@ -195,8 +208,11 @@ export default function EditWellPage({ params }) {
 
   if (status === "loading") return <div className="container py-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
+  if (!apiParam) return <div className="container py-8">Loading…</div>;
   if (!canEdit) return <div className="container py-8">Not authorized.</div>;
   if (loading) return <div className="container py-8">Loading well…</div>;
+
+  const showTestFields = canEditWells;
 
   return (
     <div className="container py-8 space-y-6 max-w-3xl">
@@ -215,6 +231,7 @@ export default function EditWellPage({ params }) {
           >
             View Well
           </Link>
+
           <Link
             href={wellsHref}
             className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 text-sm"
@@ -229,28 +246,51 @@ export default function EditWellPage({ params }) {
           {error}
         </div>
       )}
+
       {success && (
         <div className="p-3 rounded-xl bg-green-50 border border-green-200 text-sm text-green-700">
           {success}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white border rounded-2xl shadow-sm p-6 space-y-6">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white border rounded-2xl shadow-sm p-6 space-y-6"
+      >
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Lease / Well Info</h2>
 
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Lease / Well Name</label>
-            <input className="w-full rounded-xl border px-3 py-2" value={form.lease_well_name} onChange={updateField("lease_well_name")} />
+            <label className="block text-sm text-gray-600 mb-1">
+              Lease / Well Name
+            </label>
+            <input
+              className="w-full rounded-xl border px-3 py-2"
+              value={form.lease_well_name}
+              onChange={updateField("lease_well_name")}
+              disabled={!canEditWells}
+            />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Wellhead Coords (lat,lng)</label>
-            <input className="w-full rounded-xl border px-3 py-2" value={form.wellhead_coords} onChange={updateField("wellhead_coords")} />
+            <label className="block text-sm text-gray-600 mb-1">
+              Wellhead Coords (lat,lng)
+            </label>
+            <input
+              className="w-full rounded-xl border px-3 py-2"
+              value={form.wellhead_coords}
+              onChange={updateField("wellhead_coords")}
+              disabled={!canEditWells}
+            />
             <div className="text-xs text-gray-500 mt-1 flex items-center gap-3">
               <span>Optional. Format: lat,lng</span>
               {googleMapsHref && (
-                <a className="text-blue-600 underline" href={googleMapsHref} target="_blank" rel="noreferrer">
+                <a
+                  className="text-blue-600 underline"
+                  href={googleMapsHref}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Open in Google Maps
                 </a>
               )}
@@ -260,12 +300,22 @@ export default function EditWellPage({ params }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">County</label>
-              <input className="w-full rounded-xl border px-3 py-2" value={form.county} onChange={updateField("county")} />
+              <input
+                className="w-full rounded-xl border px-3 py-2"
+                value={form.county}
+                onChange={updateField("county")}
+                disabled={!canEditWells}
+              />
             </div>
 
             <div>
               <label className="block text-sm text-gray-600 mb-1">State</label>
-              <select className="w-full rounded-xl border px-3 py-2" value={form.state} onChange={updateField("state")}>
+              <select
+                className="w-full rounded-xl border px-3 py-2"
+                value={form.state}
+                onChange={updateField("state")}
+                disabled={!canEditWells}
+              >
                 {US_STATES.map((s) => (
                   <option key={s.code} value={s.code}>
                     {s.code ? `${s.code} — ${s.name}` : s.name}
@@ -278,80 +328,146 @@ export default function EditWellPage({ params }) {
 
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Company</h2>
+
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Company Name</label>
-              <input className="w-full rounded-xl border px-3 py-2" value={form.company_name} onChange={updateField("company_name")} />
+              <label className="block text-sm text-gray-600 mb-1">
+                Company Name
+              </label>
+              <input
+                className="w-full rounded-xl border px-3 py-2"
+                value={form.company_name}
+                onChange={updateField("company_name")}
+                disabled={!canEditWells}
+              />
             </div>
+
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Company Phone</label>
-              <input className="w-full rounded-xl border px-3 py-2" value={form.company_phone} onChange={updateField("company_phone")} />
+              <label className="block text-sm text-gray-600 mb-1">
+                Company Phone
+              </label>
+              <input
+                className="w-full rounded-xl border px-3 py-2"
+                value={form.company_phone}
+                onChange={updateField("company_phone")}
+              />
             </div>
+
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Company Email</label>
-              <input className="w-full rounded-xl border px-3 py-2" value={form.company_email} onChange={updateField("company_email")} />
+              <label className="block text-sm text-gray-600 mb-1">
+                Company Email
+              </label>
+              <input
+                className="w-full rounded-xl border px-3 py-2"
+                value={form.company_email}
+                onChange={updateField("company_email")}
+              />
             </div>
+
             <div className="md:col-span-2">
-              <label className="block text-sm text-gray-600 mb-1">Company Address</label>
-              <input className="w-full rounded-xl border px-3 py-2" value={form.company_address} onChange={updateField("company_address")} />
+              <label className="block text-sm text-gray-600 mb-1">
+                Company Address
+              </label>
+              <input
+                className="w-full rounded-xl border px-3 py-2"
+                value={form.company_address}
+                onChange={updateField("company_address")}
+              />
             </div>
           </div>
         </div>
 
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Company Man</h2>
+
           <div className="grid md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">Name</label>
-              <input className="w-full rounded-xl border px-3 py-2" value={form.company_man_name} onChange={updateField("company_man_name")} />
+              <input
+                className="w-full rounded-xl border px-3 py-2"
+                value={form.company_man_name}
+                onChange={updateField("company_man_name")}
+              />
             </div>
+
             <div>
               <label className="block text-sm text-gray-600 mb-1">Phone</label>
-              <input className="w-full rounded-xl border px-3 py-2" value={form.company_man_phone} onChange={updateField("company_man_phone")} />
+              <input
+                className="w-full rounded-xl border px-3 py-2"
+                value={form.company_man_phone}
+                onChange={updateField("company_man_phone")}
+              />
             </div>
+
             <div>
               <label className="block text-sm text-gray-600 mb-1">Email</label>
-              <input className="w-full rounded-xl border px-3 py-2" value={form.company_man_email} onChange={updateField("company_man_email")} />
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Dates & Status</h2>
-
-          <div className="grid md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Last Test Date</label>
               <input
-                type="date"
                 className="w-full rounded-xl border px-3 py-2"
-                value={form.current_tested_at || ""}
-                onChange={updateField("current_tested_at")}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Expiration Date</label>
-              <input
-                type="date"
-                className="w-full rounded-xl border px-3 py-2"
-                value={form.current_expires_at || ""}
-                onChange={updateField("current_expires_at")}
+                value={form.company_man_email}
+                onChange={updateField("company_man_email")}
               />
             </div>
           </div>
         </div>
+
+        {showTestFields && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Dates & Status</h2>
+
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">
+                  Last Test Date
+                </label>
+                <input
+                  type="date"
+                  className="w-full rounded-xl border px-3 py-2"
+                  value={form.current_tested_at || ""}
+                  onChange={updateField("current_tested_at")}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">
+                  Expiration Date
+                </label>
+                <input
+                  type="date"
+                  className="w-full rounded-xl border px-3 py-2"
+                  value={form.current_expires_at || ""}
+                  onChange={updateField("current_expires_at")}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">History & Notes</h2>
+
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Previous Anchor Work</label>
-              <textarea rows={4} className="w-full rounded-xl border px-3 py-2" value={form.previous_anchor_work} onChange={updateField("previous_anchor_work")} />
+              <label className="block text-sm text-gray-600 mb-1">
+                Previous Anchor Work
+              </label>
+              <textarea
+                rows={4}
+                className="w-full rounded-xl border px-3 py-2"
+                value={form.previous_anchor_work}
+                onChange={updateField("previous_anchor_work")}
+              />
             </div>
+
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Directions & Other Notes</label>
-              <textarea rows={4} className="w-full rounded-xl border px-3 py-2" value={form.directions_other_notes} onChange={updateField("directions_other_notes")} />
+              <label className="block text-sm text-gray-600 mb-1">
+                Directions & Other Notes
+              </label>
+              <textarea
+                rows={4}
+                className="w-full rounded-xl border px-3 py-2"
+                value={form.directions_other_notes}
+                onChange={updateField("directions_other_notes")}
+              />
             </div>
           </div>
         </div>
@@ -364,6 +480,7 @@ export default function EditWellPage({ params }) {
           >
             Cancel
           </button>
+
           <button
             type="submit"
             disabled={saving}
