@@ -135,11 +135,12 @@ export default function DashboardPage() {
   const [visibleApis, setVisibleApis] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const canViewAllWells = hasPermission(session, "can_view_all_wells");
-  const canManageUsers = hasPermission(session, "can_manage_users");
-  const canApproveChanges = hasPermission(session, "can_approve_changes");
-  const canManageItemsPricing = hasPermission(session, "can_manage_items_pricing");
-  const canUseDispatch = hasPermission(session, "can_use_dispatch");
+  const canViewAllWells = !!session && hasPermission(session, "can_view_all_wells");
+  const canManageUsers = !!session && hasPermission(session, "can_manage_users");
+  const canApproveChanges = !!session && hasPermission(session, "can_approve_changes");
+  const canManageItemsPricing =
+    !!session && hasPermission(session, "can_manage_items_pricing");
+  const canUseDispatch = !!session && hasPermission(session, "can_use_dispatch");
 
   const wellsPageHref = canViewAllWells ? "/admin/wells" : "/wells";
 
@@ -153,7 +154,8 @@ export default function DashboardPage() {
         const res = await fetch("/api/stats", { cache: "no-store" });
         const json = await res.json();
         if (isMounted) setStats(json);
-      } catch {
+      } catch (err) {
+        console.error("Dashboard stats load failed:", err);
       } finally {
         if (isMounted) setLoadingStats(false);
       }
@@ -175,10 +177,15 @@ export default function DashboardPage() {
         const res = await fetch("/api/wells", { cache: "no-store" });
         const json = await res.json();
         if (mounted) {
-          const data = Array.isArray(json) ? json : Array.isArray(json?.wells) ? json.wells : [];
+          const data = Array.isArray(json)
+            ? json
+            : Array.isArray(json?.wells)
+            ? json.wells
+            : [];
           setWells(data);
         }
-      } catch {
+      } catch (err) {
+        console.error("Dashboard wells load failed:", err);
         if (mounted) setWells([]);
       } finally {
         if (mounted) setLoadingWells(false);
@@ -207,7 +214,7 @@ export default function DashboardPage() {
         _exp_for_display: exp,
       };
     });
-  }, [wells]);
+  }, [wells, EXPIRING_WINDOW_DAYS]);
 
   const checkboxFilteredWells = useMemo(() => {
     if (!showExpiring && !showExpired) return wellsWithStatus;
@@ -254,7 +261,7 @@ export default function DashboardPage() {
     }
     if (showExpiring) return `No wells expiring within ${EXPIRING_WINDOW_DAYS} days.`;
     return "No expired wells.";
-  }, [showExpiring, showExpired]);
+  }, [showExpiring, showExpired, EXPIRING_WINDOW_DAYS]);
 
   const emptyListLabel = useMemo(() => {
     const q = searchQuery.trim();
@@ -281,7 +288,9 @@ export default function DashboardPage() {
   return (
     <div className="container py-10 space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <h1 className="text-3xl font-bold">Welcome, {session.user?.name || "User"}!</h1>
+        <h1 className="text-3xl font-bold">
+          Welcome, {session.user?.name || "User"}!
+        </h1>
 
         <div className="flex gap-3 text-sm bg-white border rounded-2xl px-4 py-2">
           <label className="flex items-center gap-2">
@@ -372,7 +381,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <Link href={wellsPageHref} className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50">
+            <Link
+              href={wellsPageHref}
+              className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
+            >
               Open Wells Page →
             </Link>
           </div>
@@ -390,7 +402,10 @@ export default function DashboardPage() {
                     className="border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
                   >
                     <div className="space-y-1">
-                      <Link href={`/wells/${encodeURIComponent(w.api || "")}`} className="font-semibold underline">
+                      <Link
+                        href={`/wells/${encodeURIComponent(w.api || "")}`}
+                        className="font-semibold underline"
+                      >
                         {w.lease_well_name || "—"}
                       </Link>
 
@@ -422,7 +437,9 @@ export default function DashboardPage() {
                       </Link>
 
                       <Link
-                        href={`/jobs/new?api=${encodeURIComponent(w.api || "")}&lease_well_name=${encodeURIComponent(
+                        href={`/jobs/new?api=${encodeURIComponent(
+                          w.api || ""
+                        )}&lease_well_name=${encodeURIComponent(
                           w.lease_well_name || ""
                         )}&company_name=${encodeURIComponent(w.company_name || "")}`}
                         className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
