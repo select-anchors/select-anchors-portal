@@ -33,7 +33,9 @@ function daysUntil(dateStr) {
     const [y, m, d] = dateStr.split("-").map(Number);
     const target = new Date(y, m - 1, d);
     const now = new Date();
-    return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.ceil(
+      (target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
   }
 
   const d = new Date(dateStr);
@@ -69,7 +71,11 @@ function loadGoogleMaps(key) {
             resolve(true);
           } else if (Date.now() - start > 15000) {
             clearInterval(t);
-            reject(new Error("Google Maps script loaded but google.maps did not initialize."));
+            reject(
+              new Error(
+                "Google Maps script loaded but google.maps did not initialize."
+              )
+            );
           }
         }, 50);
         return;
@@ -85,7 +91,9 @@ function loadGoogleMaps(key) {
 
       script.onload = () => resolve(true);
       script.onerror = () =>
-        reject(new Error("Script load error (check API key / referrer restrictions)."));
+        reject(
+          new Error("Script load error (check API key / referrer restrictions).")
+        );
 
       document.head.appendChild(script);
     } catch (e) {
@@ -175,7 +183,6 @@ function clusterSvg(count, dominantStatus) {
     <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">
       <circle cx="28" cy="28" r="24" fill="${fill}" opacity="0.20"/>
       <circle cx="28" cy="28" r="18" fill="${fill}" stroke="white" stroke-width="3"/>
-
       <text
         x="28"
         y="33"
@@ -208,7 +215,10 @@ export default function WellsMap({
   const [scriptError, setScriptError] = useState("");
   const [visibleCount, setVisibleCount] = useState(0);
 
-  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const key =
+    typeof window !== "undefined"
+      ? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+      : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -218,14 +228,21 @@ export default function WellsMap({
 
       try {
         await loadGoogleMaps(key);
-        if (!cancelled) setReady(true);
+        if (!cancelled) {
+          setScriptError("");
+          setReady(true);
+        }
       } catch (err) {
         console.error("Google Maps load failed:", err);
-        if (!cancelled) setScriptError(err?.message || "Google Maps failed to load.");
+        if (!cancelled) {
+          setScriptError(err?.message || "Google Maps failed to load.");
+          setReady(false);
+        }
       }
     }
 
     boot();
+
     return () => {
       cancelled = true;
     };
@@ -330,8 +347,9 @@ export default function WellsMap({
             : "—";
 
         const wellHref = `/wells/${encodeURIComponent(w.api || "")}`;
-
-        const jobHref = `/jobs/new?api=${encodeURIComponent(w.api || "")}&lease_well_name=${encodeURIComponent(
+        const jobHref = `/jobs/new?api=${encodeURIComponent(
+          w.api || ""
+        )}&lease_well_name=${encodeURIComponent(
           w.lease_well_name || ""
         )}&company_name=${encodeURIComponent(w.company_name || "")}`;
 
@@ -373,24 +391,24 @@ export default function WellsMap({
     clustererRef.current = new MarkerClusterer({
       map: mapObjRef.current,
       markers: markersRef.current,
-     renderer: {
-  render: ({ count, position, markers }) => {
-    const summary = summarizeStatuses(markers);
-    const clusterStatus = dominantClusterStatus(summary);
-    const svg = clusterSvg(count, clusterStatus);
+      renderer: {
+        render: ({ count, position, markers }) => {
+          const summary = summarizeStatuses(markers);
+          const clusterStatus = dominantClusterStatus(summary);
+          const svg = clusterSvg(count, clusterStatus);
 
-    return new window.google.maps.Marker({
-      position,
-      icon: {
-        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-        scaledSize: new window.google.maps.Size(56, 56),
-anchor: new window.google.maps.Point(28, 28),
+          return new window.google.maps.Marker({
+            position,
+            icon: {
+              url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+              scaledSize: new window.google.maps.Size(56, 56),
+              anchor: new window.google.maps.Point(28, 28),
+            },
+            label: undefined,
+            zIndex: 1000 + count,
+          });
+        },
       },
-      label: undefined,
-      zIndex: 1000 + count,
-    });
-  },
-},
     });
 
     if (mapped.length) {
@@ -426,7 +444,8 @@ anchor: new window.google.maps.Point(28, 28),
       idleListenerRef.current = null;
     }
 
-    idleListenerRef.current = mapObjRef.current.addListener("idle", emitVisibleWells);
+    idleListenerRef.current =
+      mapObjRef.current.addListener("idle", emitVisibleWells);
 
     setTimeout(() => {
       emitVisibleWells();
@@ -443,6 +462,9 @@ anchor: new window.google.maps.Point(28, 28),
         clustererRef.current.setMap(null);
         clustererRef.current = null;
       }
+
+      markersRef.current.forEach((m) => m.setMap(null));
+      markersRef.current = [];
     };
   }, [ready, mapped, onVisibleWellsChange]);
 
@@ -467,7 +489,8 @@ anchor: new window.google.maps.Point(28, 28),
       <div className="p-4 border-b">
         <div className="font-semibold">Wells Map</div>
         <div className="text-xs text-gray-500">
-          Showing {visibleCount} of {mapped.length} well{mapped.length === 1 ? "" : "s"} in current view{" "}
+          Showing {visibleCount} of {mapped.length} well
+          {mapped.length === 1 ? "" : "s"} in current view{" "}
           {expiringOnly ? "(expiring/expired only)" : ""}
         </div>
       </div>
