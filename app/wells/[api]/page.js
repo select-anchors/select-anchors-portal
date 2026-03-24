@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../../components/NotLoggedIn";
 import WellLocationMap from "../../components/WellLocationMap";
@@ -13,11 +13,19 @@ function fmtDate(d) {
   if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
     const [y, m, day] = d.split("-").map(Number);
     const local = new Date(y, m - 1, day);
-    return local.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return local.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   }
   const date = typeof d === "string" ? new Date(d) : d;
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function daysUntil(dateStr) {
@@ -27,7 +35,9 @@ function daysUntil(dateStr) {
     const [y, m, d] = dateStr.split("-").map(Number);
     const target = new Date(y, m - 1, d);
     const now = new Date();
-    return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.ceil(
+      (target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
   }
 
   const target = new Date(dateStr);
@@ -67,7 +77,9 @@ function StatusPill({ status, daysLeft }) {
       : "Unknown";
 
   return (
-    <span className={`inline-flex items-center px-3 py-1 text-sm rounded-full border ${cls}`}>
+    <span
+      className={`inline-flex items-center px-3 py-1 text-sm rounded-full border ${cls}`}
+    >
       {label}
       {typeof daysLeft === "number" && (
         <span className="ml-2 text-xs opacity-80">
@@ -105,7 +117,9 @@ function ExpirationBadge({ daysLeft }) {
       : `${daysLeft} days left`;
 
   return (
-    <span className={`inline-flex items-center gap-2 px-3 py-1 text-xs rounded-full border ${cls}`}>
+    <span
+      className={`inline-flex items-center gap-2 px-3 py-1 text-xs rounded-full border ${cls}`}
+    >
       <span className={`inline-block w-2 h-2 rounded-full ${dot}`} />
       {text}
     </span>
@@ -121,12 +135,22 @@ export default function WellDetailPage({ params }) {
 
   const canViewAllWells = hasPermission(session, "can_view_all_wells");
   const canEditWells = hasPermission(session, "can_edit_wells");
+  const canEditCompanyContacts = hasPermission(
+    session,
+    "can_edit_company_contacts"
+  );
+
+  const canEdit = canEditWells || canEditCompanyContacts;
+  const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
+  const editHref = `/wells/${encodeURIComponent(apiParam)}/edit`;
 
   useEffect(() => {
     let mounted = true;
 
-    (async () => {
+    async function loadWell() {
       try {
+        setLoading(true);
+
         const res = await fetch(`/api/wells/${encodeURIComponent(apiParam)}`, {
           cache: "no-store",
         });
@@ -134,7 +158,6 @@ export default function WellDetailPage({ params }) {
         if (!res.ok) throw new Error("Not found");
 
         const j = await res.json();
-
         if (mounted) setWell(j ?? null);
       } catch (err) {
         console.error("Error loading well detail:", err);
@@ -142,12 +165,39 @@ export default function WellDetailPage({ params }) {
       } finally {
         if (mounted) setLoading(false);
       }
-    })();
+    }
+
+    if (status === "authenticated") {
+      loadWell();
+    }
 
     return () => {
       mounted = false;
     };
-  }, [apiParam]);
+  }, [apiParam, status]);
+
+  const derived = useMemo(() => {
+    if (!well) return null;
+
+    const lastTest = well.current_tested_at ?? well.last_test_date ?? null;
+    const expires =
+      well.current_expires_at ??
+      well.latest_expires_at ??
+      well.expiration_date ??
+      well.expiration ??
+      null;
+
+    const EXPIRING_WINDOW_DAYS = 90;
+    const computedStatus = statusFromExpiration(expires, EXPIRING_WINDOW_DAYS);
+    const daysLeft = daysUntil(expires);
+
+    return {
+      lastTest,
+      expires,
+      computedStatus,
+      daysLeft,
+    };
+  }, [well]);
 
   if (status === "loading") return <div className="container py-10">Loading…</div>;
   if (!session) return <NotLoggedIn />;
@@ -159,7 +209,7 @@ export default function WellDetailPage({ params }) {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h1 className="text-xl font-semibold mb-2">Well not found</h1>
           <p className="text-gray-600 mb-4">API: {apiParam}</p>
-          <Link href={canViewAllWells ? "/admin/wells" : "/wells"} className="underline text-[#2f4f4f]">
+          <Link href={wellsHref} className="underline text-[#2f4f4f]">
             ← Back to All Wells
           </Link>
         </div>
@@ -167,45 +217,34 @@ export default function WellDetailPage({ params }) {
     );
   }
 
-  const w = well;
-
-  const lastTest = w.current_tested_at ?? w.last_test_date ?? null;
-  const expires =
-    w.current_expires_at ??
-    w.latest_expires_at ??
-    w.expiration_date ??
-    w.expiration ??
-    null;
-
-  const EXPIRING_WINDOW_DAYS = 90;
-  const computedStatus = statusFromExpiration(expires, EXPIRING_WINDOW_DAYS);
-  const daysLeft = daysUntil(expires);
-
-  const editHref = `/admin/wells/${encodeURIComponent(w.api)}/edit`;
-  const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
+  const { lastTest, expires, computedStatus, daysLeft } = derived;
 
   return (
     <div className="container py-10 space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">{w.lease_well_name ?? "Untitled Well"}</h1>
+          <h1 className="text-2xl font-bold">
+            {well.lease_well_name ?? "Untitled Well"}
+          </h1>
 
           <div className="mt-1 space-y-1">
             <p className="text-sm text-gray-700">
               <span className="text-gray-600">API:</span>{" "}
-              <span className="font-mono">{w.api}</span>
+              <span className="font-mono">{well.api}</span>
             </p>
 
-            {w.wellhead_coords && (
+            {well.wellhead_coords && (
               <p className="text-sm text-gray-700">
                 <span className="text-gray-600">Well Head GPS:</span>{" "}
                 <a
                   className="text-blue-600 underline break-all"
-                  href={`https://maps.google.com/?q=${encodeURIComponent(w.wellhead_coords)}`}
+                  href={`https://maps.google.com/?q=${encodeURIComponent(
+                    well.wellhead_coords
+                  )}`}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  {w.wellhead_coords}
+                  {well.wellhead_coords}
                 </a>
               </p>
             )}
@@ -217,7 +256,7 @@ export default function WellDetailPage({ params }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {canEditWells && (
+          {canEdit && (
             <Link
               href={editHref}
               className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
@@ -236,8 +275,12 @@ export default function WellDetailPage({ params }) {
       </div>
 
       <WellLocationMap
-        coords={w.wellhead_coords}
-        title={w.lease_well_name ? `${w.lease_well_name} Location` : "Well Location"}
+        coords={well.wellhead_coords}
+        title={
+          well.lease_well_name
+            ? `${well.lease_well_name} Location`
+            : "Well Location"
+        }
       />
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
@@ -248,22 +291,22 @@ export default function WellDetailPage({ params }) {
         <div className="p-6 grid md:grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-gray-600">Company</div>
-            <div className="font-medium">{w.company_name ?? "—"}</div>
+            <div className="font-medium">{well.company_name ?? "—"}</div>
           </div>
 
           <div>
             <div className="text-sm text-gray-600">Phone</div>
-            <div className="font-medium">{w.company_phone ?? "—"}</div>
+            <div className="font-medium">{well.company_phone ?? "—"}</div>
           </div>
 
           <div>
             <div className="text-sm text-gray-600">Email</div>
-            <div className="font-medium">{w.company_email ?? "—"}</div>
+            <div className="font-medium">{well.company_email ?? "—"}</div>
           </div>
 
           <div className="md:col-span-2">
             <div className="text-sm text-gray-600">Address</div>
-            <div className="font-medium">{w.company_address ?? "—"}</div>
+            <div className="font-medium">{well.company_address ?? "—"}</div>
           </div>
         </div>
       </div>
@@ -276,17 +319,19 @@ export default function WellDetailPage({ params }) {
         <div className="p-6 grid md:grid-cols-3 gap-4">
           <div>
             <div className="text-sm text-gray-600">Name</div>
-            <div className="font-medium">{w.company_man_name ?? "—"}</div>
+            <div className="font-medium">{well.company_man_name ?? "—"}</div>
           </div>
 
           <div>
             <div className="text-sm text-gray-600">Phone</div>
-            <div className="font-medium">{w.company_man_phone ?? "—"}</div>
+            <div className="font-medium">{well.company_man_phone ?? "—"}</div>
           </div>
 
           <div>
             <div className="text-sm text-gray-600">Email</div>
-            <div className="font-medium break-all">{w.company_man_email ?? "—"}</div>
+            <div className="font-medium break-all">
+              {well.company_man_email ?? "—"}
+            </div>
           </div>
         </div>
       </div>
@@ -321,12 +366,16 @@ export default function WellDetailPage({ params }) {
         <div className="p-6 grid md:grid-cols-2 gap-6">
           <div>
             <div className="text-sm text-gray-600">Previous Anchor Work</div>
-            <div className="font-medium whitespace-pre-wrap">{w.previous_anchor_work ?? "—"}</div>
+            <div className="font-medium whitespace-pre-wrap">
+              {well.previous_anchor_work ?? "—"}
+            </div>
           </div>
 
           <div>
             <div className="text-sm text-gray-600">Directions & Other Notes</div>
-            <div className="font-medium whitespace-pre-wrap">{w.directions_other_notes ?? "—"}</div>
+            <div className="font-medium whitespace-pre-wrap">
+              {well.directions_other_notes ?? "—"}
+            </div>
           </div>
         </div>
       </div>
