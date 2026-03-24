@@ -18,7 +18,7 @@ export default function Header() {
   return (
     <header className="border-b bg-white">
       <div className="container flex items-center justify-between h-14">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/dashboard" className="flex items-center gap-2">
           <div className="rounded-full bg-[#2f4f4f] text-white w-8 h-8 grid place-items-center text-sm font-bold font-norwester">
             SA
           </div>
