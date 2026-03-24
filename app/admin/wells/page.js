@@ -129,10 +129,17 @@ export default function AdminWellsPage() {
   const [sortKey, setSortKey] = useState("lease_well_name");
   const [sortDir, setSortDir] = useState("asc");
 
-  const canViewAllWells = hasPermission(session, "can_view_all_wells");
-  const canExportCsv = hasPermission(session, "can_export_csv");
-  const canEditWells = hasPermission(session, "can_edit_wells");
-  const canBulkEditWells = hasPermission(session, "can_bulk_edit_wells");
+  const sessionReady = status === "authenticated" && !!session;
+  const canViewAllWells =
+    sessionReady && hasPermission(session, "can_view_all_wells");
+  const canExportCsv =
+    sessionReady && hasPermission(session, "can_export_csv");
+  const canEditWells =
+    sessionReady && hasPermission(session, "can_edit_wells");
+  const canBulkEditWells =
+    sessionReady && hasPermission(session, "can_bulk_edit_wells");
+
+  const canSee = canViewAllWells;
 
   function SortableTh({ label, column }) {
     const active = sortKey === column;
@@ -168,7 +175,7 @@ export default function AdminWellsPage() {
         return;
       }
 
-      if (!canViewAllWells) {
+      if (!canSee) {
         if (mounted) {
           setWells([]);
           setLoading(false);
@@ -209,7 +216,7 @@ export default function AdminWellsPage() {
     return () => {
       mounted = false;
     };
-  }, [status, canViewAllWells]);
+  }, [status, canSee]);
 
   const companyOptions = useMemo(() => {
     return [...new Set((wells || []).map((w) => (w.company_name || "").trim()).filter(Boolean))].sort();
@@ -262,11 +269,25 @@ export default function AdminWellsPage() {
       });
     }
 
-    if (companyFilter) list = list.filter((w) => (w.company_name || "") === companyFilter);
-    if (companyManFilter) list = list.filter((w) => (w.company_man_name || "") === companyManFilter);
-    if (countyFilter) list = list.filter((w) => (w.county || "") === countyFilter);
-    if (stateFilter) list = list.filter((w) => (w.state || "") === stateFilter);
-    if (statusFilter) list = list.filter((w) => w._status === statusFilter);
+    if (companyFilter) {
+      list = list.filter((w) => (w.company_name || "") === companyFilter);
+    }
+
+    if (companyManFilter) {
+      list = list.filter((w) => (w.company_man_name || "") === companyManFilter);
+    }
+
+    if (countyFilter) {
+      list = list.filter((w) => (w.county || "") === countyFilter);
+    }
+
+    if (stateFilter) {
+      list = list.filter((w) => (w.state || "") === stateFilter);
+    }
+
+    if (statusFilter) {
+      list = list.filter((w) => w._status === statusFilter);
+    }
 
     if (lastTestFrom || lastTestTo) {
       list = list.filter((w) =>
@@ -397,12 +418,13 @@ export default function AdminWellsPage() {
     if (type === "expiring90") {
       setStatusFilter("expiring");
       setStatusWindow("90");
+      return;
     }
   }
 
   if (status === "loading") return <div className="container py-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
-  if (!canViewAllWells) return <div className="container py-8">Not authorized.</div>;
+  if (!canSee) return <div className="container py-8">Not authorized.</div>;
 
   return (
     <div className="container py-8 space-y-6">
@@ -419,15 +441,6 @@ export default function AdminWellsPage() {
             </a>
           )}
 
-          {canBulkEditWells && (
-            <Link
-              href="/admin/wells/bulk-edit"
-              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-            >
-              Bulk Edit
-            </Link>
-          )}
-
           {canEditWells && (
             <Link
               href="/admin/wells/new"
@@ -435,6 +448,16 @@ export default function AdminWellsPage() {
             >
               New Well
             </Link>
+          )}
+
+          {canBulkEditWells && (
+            <button
+              type="button"
+              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+              onClick={() => alert("Bulk edit screen is not wired up yet.")}
+            >
+              Bulk Edit
+            </button>
           )}
         </div>
       </div>
@@ -449,16 +472,31 @@ export default function AdminWellsPage() {
         <div className="font-semibold">Quick Reports</div>
 
         <div className="flex gap-2 flex-wrap">
-          <button onClick={clearFilters} className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm">
+          <button
+            onClick={() => clearFilters()}
+            className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm"
+          >
             All Wells
           </button>
-          <button onClick={() => applyPreset("expired")} className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm">
+
+          <button
+            onClick={() => applyPreset("expired")}
+            className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm"
+          >
             Expired
           </button>
-          <button onClick={() => applyPreset("expiring30")} className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm">
+
+          <button
+            onClick={() => applyPreset("expiring30")}
+            className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm"
+          >
             Expiring ≤30d
           </button>
-          <button onClick={() => applyPreset("expiring90")} className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm">
+
+          <button
+            onClick={() => applyPreset("expiring90")}
+            className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm"
+          >
             Expiring ≤90d
           </button>
         </div>
@@ -475,21 +513,33 @@ export default function AdminWellsPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
 
-          <select className="w-full rounded-xl border px-3 py-2" value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}>
+          <select
+            className="w-full rounded-xl border px-3 py-2"
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+          >
             <option value="">All Companies</option>
             {companyOptions.map((v) => (
               <option key={v} value={v}>{v}</option>
             ))}
           </select>
 
-          <select className="w-full rounded-xl border px-3 py-2" value={companyManFilter} onChange={(e) => setCompanyManFilter(e.target.value)}>
+          <select
+            className="w-full rounded-xl border px-3 py-2"
+            value={companyManFilter}
+            onChange={(e) => setCompanyManFilter(e.target.value)}
+          >
             <option value="">All Company Men</option>
             {companyManOptions.map((v) => (
               <option key={v} value={v}>{v}</option>
             ))}
           </select>
 
-          <select className="w-full rounded-xl border px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select
+            className="w-full rounded-xl border px-3 py-2"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
             <option value="">All Statuses</option>
             <option value="good">Good</option>
             <option value="expiring">Expiring Soon</option>
@@ -497,21 +547,33 @@ export default function AdminWellsPage() {
             <option value="unknown">Unknown</option>
           </select>
 
-          <select className="w-full rounded-xl border px-3 py-2" value={countyFilter} onChange={(e) => setCountyFilter(e.target.value)}>
+          <select
+            className="w-full rounded-xl border px-3 py-2"
+            value={countyFilter}
+            onChange={(e) => setCountyFilter(e.target.value)}
+          >
             <option value="">All Counties</option>
             {countyOptions.map((v) => (
               <option key={v} value={v}>{v}</option>
             ))}
           </select>
 
-          <select className="w-full rounded-xl border px-3 py-2" value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
+          <select
+            className="w-full rounded-xl border px-3 py-2"
+            value={stateFilter}
+            onChange={(e) => setStateFilter(e.target.value)}
+          >
             <option value="">All States</option>
             {stateOptions.map((v) => (
               <option key={v} value={v}>{v}</option>
             ))}
           </select>
 
-          <select className="w-full rounded-xl border px-3 py-2" value={statusWindow} onChange={(e) => setStatusWindow(e.target.value)}>
+          <select
+            className="w-full rounded-xl border px-3 py-2"
+            value={statusWindow}
+            onChange={(e) => setStatusWindow(e.target.value)}
+          >
             <option value="30">Expiring window: 30 days</option>
             <option value="60">Expiring window: 60 days</option>
             <option value="90">Expiring window: 90 days</option>
@@ -523,22 +585,45 @@ export default function AdminWellsPage() {
           <div className="space-y-2">
             <div className="text-sm font-medium">Last Test Date Range</div>
             <div className="grid grid-cols-2 gap-3">
-              <input type="date" className="w-full rounded-xl border px-3 py-2" value={lastTestFrom} onChange={(e) => setLastTestFrom(e.target.value)} />
-              <input type="date" className="w-full rounded-xl border px-3 py-2" value={lastTestTo} onChange={(e) => setLastTestTo(e.target.value)} />
+              <input
+                type="date"
+                className="w-full rounded-xl border px-3 py-2"
+                value={lastTestFrom}
+                onChange={(e) => setLastTestFrom(e.target.value)}
+              />
+              <input
+                type="date"
+                className="w-full rounded-xl border px-3 py-2"
+                value={lastTestTo}
+                onChange={(e) => setLastTestTo(e.target.value)}
+              />
             </div>
           </div>
 
           <div className="space-y-2">
             <div className="text-sm font-medium">Expiration Date Range</div>
             <div className="grid grid-cols-2 gap-3">
-              <input type="date" className="w-full rounded-xl border px-3 py-2" value={expFrom} onChange={(e) => setExpFrom(e.target.value)} />
-              <input type="date" className="w-full rounded-xl border px-3 py-2" value={expTo} onChange={(e) => setExpTo(e.target.value)} />
+              <input
+                type="date"
+                className="w-full rounded-xl border px-3 py-2"
+                value={expFrom}
+                onChange={(e) => setExpFrom(e.target.value)}
+              />
+              <input
+                type="date"
+                className="w-full rounded-xl border px-3 py-2"
+                value={expTo}
+                onChange={(e) => setExpTo(e.target.value)}
+              />
             </div>
           </div>
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <button onClick={clearFilters} className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm">
+          <button
+            onClick={clearFilters}
+            className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm"
+          >
             Clear Filters
           </button>
 
@@ -607,7 +692,10 @@ export default function AdminWellsPage() {
                         View
                       </Link>
                       {canEditWells && (
-                        <Link href={`/admin/wells/${encodeURIComponent(w.api)}/edit`} className="underline">
+                        <Link
+                          href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
+                          className="underline"
+                        >
                           Edit
                         </Link>
                       )}
