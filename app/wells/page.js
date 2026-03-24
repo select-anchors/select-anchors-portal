@@ -123,13 +123,18 @@ export default function CustomerWellsPage() {
   const [expFrom, setExpFrom] = useState("");
   const [expTo, setExpTo] = useState("");
 
-  const canExportCsv = hasPermission(session, "can_export_csv");
-  const canEditWells = hasPermission(session, "can_edit_wells");
+  const sessionReady = status === "authenticated" && !!session;
+  const canExportCsv = sessionReady && hasPermission(session, "can_export_csv");
+  const canEditWells = sessionReady && hasPermission(session, "can_edit_wells");
+  const canEditCompanyContacts =
+    sessionReady && hasPermission(session, "can_edit_company_contacts");
+
+  const canEdit = canEditWells || canEditCompanyContacts;
 
   useEffect(() => {
     let mounted = true;
 
-    (async () => {
+    async function run() {
       try {
         const res = await fetch("/api/wells", { cache: "no-store" });
         const json = await res.json();
@@ -147,12 +152,15 @@ export default function CustomerWellsPage() {
       } finally {
         if (mounted) setLoading(false);
       }
-    })();
+    }
+
+    if (status === "authenticated") run();
+    if (status !== "loading" && status !== "authenticated") setLoading(false);
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [status]);
 
   const companyManOptions = useMemo(() => {
     return [...new Set((wells || []).map((w) => (w.company_man_name || "").trim()).filter(Boolean))].sort();
@@ -307,6 +315,7 @@ export default function CustomerWellsPage() {
     if (type === "expiring90") {
       setStatusFilter("expiring");
       setStatusWindow("90");
+      return;
     }
   }
 
@@ -318,14 +327,25 @@ export default function CustomerWellsPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-bold">Wells</h1>
 
-        {canExportCsv && (
-          <a
-            href={exportHref}
-            className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-          >
-            Export CSV
-          </a>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          {canExportCsv && (
+            <a
+              href={exportHref}
+              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+            >
+              Export CSV
+            </a>
+          )}
+
+          {canEdit && (
+            <Link
+              href="/wells?edit=1"
+              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+            >
+              Edit Contacts / Notes
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="bg-white border rounded-2xl p-4 space-y-4">
@@ -333,7 +353,7 @@ export default function CustomerWellsPage() {
 
         <div className="flex gap-2 flex-wrap">
           <button
-            onClick={clearFilters}
+            onClick={() => clearFilters()}
             className="px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm"
           >
             All Wells
@@ -539,8 +559,11 @@ export default function CustomerWellsPage() {
                       <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
                         View
                       </Link>
-                      {canEditWells && (
-                        <Link href={`/admin/wells/${encodeURIComponent(w.api)}/edit`} className="underline">
+                      {canEdit && (
+                        <Link
+                          href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
+                          className="underline"
+                        >
                           Edit
                         </Link>
                       )}
