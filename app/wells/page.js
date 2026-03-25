@@ -91,9 +91,7 @@ function matchesDateRange(value, from, to) {
   if (!value && !from && !to) return true;
   if (!value) return false;
 
-  const raw =
-    typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-
+  const raw = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
   if (!raw) {
     const dt = new Date(value);
     if (Number.isNaN(dt.getTime())) return false;
@@ -124,16 +122,7 @@ export default function CustomerWellsPage() {
   const [lastTestTo, setLastTestTo] = useState("");
   const [expFrom, setExpFrom] = useState("");
   const [expTo, setExpTo] = useState("");
-
-  const [selectedApis, setSelectedApis] = useState(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const saved = localStorage.getItem("selected_wells");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [selectedApis, setSelectedApis] = useState([]);
 
   const sessionReady = status === "authenticated" && !!session;
   const canExportCsv = sessionReady && hasPermission(session, "can_export_csv");
@@ -142,14 +131,7 @@ export default function CustomerWellsPage() {
     sessionReady && hasPermission(session, "can_edit_company_contacts");
 
   const canEdit = canEditWells || canEditCompanyContacts;
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("selected_wells", JSON.stringify(selectedApis));
-    } catch {
-      // ignore localStorage failures
-    }
-  }, [selectedApis]);
+  const selectedSet = useMemo(() => new Set(selectedApis), [selectedApis]);
 
   useEffect(() => {
     let mounted = true;
@@ -181,12 +163,6 @@ export default function CustomerWellsPage() {
       mounted = false;
     };
   }, [status]);
-
-  function toggleSelection(api) {
-    setSelectedApis((prev) =>
-      prev.includes(api) ? prev.filter((a) => a !== api) : [...prev, api]
-    );
-  }
 
   const companyManOptions = useMemo(() => {
     return [...new Set((wells || []).map((w) => (w.company_man_name || "").trim()).filter(Boolean))].sort();
@@ -282,23 +258,6 @@ export default function CustomerWellsPage() {
     expTo,
   ]);
 
-  const allVisibleSelected = useMemo(() => {
-    if (filtered.length === 0) return false;
-    return filtered.every((w) => selectedApis.includes(w.api));
-  }, [filtered, selectedApis]);
-
-  function toggleSelectAllVisible() {
-    const visibleApis = filtered.map((w) => w.api).filter(Boolean);
-
-    if (visibleApis.length === 0) return;
-
-    if (allVisibleSelected) {
-      setSelectedApis((prev) => prev.filter((api) => !visibleApis.includes(api)));
-    } else {
-      setSelectedApis((prev) => [...new Set([...prev, ...visibleApis])]);
-    }
-  }
-
   const exportHref = useMemo(() => {
     const params = new URLSearchParams();
 
@@ -329,7 +288,7 @@ export default function CustomerWellsPage() {
   ]);
 
   const bulkRequestHref = useMemo(() => {
-    if (!selectedApis.length) return "#";
+    if (selectedApis.length === 0) return "/jobs/new";
     return `/jobs/new?apis=${encodeURIComponent(selectedApis.join(","))}`;
   }, [selectedApis]);
 
@@ -367,6 +326,38 @@ export default function CustomerWellsPage() {
     }
   }
 
+  function toggleSelected(api) {
+    if (!api) return;
+
+    setSelectedApis((prev) => {
+      if (prev.includes(api)) return prev.filter((x) => x !== api);
+      return [...prev, api];
+    });
+  }
+
+  function toggleSelectAllFiltered() {
+    const filteredApis = filtered.map((w) => w.api).filter(Boolean);
+    const allSelected =
+      filteredApis.length > 0 && filteredApis.every((api) => selectedSet.has(api));
+
+    if (allSelected) {
+      setSelectedApis((prev) => prev.filter((api) => !filteredApis.includes(api)));
+    } else {
+      setSelectedApis((prev) => {
+        const set = new Set(prev);
+        for (const api of filteredApis) set.add(api);
+        return Array.from(set);
+      });
+    }
+  }
+
+  function clearSelected() {
+    setSelectedApis([]);
+  }
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((w) => selectedSet.has(w.api));
+
   if (status === "loading") return <div className="container py-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
 
@@ -375,8 +366,25 @@ export default function CustomerWellsPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-bold">Wells</h1>
 
-        <div className="flex gap-2 flex-wrap items-center">
-          
+        <div className="flex gap-2 flex-wrap">
+          {selectedApis.length > 0 && (
+            <>
+              <Link
+                href={bulkRequestHref}
+                className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+              >
+                Bulk Request Test ({selectedApis.length})
+              </Link>
+
+              <button
+                type="button"
+                onClick={clearSelected}
+                className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+              >
+                Clear Selection
+              </button>
+            </>
+          )}
 
           {canExportCsv && (
             <a
@@ -557,50 +565,26 @@ export default function CustomerWellsPage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between flex-wrap gap-3 text-sm text-gray-600">
+      <div className="text-sm text-gray-600 flex items-center gap-3 flex-wrap">
+        <span>
+          Showing <span className="font-semibold">{filtered.length}</span> of{" "}
+          <span className="font-semibold">{wells.length}</span> wells
+        </span>
 
-  <div>
-    Showing <span className="font-semibold">{filtered.length}</span> of{" "}
-    <span className="font-semibold">{wells.length}</span> wells
-
-    {selectedApis.length > 0 && (
-      <>
-        {" "}• <span className="font-semibold">{selectedApis.length}</span> selected
-      </>
-    )}
-  </div>
-
-  {selectedApis.length > 0 && (
-    <div className="flex gap-2">
-      <Link
-        href={bulkRequestHref}
-        className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
-      >
-        Bulk Request Test ({selectedApis.length})
-      </Link>
-
-      <button
-        type="button"
-        onClick={() => setSelectedApis([])}
-        className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-      >
-        Clear Selection
-      </button>
-    </div>
-  )}
-
-</div>
+        {selectedApis.length > 0 && (
+          <span>• <span className="font-semibold">{selectedApis.length}</span> selected</span>
+        )}
+      </div>
 
       <div className="bg-white border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
             <tr>
-              <th className="text-left p-3">
+              <th className="text-left p-3 w-[44px]">
                 <input
                   type="checkbox"
-                  checked={allVisibleSelected}
-                  onChange={toggleSelectAllVisible}
-                  aria-label="Select all visible wells"
+                  checked={allFilteredSelected}
+                  onChange={toggleSelectAllFiltered}
                 />
               </th>
               <th className="text-left p-3">Lease/Well</th>
@@ -630,9 +614,8 @@ export default function CustomerWellsPage() {
                   <td className="p-3">
                     <input
                       type="checkbox"
-                      checked={selectedApis.includes(w.api)}
-                      onChange={() => toggleSelection(w.api)}
-                      aria-label={`Select ${w.lease_well_name || w.api}`}
+                      checked={selectedSet.has(w.api)}
+                      onChange={() => toggleSelected(w.api)}
                     />
                   </td>
                   <td className="p-3">{w.lease_well_name || "—"}</td>
@@ -650,7 +633,7 @@ export default function CustomerWellsPage() {
                     />
                   </td>
                   <td className="p-3">
-                    <div className="flex gap-3 flex-wrap">
+                    <div className="flex flex-col gap-1">
                       <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
                         View
                       </Link>
