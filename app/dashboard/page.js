@@ -134,14 +134,12 @@ export default function DashboardPage() {
 
   const [visibleApis, setVisibleApis] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-
   const [selectedApis, setSelectedApis] = useState([]);
 
   const canViewAllWells = !!session && hasPermission(session, "can_view_all_wells");
   const canManageUsers = !!session && hasPermission(session, "can_manage_users");
   const canApproveChanges = !!session && hasPermission(session, "can_approve_changes");
   const canManageItemsPricing = !!session && hasPermission(session, "can_manage_items_pricing");
-  const canUseDispatch = !!session && hasPermission(session, "can_use_dispatch");
 
   const wellsPageHref = canViewAllWells ? "/admin/wells" : "/wells";
 
@@ -257,11 +255,6 @@ export default function DashboardPage() {
 
   const selectedSet = useMemo(() => new Set(selectedApis), [selectedApis]);
 
-  const selectedWells = useMemo(() => {
-    const byApi = new Map((wells || []).map((w) => [w.api, w]));
-    return selectedApis.map((api) => byApi.get(api)).filter(Boolean);
-  }, [selectedApis, wells]);
-
   const bulkRequestHref = useMemo(() => {
     if (selectedApis.length === 0) return "/jobs/new";
     return `/jobs/new?apis=${encodeURIComponent(selectedApis.join(","))}`;
@@ -274,7 +267,7 @@ export default function DashboardPage() {
     }
     if (showExpiring) return `No wells expiring within ${EXPIRING_WINDOW_DAYS} days.`;
     return "No expired wells.";
-  }, [showExpiring, showExpired]);
+  }, [showExpiring, showExpired, EXPIRING_WINDOW_DAYS]);
 
   const emptyListLabel = useMemo(() => {
     const q = searchQuery.trim();
@@ -294,9 +287,7 @@ export default function DashboardPage() {
     if (!api) return;
 
     setSelectedApis((prev) => {
-      if (prev.includes(api)) {
-        return prev.filter((x) => x !== api);
-      }
+      if (prev.includes(api)) return prev.filter((x) => x !== api);
       return [...prev, api];
     });
   }
@@ -362,36 +353,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {selectedApis.length > 0 && (
-        <div className="bg-[#f8faf8] border border-[#d7e5d7] rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <div className="font-semibold">
-              {selectedApis.length} well{selectedApis.length === 1 ? "" : "s"} selected
-            </div>
-            <div className="text-xs text-gray-600">
-              Your selections stay selected while you filter, search, and move around the map.
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={bulkRequestHref}
-              className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
-            >
-              Request a Test / Anchor Installation
-            </Link>
-
-            <button
-              type="button"
-              onClick={clearSelected}
-              className="px-4 py-2 rounded-xl border text-sm hover:bg-gray-50"
-            >
-              Clear Selection
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Wells"
@@ -456,6 +417,7 @@ export default function DashboardPage() {
             <div className="font-semibold">Wells in View</div>
             <div className="text-xs text-gray-500">
               Showing {listWells.length} well{listWells.length === 1 ? "" : "s"} from the current map view.
+              {selectedApis.length > 0 ? ` • ${selectedApis.length} selected` : ""}
             </div>
           </div>
 
@@ -478,6 +440,38 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
+
+        {selectedApis.length > 0 && (
+          <div className="px-4 pt-4">
+            <div className="bg-[#f8faf8] border border-[#d7e5d7] rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <div className="font-semibold">
+                  {selectedApis.length} well{selectedApis.length === 1 ? "" : "s"} selected
+                </div>
+                <div className="text-xs text-gray-600">
+                  Your selections stay selected while you filter, search, and move around the map.
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={bulkRequestHref}
+                  className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
+                >
+                  Request a Test / Anchor Installation
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={clearSelected}
+                  className="px-4 py-2 rounded-xl border text-sm hover:bg-gray-50"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="p-4">
           {loadingWells ? (
@@ -578,58 +572,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      {selectedWells.length > 0 && (
-        <div className="bg-white border rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <div className="font-semibold">Selected Wells</div>
-              <div className="text-xs text-gray-500">
-                {selectedWells.length} selected for bulk request
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Link
-                href={bulkRequestHref}
-                className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
-              >
-                Request a Test / Anchor Installation
-              </Link>
-
-              <button
-                type="button"
-                onClick={clearSelected}
-                className="px-4 py-2 rounded-xl border text-sm hover:bg-gray-50"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-2">
-            {selectedWells.map((w) => (
-              <div
-                key={`selected-${w.api}`}
-                className="rounded-xl border px-3 py-2 text-sm flex items-center justify-between gap-3"
-              >
-                <div>
-                  <div className="font-medium">{w.lease_well_name || "—"}</div>
-                  <div className="text-xs text-gray-500 font-mono">{w.api || "—"}</div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => toggleSelected(w.api)}
-                  className="text-xs underline text-gray-600"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {(canManageUsers || canApproveChanges || canManageItemsPricing) && (
         <div className="grid md:grid-cols-3 gap-6">
