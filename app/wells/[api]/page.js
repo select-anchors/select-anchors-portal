@@ -211,7 +211,9 @@ export default function WellDetailPage({ params }) {
   const computedStatus = statusFromExpiration(expires, EXPIRING_WINDOW_DAYS);
   const daysLeft = daysUntil(expires);
 
-  const editHref = `/admin/wells/${encodeURIComponent(w.api)}/edit`;
+  const editHref = canViewAllWells
+  ? `/admin/wells/${encodeURIComponent(w.api)}/edit`
+  : `/wells/${encodeURIComponent(w.api)}/edit`;
 
   return (
     <div className="container py-10 space-y-6">
