@@ -18,6 +18,7 @@ function noStoreJson(data, init = {}) {
 
 export async function GET() {
   const session = await getServerSession(authOptions);
+
   if (!session?.user?.id) {
     return noStoreJson({ error: "Unauthorized" }, { status: 401 });
   }
@@ -33,6 +34,8 @@ export async function GET() {
         w.lease_well_name,
         w.api,
         w.wellhead_coords,
+        w.county,
+        w.state,
         COALESCE(w.company_name, c.name, '') AS company_name,
         w.company_man_name,
 
