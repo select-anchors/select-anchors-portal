@@ -135,43 +135,15 @@ export default function DashboardPage() {
   const [visibleApis, setVisibleApis] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [selectedApis, setSelectedApis] = useState(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const saved = localStorage.getItem("selected_wells");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [selectedApis, setSelectedApis] = useState([]);
 
   const canViewAllWells = !!session && hasPermission(session, "can_view_all_wells");
   const canManageUsers = !!session && hasPermission(session, "can_manage_users");
   const canApproveChanges = !!session && hasPermission(session, "can_approve_changes");
-  const canManageItemsPricing =
-    !!session && hasPermission(session, "can_manage_items_pricing");
+  const canManageItemsPricing = !!session && hasPermission(session, "can_manage_items_pricing");
   const canUseDispatch = !!session && hasPermission(session, "can_use_dispatch");
 
   const wellsPageHref = canViewAllWells ? "/admin/wells" : "/wells";
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem("selected_wells", JSON.stringify(selectedApis));
-  }, [selectedApis]);
-
-  function toggleSelection(api) {
-    if (!api) return;
-
-    setSelectedApis((prev) =>
-      prev.includes(api)
-        ? prev.filter((a) => a !== api)
-        : [...prev, api]
-    );
-  }
-
-  function clearSelection() {
-    setSelectedApis([]);
-  }
 
   useEffect(() => {
     let isMounted = true;
@@ -283,6 +255,18 @@ export default function DashboardPage() {
     return searchedWells.filter((w) => visibleSet.has(w.api));
   }, [searchedWells, visibleApis]);
 
+  const selectedSet = useMemo(() => new Set(selectedApis), [selectedApis]);
+
+  const selectedWells = useMemo(() => {
+    const byApi = new Map((wells || []).map((w) => [w.api, w]));
+    return selectedApis.map((api) => byApi.get(api)).filter(Boolean);
+  }, [selectedApis, wells]);
+
+  const bulkRequestHref = useMemo(() => {
+    if (selectedApis.length === 0) return "/jobs/new";
+    return `/jobs/new?apis=${encodeURIComponent(selectedApis.join(","))}`;
+  }, [selectedApis]);
+
   const emptyFilterLabel = useMemo(() => {
     if (!showExpiring && !showExpired) return "No wells found.";
     if (showExpiring && showExpired) {
@@ -306,10 +290,30 @@ export default function DashboardPage() {
     return emptyFilterLabel;
   }, [searchQuery, searchedWells, listWells, emptyFilterLabel]);
 
-  const bulkRequestHref = useMemo(() => {
-    if (!selectedApis.length) return "/jobs/new";
-    return `/jobs/new?apis=${encodeURIComponent(selectedApis.join(","))}`;
-  }, [selectedApis]);
+  function toggleSelected(api) {
+    if (!api) return;
+
+    setSelectedApis((prev) => {
+      if (prev.includes(api)) {
+        return prev.filter((x) => x !== api);
+      }
+      return [...prev, api];
+    });
+  }
+
+  function selectAllCurrentlyVisible() {
+    const apisToAdd = listWells.map((w) => w.api).filter(Boolean);
+
+    setSelectedApis((prev) => {
+      const set = new Set(prev);
+      for (const api of apisToAdd) set.add(api);
+      return Array.from(set);
+    });
+  }
+
+  function clearSelected() {
+    setSelectedApis([]);
+  }
 
   if (status === "loading") {
     return <div className="container py-10">Loading...</div>;
@@ -326,54 +330,67 @@ export default function DashboardPage() {
           Welcome, {session.user?.name || "User"}!
         </h1>
 
-        <div className="flex gap-3 text-sm bg-white border rounded-2xl px-4 py-2">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showExpiring}
-              onChange={(e) => setShowExpiring(e.target.checked)}
-            />
-            <span>Expiring Soon (≤{EXPIRING_WINDOW_DAYS}d)</span>
-          </label>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href={selectedApis.length > 0 ? bulkRequestHref : "/jobs/new"}
+            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90 text-sm"
+          >
+            {selectedApis.length > 0
+              ? `Bulk Request (${selectedApis.length})`
+              : "Request a Test / Anchor Installation"}
+          </Link>
 
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showExpired}
-              onChange={(e) => setShowExpired(e.target.checked)}
-            />
-            <span>Expired</span>
-          </label>
+          <div className="flex gap-3 text-sm bg-white border rounded-2xl px-4 py-2">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showExpiring}
+                onChange={(e) => setShowExpiring(e.target.checked)}
+              />
+              <span>Expiring Soon (≤{EXPIRING_WINDOW_DAYS}d)</span>
+            </label>
+
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showExpired}
+                onChange={(e) => setShowExpired(e.target.checked)}
+              />
+              <span>Expired</span>
+            </label>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href="/jobs/new"
-          className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-        >
-          Request a Test / Anchor Installation
-        </Link>
+      {selectedApis.length > 0 && (
+        <div className="bg-[#f8faf8] border border-[#d7e5d7] rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <div className="font-semibold">
+              {selectedApis.length} well{selectedApis.length === 1 ? "" : "s"} selected
+            </div>
+            <div className="text-xs text-gray-600">
+              Your selections stay selected while you filter, search, and move around the map.
+            </div>
+          </div>
 
-        {selectedApis.length > 0 && (
-          <>
+          <div className="flex flex-wrap gap-2">
             <Link
               href={bulkRequestHref}
-              className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+              className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
             >
-              Bulk Request Test / Anchor Installation ({selectedApis.length})
+              Request a Test / Anchor Installation
             </Link>
 
             <button
               type="button"
-              onClick={clearSelection}
-              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+              onClick={clearSelected}
+              className="px-4 py-2 rounded-xl border text-sm hover:bg-gray-50"
             >
               Clear Selection
             </button>
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
@@ -426,156 +443,193 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <>
-        <WellsMap
-          wells={searchedWells}
-          expiringWindowDays={EXPIRING_WINDOW_DAYS}
-          expiringOnly={showExpiring || showExpired}
-          onVisibleWellsChange={setVisibleApis}
-        />
+      <WellsMap
+        wells={searchedWells}
+        expiringWindowDays={EXPIRING_WINDOW_DAYS}
+        expiringOnly={showExpiring || showExpired}
+        onVisibleWellsChange={setVisibleApis}
+      />
 
-        <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
-          <div className="p-4 border-b flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <div className="font-semibold">Wells in View</div>
-              <div className="text-xs text-gray-500">
-                Showing {listWells.length} well{listWells.length === 1 ? "" : "s"} from the current map view.
-                {selectedApis.length > 0 ? ` • ${selectedApis.length} selected` : ""}
-              </div>
+      <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
+        <div className="p-4 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="font-semibold">Wells in View</div>
+            <div className="text-xs text-gray-500">
+              Showing {listWells.length} well{listWells.length === 1 ? "" : "s"} from the current map view.
             </div>
+          </div>
 
-            <div className="flex gap-2 flex-wrap">
-              {selectedApis.length > 0 && (
-                <>
-                  <Link
-                    href={bulkRequestHref}
-                    className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
-                  >
-                    Bulk Request ({selectedApis.length})
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={clearSelection}
-                    className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
-                  >
-                    Clear Selection
-                  </button>
-                </>
-              )}
-
-              <Link
-                href={wellsPageHref}
+          <div className="flex flex-wrap gap-2">
+            {listWells.length > 0 && (
+              <button
+                type="button"
+                onClick={selectAllCurrentlyVisible}
                 className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
               >
-                Open Wells Page →
+                Select All in View
+              </button>
+            )}
+
+            <Link
+              href={wellsPageHref}
+              className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
+            >
+              Open Wells Page →
+            </Link>
+          </div>
+        </div>
+
+        <div className="p-4">
+          {loadingWells ? (
+            <div className="text-sm text-gray-600">Loading wells…</div>
+          ) : listWells.length === 0 ? (
+            <div className="text-sm text-gray-600">{emptyListLabel}</div>
+          ) : (
+            <div className="space-y-3">
+              {listWells.map((w) => {
+                const isSelected = selectedSet.has(w.api);
+
+                return (
+                  <div
+                    key={w.api || `${w.lease_well_name}-x`}
+                    className={`border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 ${
+                      isSelected ? "ring-2 ring-[#2f4f4f]/20 border-[#2f4f4f]" : ""
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4"
+                        checked={isSelected}
+                        onChange={() => toggleSelected(w.api)}
+                      />
+
+                      <div className="space-y-1">
+                        <Link
+                          href={`/wells/${encodeURIComponent(w.api || "")}`}
+                          className="font-semibold underline"
+                        >
+                          {w.lease_well_name || "—"}
+                        </Link>
+
+                        <div className="text-xs text-gray-600">
+                          API: <span className="font-mono">{w.api || "—"}</span>
+                        </div>
+
+                        <div className="text-xs text-gray-600">
+                          Company: {w.company_name || "—"}
+                        </div>
+
+                        <div className="text-xs text-gray-600 flex flex-wrap items-center gap-2">
+                          <span>
+                            Last test: {w.last_test_date || "—"} • Expires: {w._exp_for_display || "—"}
+                          </span>
+                          <ExpirationPill
+                            expirationDate={w._exp_for_display}
+                            windowDays={EXPIRING_WINDOW_DAYS}
+                          />
+                        </div>
+
+                        <div className="mt-1">
+                          <StatusPill status={w._status} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleSelected(w.api)}
+                        className={`px-3 py-2 rounded-xl border text-sm ${
+                          isSelected ? "bg-[#2f4f4f] text-white border-[#2f4f4f]" : "hover:bg-gray-50"
+                        }`}
+                      >
+                        {isSelected ? "Selected" : "Select"}
+                      </button>
+
+                      <Link
+                        href={`/wells/${encodeURIComponent(w.api || "")}`}
+                        className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
+                      >
+                        View
+                      </Link>
+
+                      <Link
+                        href={`/jobs/new?api=${encodeURIComponent(
+                          w.api || ""
+                        )}&lease_well_name=${encodeURIComponent(
+                          w.lease_well_name || ""
+                        )}&company_name=${encodeURIComponent(
+                          w.company_name || ""
+                        )}&state=${encodeURIComponent(
+                          w.state || ""
+                        )}&county=${encodeURIComponent(
+                          w.county || ""
+                        )}`}
+                        className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
+                      >
+                        Request Test
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {selectedWells.length > 0 && (
+        <div className="bg-white border rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <div className="font-semibold">Selected Wells</div>
+              <div className="text-xs text-gray-500">
+                {selectedWells.length} selected for bulk request
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Link
+                href={bulkRequestHref}
+                className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
+              >
+                Request a Test / Anchor Installation
               </Link>
+
+              <button
+                type="button"
+                onClick={clearSelected}
+                className="px-4 py-2 rounded-xl border text-sm hover:bg-gray-50"
+              >
+                Clear
+              </button>
             </div>
           </div>
 
-          <div className="p-4">
-            {loadingWells ? (
-              <div className="text-sm text-gray-600">Loading wells…</div>
-            ) : listWells.length === 0 ? (
-              <div className="text-sm text-gray-600">{emptyListLabel}</div>
-            ) : (
-              <div className="space-y-3">
-                {listWells.map((w) => {
-                  const isSelected = selectedApis.includes(w.api);
+          <div className="grid md:grid-cols-2 gap-2">
+            {selectedWells.map((w) => (
+              <div
+                key={`selected-${w.api}`}
+                className="rounded-xl border px-3 py-2 text-sm flex items-center justify-between gap-3"
+              >
+                <div>
+                  <div className="font-medium">{w.lease_well_name || "—"}</div>
+                  <div className="text-xs text-gray-500 font-mono">{w.api || "—"}</div>
+                </div>
 
-                  return (
-                    <div
-                      key={w.api || `${w.lease_well_name}-x`}
-                      className={`border rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 ${
-                        isSelected ? "ring-2 ring-[#2f4f4f]/20 border-[#2f4f4f]" : ""
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          className="mt-1 h-4 w-4"
-                          checked={isSelected}
-                          onChange={() => toggleSelection(w.api)}
-                        />
-
-                        <div className="space-y-1">
-                          <Link
-                            href={`/wells/${encodeURIComponent(w.api || "")}`}
-                            className="font-semibold underline"
-                          >
-                            {w.lease_well_name || "—"}
-                          </Link>
-
-                          <div className="text-xs text-gray-600">
-                            API: <span className="font-mono">{w.api || "—"}</span>
-                          </div>
-
-                          <div className="text-xs text-gray-600 flex flex-wrap items-center gap-2">
-                            <span>
-                              Last test: {w.last_test_date || "—"} • Expires: {w._exp_for_display || "—"}
-                            </span>
-                            <ExpirationPill
-                              expirationDate={w._exp_for_display}
-                              windowDays={EXPIRING_WINDOW_DAYS}
-                            />
-                          </div>
-
-                          <div className="mt-1 flex flex-wrap items-center gap-2">
-                            <StatusPill status={w._status} />
-                            {isSelected && (
-                              <span className="inline-flex items-center px-2 py-0.5 text-xs rounded-full border bg-[#2f4f4f] text-white border-[#2f4f4f]">
-                                Selected
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => toggleSelection(w.api)}
-                          className={`px-3 py-2 rounded-xl border text-sm ${
-                            isSelected
-                              ? "bg-[#2f4f4f] text-white border-[#2f4f4f]"
-                              : "hover:bg-gray-50"
-                          }`}
-                        >
-                          {isSelected ? "Selected" : "Select"}
-                        </button>
-
-                        <Link
-                          href={`/wells/${encodeURIComponent(w.api || "")}`}
-                          className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
-                        >
-                          View
-                        </Link>
-
-                        <Link
-                          href={`/jobs/new?api=${encodeURIComponent(
-                            w.api || ""
-                          )}&lease_well_name=${encodeURIComponent(
-                            w.lease_well_name || ""
-                          )}&company_name=${encodeURIComponent(
-                            w.company_name || ""
-                          )}&state=${encodeURIComponent(
-                            w.state || ""
-                          )}&county=${encodeURIComponent(
-                            w.county || ""
-                          )}`}
-                          className="px-3 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
-                        >
-                          Request Test / Install
-                        </Link>
-                      </div>
-                    </div>
-                  );
-                })}
+                <button
+                  type="button"
+                  onClick={() => toggleSelected(w.api)}
+                  className="text-xs underline text-gray-600"
+                >
+                  Remove
+                </button>
               </div>
-            )}
+            ))}
           </div>
         </div>
-      </>
+      )}
 
       {(canManageUsers || canApproveChanges || canManageItemsPricing) && (
         <div className="grid md:grid-cols-3 gap-6">
