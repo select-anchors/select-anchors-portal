@@ -278,11 +278,12 @@ export default function RequestJobPage() {
         <div>
           <label className="block text-sm font-medium">Company</label>
           <input
-            className="w-full rounded-xl border px-3 py-2"
-            value={form.company_name}
-            onChange={updateField("company_name")}
-            required
-          />
+  className="w-full rounded-xl border px-3 py-2 bg-gray-100"
+  value={form.company_name}
+  readOnly={isBulkMode}
+  onChange={updateField("company_name")}
+  required
+/>
         </div>
 
         {!isBulkMode && (
@@ -314,19 +315,21 @@ export default function RequestJobPage() {
           <div>
             <label className="block text-sm font-medium">State</label>
             <input
-              className="w-full rounded-xl border px-3 py-2"
-              value={form.state}
-              onChange={updateField("state")}
-            />
+  className="w-full rounded-xl border px-3 py-2 bg-gray-100"
+  value={form.state}
+  readOnly={isBulkMode}
+  onChange={updateField("state")}
+/>
           </div>
 
           <div>
             <label className="block text-sm font-medium">County</label>
             <input
-              className="w-full rounded-xl border px-3 py-2"
-              value={form.county}
-              onChange={updateField("county")}
-            />
+  className="w-full rounded-xl border px-3 py-2 bg-gray-100"
+  value={form.county}
+  readOnly={isBulkMode}
+  onChange={updateField("county")}
+/>
           </div>
         </div>
 
