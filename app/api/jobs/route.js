@@ -4,7 +4,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../../lib/nextauth-options";
 import { q } from "../../../lib/db";
 
-// POST /api/jobs
+function cleanText(value) {
+  const s = String(value ?? "").trim();
+  return s || null;
+}
+
 export async function POST(req) {
   const session = await getServerSession(authOptions);
 
@@ -30,8 +34,6 @@ export async function POST(req) {
   const {
     title,
     notes,
-    scheduled_date,
-    preferred_date,
     status,
     well_api,
     company_name,
@@ -40,6 +42,8 @@ export async function POST(req) {
     county,
     job_type,
     priority,
+    preferred_date,
+    scheduled_date,
     customer_deadline_date,
     requires_811,
     requires_white_flags,
@@ -47,43 +51,75 @@ export async function POST(req) {
     apis,
   } = body || {};
 
-  const bulkApis = Array.isArray(apis)
-    ? apis.map((v) => String(v || "").trim()).filter(Boolean)
+  const cleanedApis = Array.isArray(apis)
+    ? [...new Set(apis.map((x) => String(x || "").trim()).filter(Boolean))]
     : [];
 
-  const isBulk = bulkApis.length > 0;
+  const effectiveWellApi = cleanText(well_api);
+  const effectiveLeaseWellName = cleanText(lease_well_name);
+  const effectiveCompanyName = cleanText(company_name);
+  const effectiveState = cleanText(state);
+  const effectiveCounty = cleanText(county);
+  const effectiveJobType = cleanText(job_type) || "Test existing anchors";
+  const effectivePriority = cleanText(priority) || "Normal";
+  const effectiveNotes = cleanText(notes);
 
-  if (!isBulk && !well_api && !lease_well_name && !company_name) {
+  const effectiveScheduledDate =
+    cleanText(preferred_date) || cleanText(scheduled_date);
+
+  const bulkMode = cleanedApis.length > 0;
+
+  if (
+    !bulkMode &&
+    !effectiveWellApi &&
+    !effectiveLeaseWellName &&
+    !effectiveCompanyName
+  ) {
     return NextResponse.json(
-      { error: "Please include at least an API, Lease / Well Name, or Company." },
+      {
+        error:
+          "Please include at least an API, Lease / Well Name, or Company.",
+      },
       { status: 400 }
     );
   }
 
   try {
-    const computedScheduledDate =
-      preferred_date || scheduled_date || null;
-
-    const computedWhiteFlags =
-      typeof inside_city_limits === "boolean"
-        ? inside_city_limits
-        : !!requires_white_flags;
-
-    let computedTitle = title || "";
+    let computedTitle = cleanText(title);
 
     if (!computedTitle) {
-      if (isBulk) {
-        computedTitle = `Request a Test / Anchor Installation - ${bulkApis.length} Wells`;
-      } else if (lease_well_name) {
-        computedTitle = `Request a Test / Anchor Installation - ${lease_well_name}`;
-      } else if (well_api) {
-        computedTitle = `Request a Test / Anchor Installation - ${well_api}`;
-      } else if (company_name) {
-        computedTitle = `Request a Test / Anchor Installation - ${company_name}`;
+      if (bulkMode) {
+        computedTitle =
+          cleanedApis.length === 1
+            ? "Request a Test / Anchor Installation"
+            : `Request a Test / Anchor Installation - ${cleanedApis.length} Wells`;
+      } else if (effectiveLeaseWellName) {
+        computedTitle = `Request a Test / Anchor Installation - ${effectiveLeaseWellName}`;
+      } else if (effectiveWellApi) {
+        computedTitle = `Request a Test / Anchor Installation - ${effectiveWellApi}`;
       } else {
         computedTitle = "Request a Test / Anchor Installation";
       }
     }
+
+    const requestNotes = bulkMode
+      ? [
+          effectiveNotes,
+          "",
+          "Bulk request APIs:",
+          ...cleanedApis.map((api) => `- ${api}`),
+        ]
+          .filter((line, index, arr) => {
+            if (line !== "") return true;
+            return (
+              index > 0 &&
+              index < arr.length - 1 &&
+              arr[index - 1] !== "" &&
+              arr[index + 1] !== ""
+            );
+          })
+          .join("\n")
+      : effectiveNotes;
 
     const { rows } = await q(
       `
@@ -103,48 +139,42 @@ export async function POST(req) {
         priority,
         customer_deadline_date,
         requires_811,
-        requires_white_flags,
-        bulk_apis
+        requires_white_flags
       )
       VALUES (
         $1, $2, $3, $4, $5,
         $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15,
-        $16, $17
+        $16
       )
       RETURNING id
       `,
       [
         userId,
         computedTitle,
-        computedScheduledDate,
+        effectiveScheduledDate,
         userId,
-        notes || null,
-        status || "pending",
-        isBulk ? null : well_api || null,
-        company_name || null,
-        isBulk ? null : lease_well_name || null,
-        state || null,
-        county || null,
-        job_type || "Test existing anchors",
-        priority || "Normal",
-        customer_deadline_date || null,
+        requestNotes,
+        cleanText(status) || "pending",
+        bulkMode ? null : effectiveWellApi,
+        effectiveCompanyName,
+        bulkMode ? null : effectiveLeaseWellName,
+        effectiveState,
+        effectiveCounty,
+        effectiveJobType,
+        effectivePriority,
+        cleanText(customer_deadline_date),
         !!requires_811,
-        computedWhiteFlags,
-        isBulk ? JSON.stringify(bulkApis) : null,
+        !!(requires_white_flags || inside_city_limits),
       ]
     );
 
-    return NextResponse.json(
-      {
-        id: rows[0].id,
-        ok: true,
-        mode: isBulk ? "bulk" : "single",
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({ id: rows[0].id }, { status: 201 });
   } catch (err) {
     console.error("[POST /api/jobs] Error:", err);
-    return NextResponse.json({ error: "Failed to create job." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create job." },
+      { status: 500 }
+    );
   }
 }
