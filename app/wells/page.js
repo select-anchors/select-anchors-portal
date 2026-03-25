@@ -91,7 +91,9 @@ function matchesDateRange(value, from, to) {
   if (!value && !from && !to) return true;
   if (!value) return false;
 
-  const raw = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+  const raw =
+    typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+
   if (!raw) {
     const dt = new Date(value);
     if (Number.isNaN(dt.getTime())) return false;
@@ -123,6 +125,16 @@ export default function CustomerWellsPage() {
   const [expFrom, setExpFrom] = useState("");
   const [expTo, setExpTo] = useState("");
 
+  const [selectedApis, setSelectedApis] = useState(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("selected_wells");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const sessionReady = status === "authenticated" && !!session;
   const canExportCsv = sessionReady && hasPermission(session, "can_export_csv");
   const canEditWells = sessionReady && hasPermission(session, "can_edit_wells");
@@ -130,6 +142,14 @@ export default function CustomerWellsPage() {
     sessionReady && hasPermission(session, "can_edit_company_contacts");
 
   const canEdit = canEditWells || canEditCompanyContacts;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("selected_wells", JSON.stringify(selectedApis));
+    } catch {
+      // ignore localStorage failures
+    }
+  }, [selectedApis]);
 
   useEffect(() => {
     let mounted = true;
@@ -161,6 +181,12 @@ export default function CustomerWellsPage() {
       mounted = false;
     };
   }, [status]);
+
+  function toggleSelection(api) {
+    setSelectedApis((prev) =>
+      prev.includes(api) ? prev.filter((a) => a !== api) : [...prev, api]
+    );
+  }
 
   const companyManOptions = useMemo(() => {
     return [...new Set((wells || []).map((w) => (w.company_man_name || "").trim()).filter(Boolean))].sort();
@@ -256,6 +282,23 @@ export default function CustomerWellsPage() {
     expTo,
   ]);
 
+  const allVisibleSelected = useMemo(() => {
+    if (filtered.length === 0) return false;
+    return filtered.every((w) => selectedApis.includes(w.api));
+  }, [filtered, selectedApis]);
+
+  function toggleSelectAllVisible() {
+    const visibleApis = filtered.map((w) => w.api).filter(Boolean);
+
+    if (visibleApis.length === 0) return;
+
+    if (allVisibleSelected) {
+      setSelectedApis((prev) => prev.filter((api) => !visibleApis.includes(api)));
+    } else {
+      setSelectedApis((prev) => [...new Set([...prev, ...visibleApis])]);
+    }
+  }
+
   const exportHref = useMemo(() => {
     const params = new URLSearchParams();
 
@@ -284,6 +327,11 @@ export default function CustomerWellsPage() {
     expFrom,
     expTo,
   ]);
+
+  const bulkRequestHref = useMemo(() => {
+    if (!selectedApis.length) return "#";
+    return `/jobs/new?apis=${encodeURIComponent(selectedApis.join(","))}`;
+  }, [selectedApis]);
 
   function clearFilters() {
     setQuery("");
@@ -327,7 +375,26 @@ export default function CustomerWellsPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-bold">Wells</h1>
 
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          {selectedApis.length > 0 && (
+            <>
+              <Link
+                href={bulkRequestHref}
+                className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+              >
+                Bulk Request Test ({selectedApis.length})
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => setSelectedApis([])}
+                className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+              >
+                Clear Selection
+              </button>
+            </>
+          )}
+
           {canExportCsv && (
             <a
               href={exportHref}
@@ -510,12 +577,25 @@ export default function CustomerWellsPage() {
       <div className="text-sm text-gray-600">
         Showing <span className="font-semibold">{filtered.length}</span> of{" "}
         <span className="font-semibold">{wells.length}</span> wells
+        {selectedApis.length > 0 && (
+          <>
+            {" "}• <span className="font-semibold">{selectedApis.length}</span> selected
+          </>
+        )}
       </div>
 
       <div className="bg-white border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
             <tr>
+              <th className="text-left p-3">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleSelectAllVisible}
+                  aria-label="Select all visible wells"
+                />
+              </th>
               <th className="text-left p-3">Lease/Well</th>
               <th className="text-left p-3">API</th>
               <th className="text-left p-3">Company</th>
@@ -531,15 +611,23 @@ export default function CustomerWellsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="p-4" colSpan={10}>Loading…</td>
+                <td className="p-4" colSpan={11}>Loading…</td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="p-4" colSpan={10}>No wells found.</td>
+                <td className="p-4" colSpan={11}>No wells found.</td>
               </tr>
             ) : (
               filtered.map((w) => (
                 <tr key={w.api} className="border-t">
+                  <td className="p-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedApis.includes(w.api)}
+                      onChange={() => toggleSelection(w.api)}
+                      aria-label={`Select ${w.lease_well_name || w.api}`}
+                    />
+                  </td>
                   <td className="p-3">{w.lease_well_name || "—"}</td>
                   <td className="p-3 font-mono">{w.api}</td>
                   <td className="p-3">{w.company_name || "—"}</td>
@@ -555,18 +643,36 @@ export default function CustomerWellsPage() {
                     />
                   </td>
                   <td className="p-3">
-                    <div className="flex gap-2">
+                    <div className="flex gap-3 flex-wrap">
                       <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
                         View
                       </Link>
+
                       {canEdit && (
-  <Link
-    href={`/wells/${encodeURIComponent(w.api)}/edit`}
-    className="underline"
-  >
-    Edit
-  </Link>
-)}
+                        <Link
+                          href={`/wells/${encodeURIComponent(w.api)}/edit`}
+                          className="underline"
+                        >
+                          Edit
+                        </Link>
+                      )}
+
+                      <Link
+                        href={`/jobs/new?api=${encodeURIComponent(
+                          w.api || ""
+                        )}&lease_well_name=${encodeURIComponent(
+                          w.lease_well_name || ""
+                        )}&company_name=${encodeURIComponent(
+                          w.company_name || ""
+                        )}&state=${encodeURIComponent(
+                          w.state || ""
+                        )}&county=${encodeURIComponent(
+                          w.county || ""
+                        )}`}
+                        className="underline"
+                      >
+                        Request Test
+                      </Link>
                     </div>
                   </td>
                 </tr>
