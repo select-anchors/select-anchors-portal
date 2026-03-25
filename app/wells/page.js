@@ -376,24 +376,7 @@ export default function CustomerWellsPage() {
         <h1 className="text-2xl font-bold">Wells</h1>
 
         <div className="flex gap-2 flex-wrap items-center">
-          {selectedApis.length > 0 && (
-            <>
-              <Link
-                href={bulkRequestHref}
-                className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
-              >
-                Bulk Request Test ({selectedApis.length})
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => setSelectedApis([])}
-                className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-              >
-                Clear Selection
-              </button>
-            </>
-          )}
+          
 
           {canExportCsv && (
             <a
@@ -574,15 +557,39 @@ export default function CustomerWellsPage() {
         </div>
       </div>
 
-      <div className="text-sm text-gray-600">
-        Showing <span className="font-semibold">{filtered.length}</span> of{" "}
-        <span className="font-semibold">{wells.length}</span> wells
-        {selectedApis.length > 0 && (
-          <>
-            {" "}• <span className="font-semibold">{selectedApis.length}</span> selected
-          </>
-        )}
-      </div>
+      <div className="flex items-center justify-between flex-wrap gap-3 text-sm text-gray-600">
+
+  <div>
+    Showing <span className="font-semibold">{filtered.length}</span> of{" "}
+    <span className="font-semibold">{wells.length}</span> wells
+
+    {selectedApis.length > 0 && (
+      <>
+        {" "}• <span className="font-semibold">{selectedApis.length}</span> selected
+      </>
+    )}
+  </div>
+
+  {selectedApis.length > 0 && (
+    <div className="flex gap-2">
+      <Link
+        href={bulkRequestHref}
+        className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+      >
+        Bulk Request Test ({selectedApis.length})
+      </Link>
+
+      <button
+        type="button"
+        onClick={() => setSelectedApis([])}
+        className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+      >
+        Clear Selection
+      </button>
+    </div>
+  )}
+
+</div>
 
       <div className="bg-white border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
