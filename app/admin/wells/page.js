@@ -451,14 +451,13 @@ export default function AdminWellsPage() {
           )}
 
           {canBulkEditWells && (
-            <button
-              type="button"
-              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-              onClick={() => alert("Bulk edit screen is not wired up yet.")}
-            >
-              Bulk Edit
-            </button>
-          )}
+  <Link
+    href="/admin/wells/bulk-edit"
+    className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+  >
+    Bulk Edit
+  </Link>
+)}
         </div>
       </div>
 
