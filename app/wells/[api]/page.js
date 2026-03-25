@@ -212,8 +212,20 @@ export default function WellDetailPage({ params }) {
   const daysLeft = daysUntil(expires);
 
   const editHref = canViewAllWells
-  ? `/admin/wells/${encodeURIComponent(w.api)}/edit`
-  : `/wells/${encodeURIComponent(w.api)}/edit`;
+    ? `/admin/wells/${encodeURIComponent(w.api)}/edit`
+    : `/wells/${encodeURIComponent(w.api)}/edit`;
+
+  const requestHref = `/jobs/new?api=${encodeURIComponent(
+    w.api || ""
+  )}&lease_well_name=${encodeURIComponent(
+    w.lease_well_name || ""
+  )}&company_name=${encodeURIComponent(
+    w.company_name || ""
+  )}&state=${encodeURIComponent(
+    w.state || ""
+  )}&county=${encodeURIComponent(
+    w.county || ""
+  )}`;
 
   return (
     <div className="container py-10 space-y-6">
@@ -252,6 +264,13 @@ export default function WellDetailPage({ params }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Link
+            href={requestHref}
+            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+          >
+            Request a Test / Anchor Installation
+          </Link>
+
           {canShowEdit && (
             <Link
               href={editHref}
