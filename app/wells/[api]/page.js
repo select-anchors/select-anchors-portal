@@ -128,6 +128,164 @@ function ExpirationBadge({ daysLeft }) {
   );
 }
 
+function LatestAnchorStatus({ api }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function load() {
+      try {
+        const res = await fetch(
+          `/api/wells/${encodeURIComponent(api)}/latest-anchor-status`,
+          { cache: "no-store" }
+        );
+
+        const json = await res.json();
+
+        if (mounted) {
+          setData(json);
+        }
+      } catch (err) {
+        console.error("Failed to load latest anchor status:", err);
+        if (mounted) {
+          setData(null);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    if (api) {
+      load();
+    } else {
+      setLoading(false);
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [api]);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="text-sm text-gray-600">Loading latest anchor status…</div>
+      </div>
+    );
+  }
+
+  if (!data?.service) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <h2 className="text-lg font-semibold mb-2">Latest Anchor Measurements</h2>
+        <div className="text-sm text-gray-500">No anchor service history yet.</div>
+      </div>
+    );
+  }
+
+  const threshold = Number(data.service.threshold || 12);
+
+  const exceedsAny = Array.isArray(data.anchors)
+    ? data.anchors.some(
+        (a) =>
+          a?.inches_out_of_ground !== null &&
+          a?.inches_out_of_ground !== undefined &&
+          Number(a.inches_out_of_ground) > threshold
+      )
+    : false;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+      <div className="p-6 border-b flex items-center justify-between gap-4 flex-wrap">
+        <h2 className="text-lg font-semibold">Latest Anchor Measurements</h2>
+        <div className="text-sm text-gray-500">
+          Service Date: {fmtDate(data.service.service_date)}
+        </div>
+      </div>
+
+      <div className="p-6 space-y-4">
+        {!Array.isArray(data.anchors) || data.anchors.length === 0 ? (
+          <div className="text-sm text-gray-500">No anchor measurements found.</div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-4">
+            {data.anchors.map((anchor) => {
+              const inches = anchor?.inches_out_of_ground;
+              const exceeds =
+                inches !== null &&
+                inches !== undefined &&
+                Number(inches) > threshold;
+
+              return (
+                <div
+                  key={anchor.anchor_position}
+                  className={`rounded-xl border p-4 ${
+                    exceeds
+                      ? "border-red-200 bg-red-50"
+                      : "border-gray-200 bg-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-semibold">
+                      {anchor.anchor_position || "Anchor"}
+                    </div>
+
+                    <div
+                      className={`text-sm font-medium ${
+                        exceeds ? "text-red-700" : "text-gray-700"
+                      }`}
+                    >
+                      {inches !== null && inches !== undefined ? `${inches}" out` : "—"}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 text-xs text-gray-600 space-y-1">
+                    <div>
+                      Pass / Fail:{" "}
+                      <span className="font-medium text-gray-800">
+                        {anchor.pass_fail || "—"}
+                      </span>
+                    </div>
+
+                    <div>
+                      Deactivated:{" "}
+                      <span className="font-medium text-gray-800">
+                        {anchor.deactivated ? "Yes" : "No"}
+                      </span>
+                    </div>
+
+                    <div>
+                      Replacement Required:{" "}
+                      <span className="font-medium text-gray-800">
+                        {anchor.replacement_required ? "Yes" : "No"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+            exceedsAny
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-green-200 bg-green-50 text-green-700"
+          }`}
+        >
+          {exceedsAny
+            ? `⚠ One or more anchors exceed the recommended exposure threshold (${threshold}"). Replacement should be considered.`
+            : `All anchors are within the recommended exposure threshold (${threshold}").`}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function WellDetailPage({ params }) {
   const { data: session, status } = useSession();
 
@@ -211,11 +369,8 @@ export default function WellDetailPage({ params }) {
   const computedStatus = statusFromExpiration(expires, EXPIRING_WINDOW_DAYS);
   const daysLeft = daysUntil(expires);
 
-  const editHref = canViewAllWells
-    ? `/admin/wells/${encodeURIComponent(w.api)}/edit`
-    : `/wells/${encodeURIComponent(w.api)}/edit`;
-
-  const requestHref = `/jobs/new?api=${encodeURIComponent(
+  const editHref = `/wells/${encodeURIComponent(w.api)}/edit`;
+  const requestTestHref = `/jobs/new?api=${encodeURIComponent(
     w.api || ""
   )}&lease_well_name=${encodeURIComponent(
     w.lease_well_name || ""
@@ -223,9 +378,7 @@ export default function WellDetailPage({ params }) {
     w.company_name || ""
   )}&state=${encodeURIComponent(
     w.state || ""
-  )}&county=${encodeURIComponent(
-    w.county || ""
-  )}`;
+  )}&county=${encodeURIComponent(w.county || "")}`;
 
   return (
     <div className="container py-10 space-y-6">
@@ -265,7 +418,7 @@ export default function WellDetailPage({ params }) {
 
         <div className="flex flex-wrap gap-2">
           <Link
-            href={requestHref}
+            href={requestTestHref}
             className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
           >
             Request a Test / Anchor Installation
@@ -282,7 +435,7 @@ export default function WellDetailPage({ params }) {
 
           <Link
             href={wellsHref}
-            className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+            className="px-4 py-2 rounded-xl border border-gray-300 bg-white hover:bg-gray-50"
           >
             All Wells
           </Link>
@@ -295,6 +448,8 @@ export default function WellDetailPage({ params }) {
           w.lease_well_name ? `${w.lease_well_name} Location` : "Well Location"
         }
       />
+
+      <LatestAnchorStatus api={w.api} />
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
