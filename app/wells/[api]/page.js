@@ -146,12 +146,16 @@ function ServiceTypeBadge({ type }) {
       : "bg-gray-50 text-gray-700 border-gray-200";
 
   const label =
-    value === "install_test" ? "Install & Test" :
-    value === "test" ? "Test" :
-    type || "Service";
+    value === "install_test"
+      ? "Install & Test"
+      : value === "test"
+      ? "Test"
+      : type || "Service";
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-xs ${cls}`}>
+    <span
+      className={`inline-flex items-center px-2.5 py-1 rounded-full border text-xs ${cls}`}
+    >
       {label}
     </span>
   );
@@ -170,7 +174,9 @@ function groupAnchorsByPosition(anchors = []) {
     .map((pos) => map.get(pos))
     .filter(Boolean)
     .concat(
-      anchors.filter((a) => !order.includes(String(a.anchor_position || "").toUpperCase()))
+      anchors.filter(
+        (a) => !order.includes(String(a.anchor_position || "").toUpperCase())
+      )
     );
 }
 
