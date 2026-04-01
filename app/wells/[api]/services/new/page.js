@@ -36,8 +36,6 @@ export default function NewWellServicePage({ params }) {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
   const [form, setForm] = useState({
     service_date: new Date().toISOString().slice(0, 10),
     service_type: "test",
@@ -91,7 +89,6 @@ export default function NewWellServicePage({ params }) {
     e.preventDefault();
     setSaving(true);
     setError("");
-    setSuccess("");
 
     try {
       const payload = {
@@ -123,8 +120,8 @@ export default function NewWellServicePage({ params }) {
         throw new Error(json?.error || "Failed to save service.");
       }
 
-      setSuccess("Service saved successfully.");
       router.push(backHref);
+      router.refresh();
     } catch (err) {
       console.error("Failed to save service:", err);
       setError(err.message || "Failed to save service.");
@@ -155,25 +152,17 @@ export default function NewWellServicePage({ params }) {
           </p>
         </div>
 
-        <div className="flex gap-2">
-          <Link
-            href={backHref}
-            className="px-4 py-2 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm"
-          >
-            Back to Well
-          </Link>
-        </div>
+        <Link
+          href={backHref}
+          className="px-4 py-2 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm"
+        >
+          Back to Well
+        </Link>
       </div>
 
       {error && (
         <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
           {error}
-        </div>
-      )}
-
-      {success && (
-        <div className="p-3 rounded-xl bg-green-50 border border-green-200 text-sm text-green-700">
-          {success}
         </div>
       )}
 
@@ -205,7 +194,7 @@ export default function NewWellServicePage({ params }) {
                 onChange={(e) => updateField("service_type", e.target.value)}
               >
                 <option value="test">Test</option>
-                <option value="install_test">Install & Test</option>
+                <option value="install_test">Install &amp; Test</option>
               </select>
             </div>
 
@@ -317,11 +306,9 @@ export default function NewWellServicePage({ params }) {
               key={anchor.anchor_position}
               className="bg-white border rounded-2xl shadow-sm p-6 space-y-4"
             >
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <h2 className="text-lg font-semibold">
-                  Anchor {anchor.anchor_position}
-                </h2>
-              </div>
+              <h2 className="text-lg font-semibold">
+                Anchor {anchor.anchor_position}
+              </h2>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
@@ -495,11 +482,7 @@ export default function NewWellServicePage({ params }) {
                       className="w-full rounded-xl border px-3 py-2"
                       value={anchor.replacement_notes}
                       onChange={(e) =>
-                        updateAnchor(
-                          index,
-                          "replacement_notes",
-                          e.target.value
-                        )
+                        updateAnchor(index, "replacement_notes", e.target.value)
                       }
                     />
                   </div>
