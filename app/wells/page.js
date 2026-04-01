@@ -363,29 +363,22 @@ export default function CustomerWellsPage() {
 
   return (
     <div className="container py-8 space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-bold">Wells</h1>
+      // app/wells/page.js
 
-        <div className="flex gap-2 flex-wrap">
-          {canExportCsv && (
-            <a
-              href={exportHref}
-              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-            >
-              Export CSV
-            </a>
-          )}
+<div className="flex items-center justify-between gap-4 flex-wrap">
+  <h1 className="text-2xl font-bold">Wells</h1>
 
-          {canEdit && (
-            <Link
-              href="/wells?edit=1"
-              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-            >
-              Edit Contacts / Notes
-            </Link>
-          )}
-        </div>
-      </div>
+  <div className="flex gap-2 flex-wrap">
+    {canExportCsv && (
+      <a
+        href={exportHref}
+        className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+      >
+        Export CSV
+      </a>
+    )}
+  </div>
+</div>
 
       <div className="bg-white border rounded-2xl p-4 space-y-4">
         <div className="font-semibold">Quick Reports</div>
@@ -552,42 +545,46 @@ export default function CustomerWellsPage() {
           <span className="font-semibold">{wells.length}</span> wells
         </span>
 
-        {selectedApis.length > 0 && (
-          <span>
-            • <span className="font-semibold">{selectedApis.length}</span> selected
-          </span>
-        )}
+        // app/wells/page.js
+
+{selectedApis.length > 0 && (
+  <div className="bg-[#f8faf8] border border-[#d7e5d7] rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div>
+      <div className="font-semibold">
+        {selectedApis.length} well{selectedApis.length === 1 ? "" : "s"} selected
       </div>
+      <div className="text-xs text-gray-600">
+        Your selections stay selected while you filter and search this page.
+      </div>
+    </div>
 
-      {selectedApis.length > 0 && (
-        <div className="bg-[#f8faf8] border border-[#d7e5d7] rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <div className="font-semibold">
-              {selectedApis.length} well{selectedApis.length === 1 ? "" : "s"} selected
-            </div>
-            <div className="text-xs text-gray-600">
-              Your selections stay selected while you filter and search this page.
-            </div>
-          </div>
+    <div className="flex flex-wrap gap-2">
+      <Link
+        href={bulkRequestHref}
+        className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
+      >
+        Bulk Request Test ({selectedApis.length})
+      </Link>
 
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={bulkRequestHref}
-              className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white text-sm hover:opacity-90"
-            >
-              Bulk Request Test ({selectedApis.length})
-            </Link>
-
-            <button
-              type="button"
-              onClick={clearSelected}
-              className="px-4 py-2 rounded-xl border text-sm hover:bg-gray-50"
-            >
-              Clear Selection
-            </button>
-          </div>
-        </div>
+      {canEdit && (
+        <Link
+          href={bulkEditHref}
+          className="px-4 py-2 rounded-xl border text-sm hover:bg-gray-50"
+        >
+          Bulk Edit Contacts / Notes
+        </Link>
       )}
+
+      <button
+        type="button"
+        onClick={clearSelected}
+        className="px-4 py-2 rounded-xl border text-sm hover:bg-gray-50"
+      >
+        Clear Selection
+      </button>
+    </div>
+  </div>
+)}
 
       <div className="bg-white border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
