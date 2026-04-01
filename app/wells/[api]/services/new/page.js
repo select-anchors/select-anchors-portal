@@ -5,8 +5,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import NotLoggedIn from "../../../components/NotLoggedIn";
-import { hasPermission } from "../../../../lib/permissions";
+import NotLoggedIn from "../../../../components/NotLoggedIn";
+import { hasPermission } from "../../../../../lib/permissions";
 
 const ANCHOR_POSITIONS = ["NW", "NE", "SE", "SW"];
 
