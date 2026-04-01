@@ -28,6 +28,13 @@ function fmtDate(d) {
   });
 }
 
+function fmtNumber(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 function daysUntil(dateStr) {
   if (!dateStr) return null;
 
@@ -128,162 +135,43 @@ function ExpirationBadge({ daysLeft }) {
   );
 }
 
-function LatestAnchorStatus({ api }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+function ServiceTypeBadge({ type }) {
+  const value = String(type || "service").toLowerCase();
 
-  useEffect(() => {
-    let mounted = true;
+  const cls =
+    value === "install_test"
+      ? "bg-blue-50 text-blue-700 border-blue-200"
+      : value === "test"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : "bg-gray-50 text-gray-700 border-gray-200";
 
-    async function load() {
-      try {
-        const res = await fetch(
-          `/api/wells/${encodeURIComponent(api)}/latest-anchor-status`,
-          { cache: "no-store" }
-        );
-
-        const json = await res.json();
-
-        if (mounted) {
-          setData(json);
-        }
-      } catch (err) {
-        console.error("Failed to load latest anchor status:", err);
-        if (mounted) {
-          setData(null);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    if (api) {
-      load();
-    } else {
-      setLoading(false);
-    }
-
-    return () => {
-      mounted = false;
-    };
-  }, [api]);
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <div className="text-sm text-gray-600">Loading latest anchor status…</div>
-      </div>
-    );
-  }
-
-  if (!data?.service) {
-    return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <h2 className="text-lg font-semibold mb-2">Latest Anchor Measurements</h2>
-        <div className="text-sm text-gray-500">No anchor service history yet.</div>
-      </div>
-    );
-  }
-
-  const threshold = Number(data.service.threshold || 12);
-
-  const exceedsAny = Array.isArray(data.anchors)
-    ? data.anchors.some(
-        (a) =>
-          a?.inches_out_of_ground !== null &&
-          a?.inches_out_of_ground !== undefined &&
-          Number(a.inches_out_of_ground) > threshold
-      )
-    : false;
+  const label =
+    value === "install_test" ? "Install & Test" :
+    value === "test" ? "Test" :
+    type || "Service";
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-      <div className="p-6 border-b flex items-center justify-between gap-4 flex-wrap">
-        <h2 className="text-lg font-semibold">Latest Anchor Measurements</h2>
-        <div className="text-sm text-gray-500">
-          Service Date: {fmtDate(data.service.service_date)}
-        </div>
-      </div>
-
-      <div className="p-6 space-y-4">
-        {!Array.isArray(data.anchors) || data.anchors.length === 0 ? (
-          <div className="text-sm text-gray-500">No anchor measurements found.</div>
-        ) : (
-          <div className="grid md:grid-cols-2 gap-4">
-            {data.anchors.map((anchor) => {
-              const inches = anchor?.inches_out_of_ground;
-              const exceeds =
-                inches !== null &&
-                inches !== undefined &&
-                Number(inches) > threshold;
-
-              return (
-                <div
-                  key={anchor.anchor_position}
-                  className={`rounded-xl border p-4 ${
-                    exceeds
-                      ? "border-red-200 bg-red-50"
-                      : "border-gray-200 bg-white"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="font-semibold">
-                      {anchor.anchor_position || "Anchor"}
-                    </div>
-
-                    <div
-                      className={`text-sm font-medium ${
-                        exceeds ? "text-red-700" : "text-gray-700"
-                      }`}
-                    >
-                      {inches !== null && inches !== undefined ? `${inches}" out` : "—"}
-                    </div>
-                  </div>
-
-                  <div className="mt-2 text-xs text-gray-600 space-y-1">
-                    <div>
-                      Pass / Fail:{" "}
-                      <span className="font-medium text-gray-800">
-                        {anchor.pass_fail || "—"}
-                      </span>
-                    </div>
-
-                    <div>
-                      Deactivated:{" "}
-                      <span className="font-medium text-gray-800">
-                        {anchor.deactivated ? "Yes" : "No"}
-                      </span>
-                    </div>
-
-                    <div>
-                      Replacement Required:{" "}
-                      <span className="font-medium text-gray-800">
-                        {anchor.replacement_required ? "Yes" : "No"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <div
-          className={`rounded-xl border px-4 py-3 text-sm font-medium ${
-            exceedsAny
-              ? "border-red-200 bg-red-50 text-red-700"
-              : "border-green-200 bg-green-50 text-green-700"
-          }`}
-        >
-          {exceedsAny
-            ? `⚠ One or more anchors exceed the recommended exposure threshold (${threshold}"). Replacement should be considered.`
-            : `All anchors are within the recommended exposure threshold (${threshold}").`}
-        </div>
-      </div>
-    </div>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-xs ${cls}`}>
+      {label}
+    </span>
   );
+}
+
+function groupAnchorsByPosition(anchors = []) {
+  const order = ["NW", "NE", "SE", "SW"];
+  const map = new Map();
+
+  for (const anchor of anchors) {
+    const key = String(anchor.anchor_position || "").toUpperCase();
+    map.set(key, anchor);
+  }
+
+  return order
+    .map((pos) => map.get(pos))
+    .filter(Boolean)
+    .concat(
+      anchors.filter((a) => !order.includes(String(a.anchor_position || "").toUpperCase()))
+    );
 }
 
 export default function WellDetailPage({ params }) {
@@ -303,6 +191,7 @@ export default function WellDetailPage({ params }) {
     !!session && hasPermission(session, "can_edit_company_contacts");
 
   const canShowEdit = canEditWells || canEditCompanyContacts;
+  const canAddService = canEditWells;
   const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
 
   useEffect(() => {
@@ -356,6 +245,7 @@ export default function WellDetailPage({ params }) {
   }
 
   const w = well;
+  const serviceHistory = Array.isArray(w.service_history) ? w.service_history : [];
 
   const lastTest = w.current_tested_at ?? w.last_test_date ?? null;
   const expires =
@@ -370,7 +260,7 @@ export default function WellDetailPage({ params }) {
   const daysLeft = daysUntil(expires);
 
   const editHref = `/wells/${encodeURIComponent(w.api)}/edit`;
-  const requestTestHref = `/jobs/new?api=${encodeURIComponent(
+  const requestHref = `/jobs/new?api=${encodeURIComponent(
     w.api || ""
   )}&lease_well_name=${encodeURIComponent(
     w.lease_well_name || ""
@@ -378,7 +268,10 @@ export default function WellDetailPage({ params }) {
     w.company_name || ""
   )}&state=${encodeURIComponent(
     w.state || ""
-  )}&county=${encodeURIComponent(w.county || "")}`;
+  )}&county=${encodeURIComponent(
+    w.county || ""
+  )}`;
+  const addServiceHref = `/wells/${encodeURIComponent(w.api)}/services/new`;
 
   return (
     <div className="container py-10 space-y-6">
@@ -393,6 +286,13 @@ export default function WellDetailPage({ params }) {
               <span className="text-gray-600">API:</span>{" "}
               <span className="font-mono">{w.api}</span>
             </p>
+
+            {(w.latitude || w.longitude) && (
+              <p className="text-sm text-gray-700">
+                <span className="text-gray-600">Lat / Lng:</span>{" "}
+                {w.latitude ?? "—"}, {w.longitude ?? "—"}
+              </p>
+            )}
 
             {w.wellhead_coords && (
               <p className="text-sm text-gray-700">
@@ -418,11 +318,20 @@ export default function WellDetailPage({ params }) {
 
         <div className="flex flex-wrap gap-2">
           <Link
-            href={requestTestHref}
+            href={requestHref}
             className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
           >
             Request a Test / Anchor Installation
           </Link>
+
+          {canAddService && (
+            <Link
+              href={addServiceHref}
+              className="px-4 py-2 rounded-xl border border-gray-400 bg-white text-gray-800 hover:bg-gray-100"
+            >
+              Add Service
+            </Link>
+          )}
 
           {canShowEdit && (
             <Link
@@ -448,8 +357,6 @@ export default function WellDetailPage({ params }) {
           w.lease_well_name ? `${w.lease_well_name} Location` : "Well Location"
         }
       />
-
-      <LatestAnchorStatus api={w.api} />
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
         <div className="p-6 border-b">
@@ -545,6 +452,176 @@ export default function WellDetailPage({ params }) {
               {w.directions_other_notes ?? "—"}
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-semibold">Service History</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Past work completed for this well, including anchor measurements and uploaded service files.
+          </p>
+        </div>
+
+        <div className="p-6">
+          {serviceHistory.length === 0 ? (
+            <div className="text-sm text-gray-600">No service history found yet.</div>
+          ) : (
+            <div className="space-y-6">
+              {serviceHistory.map((service) => {
+                const anchors = groupAnchorsByPosition(service.anchors || []);
+
+                return (
+                  <div
+                    key={service.id}
+                    className="rounded-2xl border border-gray-200 overflow-hidden"
+                  >
+                    <div className="p-4 md:p-5 border-b bg-gray-50">
+                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-lg font-semibold">
+                              {fmtDate(service.service_date)}
+                            </div>
+                            <ServiceTypeBadge type={service.service_type} />
+                          </div>
+
+                          <div className="mt-2 text-sm text-gray-600 space-y-1">
+                            <div>
+                              <span className="text-gray-500">Tested by company:</span>{" "}
+                              {service.tested_by_company || "—"}
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Technician:</span>{" "}
+                              {service.technician_name || "—"}
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Invoice #:</span>{" "}
+                              {service.invoice_number || "—"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {(service.recommended_action || service.notes) && (
+                        <div className="mt-4 grid md:grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                              Recommended Action
+                            </div>
+                            <div className="text-sm whitespace-pre-wrap">
+                              {service.recommended_action || "—"}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                              Service Notes
+                            </div>
+                            <div className="text-sm whitespace-pre-wrap">
+                              {service.notes || "—"}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {(service.jsa_file_url ||
+                        service.chart_recorder_file_url ||
+                        service.invoice_file_url) && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {service.jsa_file_url && (
+                            <a
+                              href={service.jsa_file_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-2 rounded-xl border text-sm hover:bg-white"
+                            >
+                              Open JSA
+                            </a>
+                          )}
+
+                          {service.chart_recorder_file_url && (
+                            <a
+                              href={service.chart_recorder_file_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-2 rounded-xl border text-sm hover:bg-white"
+                            >
+                              Open Chart Recorder
+                            </a>
+                          )}
+
+                          {service.invoice_file_url && (
+                            <a
+                              href={service.invoice_file_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-2 rounded-xl border text-sm hover:bg-white"
+                            >
+                              Open Invoice
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 md:p-5">
+                      <div className="font-medium mb-3">Anchor Measurements</div>
+
+                      {anchors.length === 0 ? (
+                        <div className="text-sm text-gray-600">
+                          No anchor measurements recorded for this service.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="text-gray-600 bg-gray-50">
+                              <tr>
+                                <th className="text-left p-3">Position</th>
+                                <th className="text-left p-3">Inches Out of Ground</th>
+                                <th className="text-left p-3">Pull Result (lbs)</th>
+                                <th className="text-left p-3">Pass / Fail</th>
+                                <th className="text-left p-3">Deactivated</th>
+                                <th className="text-left p-3">Replacement Required</th>
+                                <th className="text-left p-3">Notes</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {anchors.map((anchor) => (
+                                <tr key={anchor.id} className="border-t">
+                                  <td className="p-3 font-medium">
+                                    {anchor.anchor_position || "—"}
+                                  </td>
+                                  <td className="p-3">
+                                    {fmtNumber(anchor.inches_out_of_ground)}
+                                  </td>
+                                  <td className="p-3">
+                                    {fmtNumber(anchor.pull_result_lbs)}
+                                  </td>
+                                  <td className="p-3">
+                                    {anchor.pass_fail || "—"}
+                                  </td>
+                                  <td className="p-3">
+                                    {anchor.deactivated ? "Yes" : "No"}
+                                  </td>
+                                  <td className="p-3">
+                                    {anchor.replacement_required ? "Yes" : "No"}
+                                  </td>
+                                  <td className="p-3 whitespace-pre-wrap">
+                                    {anchor.notes || "—"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
