@@ -129,6 +129,8 @@ export default function AdminWellsPage() {
   const [sortKey, setSortKey] = useState("lease_well_name");
   const [sortDir, setSortDir] = useState("asc");
 
+  const [selectedApis, setSelectedApis] = useState([]);
+
   const sessionReady = status === "authenticated" && !!session;
   const canViewAllWells =
     sessionReady && hasPermission(session, "can_view_all_wells");
@@ -138,8 +140,16 @@ export default function AdminWellsPage() {
     sessionReady && hasPermission(session, "can_edit_wells");
   const canBulkEditWells =
     sessionReady && hasPermission(session, "can_bulk_edit_wells");
+  const canEditCompanyContacts =
+    sessionReady && hasPermission(session, "can_edit_company_contacts");
+  const canBulkImportWells =
+    sessionReady &&
+    (hasPermission(session, "can_bulk_import_wells") ||
+      hasPermission(session, "can_edit_wells"));
 
   const canSee = canViewAllWells;
+  const canBulkEdit = canBulkEditWells || canEditWells || canEditCompanyContacts;
+  const selectedSet = useMemo(() => new Set(selectedApis), [selectedApis]);
 
   function SortableTh({ label, column }) {
     const active = sortKey === column;
@@ -199,7 +209,12 @@ export default function AdminWellsPage() {
         const json = await res.json();
         if (!mounted) return;
 
-        const data = Array.isArray(json) ? json : Array.isArray(json?.wells) ? json.wells : [];
+        const data = Array.isArray(json)
+          ? json
+          : Array.isArray(json?.wells)
+          ? json.wells
+          : [];
+
         setWells(data);
       } catch (err) {
         console.error("Error loading wells (admin page):", err);
@@ -219,19 +234,43 @@ export default function AdminWellsPage() {
   }, [status, canSee]);
 
   const companyOptions = useMemo(() => {
-    return [...new Set((wells || []).map((w) => (w.company_name || "").trim()).filter(Boolean))].sort();
+    return [
+      ...new Set(
+        (wells || [])
+          .map((w) => (w.company_name || "").trim())
+          .filter(Boolean)
+      ),
+    ].sort();
   }, [wells]);
 
   const companyManOptions = useMemo(() => {
-    return [...new Set((wells || []).map((w) => (w.company_man_name || "").trim()).filter(Boolean))].sort();
+    return [
+      ...new Set(
+        (wells || [])
+          .map((w) => (w.company_man_name || "").trim())
+          .filter(Boolean)
+      ),
+    ].sort();
   }, [wells]);
 
   const countyOptions = useMemo(() => {
-    return [...new Set((wells || []).map((w) => (w.county || "").trim()).filter(Boolean))].sort();
+    return [
+      ...new Set(
+        (wells || [])
+          .map((w) => (w.county || "").trim())
+          .filter(Boolean)
+      ),
+    ].sort();
   }, [wells]);
 
   const stateOptions = useMemo(() => {
-    return [...new Set((wells || []).map((w) => (w.state || "").trim()).filter(Boolean))].sort();
+    return [
+      ...new Set(
+        (wells || [])
+          .map((w) => (w.state || "").trim())
+          .filter(Boolean)
+      ),
+    ].sort();
   }, [wells]);
 
   const filtered = useMemo(() => {
@@ -241,6 +280,7 @@ export default function AdminWellsPage() {
     let list = (wells || []).map((w) => {
       const exp = bestExpiration(w);
       const lastTest = bestLastTest(w);
+
       return {
         ...w,
         _exp_for_display: exp,
@@ -387,6 +427,11 @@ export default function AdminWellsPage() {
     expTo,
   ]);
 
+  const bulkEditHref = useMemo(() => {
+    if (selectedApis.length === 0) return "/wells/bulk-edit";
+    return `/wells/bulk-edit?apis=${encodeURIComponent(selectedApis.join(","))}`;
+  }, [selectedApis]);
+
   function clearFilters() {
     setQuery("");
     setCompanyFilter("");
@@ -422,6 +467,38 @@ export default function AdminWellsPage() {
     }
   }
 
+  function toggleSelected(api) {
+    if (!api) return;
+
+    setSelectedApis((prev) => {
+      if (prev.includes(api)) return prev.filter((x) => x !== api);
+      return [...prev, api];
+    });
+  }
+
+  function toggleSelectAllFiltered() {
+    const filteredApis = filtered.map((w) => w.api).filter(Boolean);
+    const allSelected =
+      filteredApis.length > 0 && filteredApis.every((api) => selectedSet.has(api));
+
+    if (allSelected) {
+      setSelectedApis((prev) => prev.filter((api) => !filteredApis.includes(api)));
+    } else {
+      setSelectedApis((prev) => {
+        const set = new Set(prev);
+        for (const api of filteredApis) set.add(api);
+        return Array.from(set);
+      });
+    }
+  }
+
+  function clearSelected() {
+    setSelectedApis([]);
+  }
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((w) => selectedSet.has(w.api));
+
   if (status === "loading") return <div className="container py-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
   if (!canSee) return <div className="container py-8">Not authorized.</div>;
@@ -432,42 +509,33 @@ export default function AdminWellsPage() {
         <h1 className="text-2xl font-bold">All Wells</h1>
 
         <div className="flex gap-2 flex-wrap">
-  {canExportCsv && (
-    <a
-      href={exportHref}
-      className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-    >
-      Export CSV
-    </a>
-  )}
+          {canExportCsv && (
+            <a
+              href={exportHref}
+              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+            >
+              Export CSV
+            </a>
+          )}
 
-  {canEditWells && (
-    <Link
-      href="/admin/wells/new"
-      className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
-    >
-      New Well
-    </Link>
-  )}
+          {canEditWells && (
+            <Link
+              href="/admin/wells/new"
+              className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+            >
+              New Well
+            </Link>
+          )}
 
-  {canBulkEditWells && (
-    <Link
-      href="/admin/wells/bulk-edit"
-      className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-    >
-      Bulk Edit
-    </Link>
-  )}
-
-  {canBulkEditWells && (
-    <Link
-      href="/admin/wells/import"
-      className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-    >
-      Bulk Import
-    </Link>
-  )}
-</div>
+          {canBulkImportWells && (
+            <Link
+              href="/admin/wells/import"
+              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+            >
+              Bulk Import
+            </Link>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -528,7 +596,9 @@ export default function AdminWellsPage() {
           >
             <option value="">All Companies</option>
             {companyOptions.map((v) => (
-              <option key={v} value={v}>{v}</option>
+              <option key={v} value={v}>
+                {v}
+              </option>
             ))}
           </select>
 
@@ -539,7 +609,9 @@ export default function AdminWellsPage() {
           >
             <option value="">All Company Men</option>
             {companyManOptions.map((v) => (
-              <option key={v} value={v}>{v}</option>
+              <option key={v} value={v}>
+                {v}
+              </option>
             ))}
           </select>
 
@@ -562,7 +634,9 @@ export default function AdminWellsPage() {
           >
             <option value="">All Counties</option>
             {countyOptions.map((v) => (
-              <option key={v} value={v}>{v}</option>
+              <option key={v} value={v}>
+                {v}
+              </option>
             ))}
           </select>
 
@@ -573,7 +647,9 @@ export default function AdminWellsPage() {
           >
             <option value="">All States</option>
             {stateOptions.map((v) => (
-              <option key={v} value={v}>{v}</option>
+              <option key={v} value={v}>
+                {v}
+              </option>
             ))}
           </select>
 
@@ -646,15 +722,62 @@ export default function AdminWellsPage() {
         </div>
       </div>
 
-      <div className="text-sm text-gray-600">
-        Showing <span className="font-semibold">{filtered.length}</span> of{" "}
-        <span className="font-semibold">{wells.length}</span> wells
+      <div className="text-sm text-gray-600 flex items-center gap-3 flex-wrap">
+        <span>
+          Showing <span className="font-semibold">{filtered.length}</span> of{" "}
+          <span className="font-semibold">{wells.length}</span> wells
+        </span>
+
+        {selectedApis.length > 0 && (
+          <span>
+            • <span className="font-semibold">{selectedApis.length}</span> selected
+          </span>
+        )}
       </div>
+
+      {selectedApis.length > 0 && (
+        <div className="bg-[#f8faf8] border border-[#d7e5d7] rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <div className="font-semibold">
+              {selectedApis.length} well{selectedApis.length === 1 ? "" : "s"} selected
+            </div>
+            <div className="text-xs text-gray-600">
+              Use this to bulk update company/contact info or notes.
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {canBulkEdit && (
+              <Link
+                href={bulkEditHref}
+                className="px-4 py-2 rounded-xl border text-sm hover:bg-gray-50"
+              >
+                Bulk Edit Contacts / Notes
+              </Link>
+            )}
+
+            <button
+              type="button"
+              onClick={clearSelected}
+              className="px-4 py-2 rounded-xl border text-sm hover:bg-gray-50"
+            >
+              Clear Selection
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
             <tr>
+              <th className="text-left p-3 w-[44px]">
+                <input
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  onChange={toggleSelectAllFiltered}
+                />
+              </th>
               <SortableTh label="Lease / Well" column="lease_well_name" />
               <SortableTh label="API" column="api" />
               <SortableTh label="Company" column="company_name" />
@@ -671,15 +794,26 @@ export default function AdminWellsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="p-4" colSpan={10}>Loading…</td>
+                <td className="p-4" colSpan={11}>
+                  Loading…
+                </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="p-4" colSpan={10}>No wells found.</td>
+                <td className="p-4" colSpan={11}>
+                  No wells found.
+                </td>
               </tr>
             ) : (
               filtered.map((w) => (
                 <tr key={w.api} className="border-t">
+                  <td className="p-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSet.has(w.api)}
+                      onChange={() => toggleSelected(w.api)}
+                    />
+                  </td>
                   <td className="p-3">{w.lease_well_name || "—"}</td>
                   <td className="p-3 font-mono">{w.api}</td>
                   <td className="p-3">{w.company_name || "—"}</td>
@@ -695,10 +829,14 @@ export default function AdminWellsPage() {
                     />
                   </td>
                   <td className="p-3">
-                    <div className="flex gap-2">
-                      <Link href={`/wells/${encodeURIComponent(w.api)}`} className="underline">
+                    <div className="flex gap-2 flex-wrap">
+                      <Link
+                        href={`/wells/${encodeURIComponent(w.api)}`}
+                        className="underline"
+                      >
                         View
                       </Link>
+
                       {canEditWells && (
                         <Link
                           href={`/admin/wells/${encodeURIComponent(w.api)}/edit`}
@@ -707,6 +845,23 @@ export default function AdminWellsPage() {
                           Edit
                         </Link>
                       )}
+
+                      <Link
+                        href={`/jobs/new?api=${encodeURIComponent(
+                          w.api || ""
+                        )}&lease_well_name=${encodeURIComponent(
+                          w.lease_well_name || ""
+                        )}&company_name=${encodeURIComponent(
+                          w.company_name || ""
+                        )}&state=${encodeURIComponent(
+                          w.state || ""
+                        )}&county=${encodeURIComponent(
+                          w.county || ""
+                        )}`}
+                        className="underline"
+                      >
+                        Request Test
+                      </Link>
                     </div>
                   </td>
                 </tr>
