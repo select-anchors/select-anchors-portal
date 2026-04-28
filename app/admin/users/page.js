@@ -60,6 +60,7 @@ export default function AdminUsersPage() {
     company_name: "",
     role: "customer",
     sendReset: true,
+    temporaryPassword: "",
   });
 
   const role = session?.user?.role;
