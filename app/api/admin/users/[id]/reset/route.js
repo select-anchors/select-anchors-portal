@@ -1,56 +1,67 @@
-// /app/api/admin/users/[id]/reset/route.js
+// app/api/admin/users/[id]/reset/route.js
 import { NextResponse } from "next/server";
-import crypto from "crypto";
-import nodemailer from "nodemailer";
 import { getServerSession } from "next-auth";
+import bcrypt from "bcrypt";
 import { authOptions } from "../../../../../../lib/nextauth-options";
 import { q } from "../../../../../../lib/db";
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
+
   if (!session || session.user?.role !== "admin") {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
   }
+
   return { session };
 }
 
-export async function POST(_req, { params }) {
+export async function POST(req, { params }) {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
 
   try {
     const id = params.id;
-    const { rows } = await q(`SELECT id, email FROM users WHERE id = $1`, [id]);
-    if (!rows.length) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    const body = await req.json().catch(() => ({}));
+    const password = String(body.password || "");
 
-    const user = rows[0];
-    const token = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 1000 * 60 * 30);
+    if (!password || password.length < 8) {
+      return NextResponse.json(
+        { error: "Temporary password must be at least 8 characters." },
+        { status: 400 }
+      );
+    }
 
-    await q(
-      `INSERT INTO password_resets (user_id, token, expires_at)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id)
-       DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at`,
-      [user.id, token, expires]
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const { rows } = await q(
+      `
+      UPDATE users
+      SET
+        password_hash = $1,
+        reset_token = NULL,
+        reset_token_expires = NULL
+      WHERE id = $2
+      RETURNING id, email
+      `,
+      [passwordHash, id]
     );
 
-    const resetLink = `${process.env.NEXTAUTH_URL || "https://app.selectanchors.com"}/reset?token=${token}`;
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    });
-    await transporter.sendMail({
-      from: `"Select Anchors" <${process.env.SMTP_USER}>`,
-      to: user.email,
-      subject: "Reset your Select Anchors password",
-      html: `<p>Click below to reset your password (expires in 30 minutes):</p>
-             <p><a href="${resetLink}">Reset Password</a></p>`,
-    });
+    if (!rows.length) {
+      return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
 
-    return NextResponse.json({ ok: true });
-  } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json({
+      ok: true,
+      message: "Temporary password saved.",
+      user: rows[0],
+    });
+  } catch (err) {
+    console.error("[ADMIN_USER_RESET_PASSWORD_ERROR]", err);
+    return NextResponse.json(
+      { error: "Failed to reset password." },
+      { status: 500 }
+    );
   }
 }
