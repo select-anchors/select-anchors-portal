@@ -353,7 +353,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
           title="Total Wells"
           value={stats.wells}
@@ -370,11 +370,7 @@ export default function DashboardPage() {
           />
         )}
 
-        <StatCard
-          title={`Upcoming Tests (≤${EXPIRING_WINDOW_DAYS}d)`}
-          value={stats.upcomingTests}
-          loading={loadingStats}
-        />
+        
 
         {canApproveChanges && (
           <StatCard
