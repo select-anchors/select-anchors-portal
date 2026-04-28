@@ -6,6 +6,7 @@ import { q } from "../../../../lib/db";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { getDefaultPermissions } from "../../../../lib/permissions";
+import bcrypt from "bcrypt";
 
 function normalizeCompanyName(name) {
   return String(name || "").trim().replace(/\s+/g, " ");
@@ -105,6 +106,7 @@ export async function POST(req) {
   if (gate.error) return gate.error;
 
   try {
+    const temporaryPassword = String(body.temporaryPassword || "");
     const body = await req.json();
     const rawName = body.name || "";
     const rawEmail = body.email || "";
@@ -152,17 +154,30 @@ export async function POST(req) {
 
     const { rows } = await q(
       `
+    let passwordHash = null;
+
+if (temporaryPassword) {
+  if (temporaryPassword.length < 8) {
+    return NextResponse.json(
+      { error: "Temporary password must be at least 8 characters." },
+      { status: 400 }
+    );
+  }
+
+  passwordHash = await bcrypt.hash(temporaryPassword, 10);
+}  
       INSERT INTO users (
-        name,
-        email,
-        role,
-        is_active,
-        phone,
-        company_id,
-        company_name,
-        permissions_json
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+  name,
+  email,
+  role,
+  is_active,
+  phone,
+  company_id,
+  company_name,
+  permissions_json,
+  password_hash
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
       RETURNING id, email
       `,
       [
@@ -174,6 +189,7 @@ export async function POST(req) {
         company?.id ?? null,
         company?.name ?? null,
         JSON.stringify(defaultPermissions),
+        passwordHash,
       ]
     );
 
