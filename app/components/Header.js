@@ -13,10 +13,17 @@ export default function Header() {
 
   const canViewAllWells =
     sessionReady && hasPermission(session, "can_view_all_wells");
+
   const canUseDispatch =
     sessionReady && hasPermission(session, "can_use_dispatch");
+
   const canManageUsers =
     sessionReady && hasPermission(session, "can_manage_users");
+
+  const canManageCompanyUsers =
+    sessionReady &&
+    (hasPermission(session, "can_manage_company_users") ||
+      hasPermission(session, "can_edit_company_users"));
 
   const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
 
@@ -53,6 +60,12 @@ export default function Header() {
 
           {isLoggedIn && canManageUsers && (
             <Link href="/admin/users" className="hover:underline">
+              Users
+            </Link>
+          )}
+
+          {isLoggedIn && !canManageUsers && canManageCompanyUsers && (
+            <Link href="/company/users" className="hover:underline">
               Users
             </Link>
           )}
