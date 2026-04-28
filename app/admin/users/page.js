@@ -1,3 +1,4 @@
+// app/admin/users/page.js
 "use client";
 
 import { useEffect, useState } from "react";
@@ -24,20 +25,6 @@ const PERMISSION_LABELS = {
   can_use_dispatch: "Dispatch",
 };
 
-function PermissionBadge({ label, enabled }) {
-  return (
-    <span
-      className={`inline-flex items-center px-2 py-1 rounded-full text-xs border ${
-        enabled
-          ? "bg-green-50 text-green-700 border-green-200"
-          : "bg-gray-50 text-gray-600 border-gray-200"
-      }`}
-    >
-      {label}: {enabled ? "Yes" : "No"}
-    </span>
-  );
-}
-
 export default function AdminUsersPage() {
   const { data: session, status } = useSession();
 
@@ -45,13 +32,6 @@ export default function AdminUsersPage() {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState("");
-  const [savingId, setSavingId] = useState("");
-
-  const [editingUserId, setEditingUserId] = useState("");
-  const [editRole, setEditRole] = useState("customer");
-  const [editPermissions, setEditPermissions] = useState({});
-  const [editCompanyId, setEditCompanyId] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -67,414 +47,180 @@ export default function AdminUsersPage() {
   const isAdmin = role === "admin";
 
   async function loadUsers() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const res = await fetch("/api/admin/users", { cache: "no-store" });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.error || `Failed to load users (${res.status})`);
-      }
-
-      setUsers(Array.isArray(data?.users) ? data.users : []);
-      setCompanies(Array.isArray(data?.companies) ? data.companies : []);
-    } catch (e) {
-      console.error("Failed to load users", e);
-      setUsers([]);
-      setCompanies([]);
-      setError(e?.message || "Failed to load users");
-    } finally {
-      setLoading(false);
-    }
+    const res = await fetch("/api/admin/users", { cache: "no-store" });
+    const data = await res.json();
+    setUsers(data.users || []);
+    setCompanies(data.companies || []);
+    setLoading(false);
   }
 
   useEffect(() => {
     if (status === "authenticated" && isAdmin) {
       loadUsers();
-    } else if (status !== "loading") {
-      setLoading(false);
     }
-  }, [status, isAdmin]);
+  }, [status]);
 
   async function onCreate(e) {
     e.preventDefault();
-    try {
-      setCreating(true);
-      setError("");
 
-      const res = await fetch("/api/admin/users", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(form),
-      });
+    setCreating(true);
 
-      const json = await res.json();
-      if (!res.ok) {
-        alert(json?.error || "Failed to create user");
-        return;
-      }
+    const res = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(form),
+    });
 
-      setForm({
-        name: "",
-        email: "",
-        phone: "",
-        company_name: "",
-        role: "customer",
-        sendReset: true,
-      });
+    const json = await res.json();
 
-      await loadUsers();
-      alert("User created successfully");
-    } catch (err) {
-      console.error(err);
-      alert("Error creating user");
-    } finally {
+    if (!res.ok) {
+      alert(json.error || "Failed to create user");
       setCreating(false);
+      return;
     }
-  }
 
-  async function sendReset(id) {
-    const ok = confirm("Send password reset email to this user?");
-    if (!ok) return;
+    alert("User created successfully");
 
-    try {
-      const res = await fetch(`/api/admin/users/${id}/send-reset`, {
-        method: "POST",
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        alert(json?.error || "Failed to send reset email");
-        return;
-      }
-      alert("Password reset email sent");
-    } catch (err) {
-      console.error(err);
-      alert("Error sending reset email");
-    }
+    setForm({
+      name: "",
+      email: "",
+      phone: "",
+      company_name: "",
+      role: "customer",
+      sendReset: true,
+      temporaryPassword: "",
+    });
+
+    await loadUsers();
+    setCreating(false);
   }
 
   async function manualReset(id) {
-    const password = prompt("Enter a new temporary password for this user:");
+    const password = prompt("Enter a temporary password (min 8 chars):");
+
     if (!password) return;
 
-    try {
-      const res = await fetch(`/api/admin/users/${id}/reset`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        alert(json?.error || "Failed to reset password");
-        return;
-      }
-      alert("Password updated successfully");
-    } catch (err) {
-      console.error(err);
-      alert("Error resetting password");
+    const res = await fetch(`/api/admin/users/${id}/reset`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ password }),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      alert(json.error || "Failed to set password");
+      return;
     }
+
+    alert("Temporary password saved");
   }
 
-  function startEditingUser(user) {
-    setEditingUserId(user.id);
-    setEditRole(user.role);
-    setEditCompanyId(user.company_id || "");
-    setEditPermissions(
-      resolvePermissions(
-        user.role,
-        user.company_permissions_json || null,
-        user.permissions_json || null
-      )
-    );
-  }
-
-  function cancelEditingUser() {
-    setEditingUserId("");
-    setEditRole("customer");
-    setEditCompanyId("");
-    setEditPermissions({});
-  }
-
-  function onEditRoleChange(nextRole) {
-    setEditRole(nextRole);
-    setEditPermissions(getDefaultPermissions(nextRole));
-  }
-
-  function togglePermission(key) {
-    setEditPermissions((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-  }
-
-  async function saveUserAccess(userId) {
-    try {
-      setSavingId(userId);
-
-      const res = await fetch(`/api/admin/users/${userId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          role: editRole,
-          company_id: editCompanyId || null,
-          permissions_json: editPermissions,
-        }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) {
-        alert(json?.error || "Failed to save access controls");
-        return;
-      }
-
-      await loadUsers();
-      cancelEditingUser();
-      alert("Access controls updated");
-    } catch (err) {
-      console.error(err);
-      alert("Error saving access controls");
-    } finally {
-      setSavingId("");
-    }
-  }
-
-  if (status === "loading") return <div className="container py-8">Loading…</div>;
+  if (status === "loading") return <div>Loading...</div>;
   if (!session) return <NotLoggedIn />;
-  if (!isAdmin) return <div className="container py-8">Not authorized.</div>;
+  if (!isAdmin) return <div>Not authorized</div>;
 
   return (
-    <div className="container py-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Manage Users</h1>
-        <Link
-          href="/dashboard"
-          className="rounded-xl border px-4 py-2 hover:bg-gray-50"
+    <div className="container py-8 space-y-6">
+      <h1 className="text-2xl font-bold">Manage Users</h1>
+
+      <form onSubmit={onCreate} className="border rounded-xl p-6 space-y-4">
+
+        <input
+          placeholder="Full name"
+          className="border rounded px-3 py-2 w-full"
+          value={form.name}
+          onChange={(e)=>setForm(s=>({...s,name:e.target.value}))}
+        />
+
+        <input
+          placeholder="Email"
+          className="border rounded px-3 py-2 w-full"
+          value={form.email}
+          onChange={(e)=>setForm(s=>({...s,email:e.target.value}))}
+        />
+
+        <input
+          placeholder="Phone"
+          className="border rounded px-3 py-2 w-full"
+          value={form.phone}
+          onChange={(e)=>setForm(s=>({...s,phone:e.target.value}))}
+        />
+
+        <input
+          placeholder="Company name"
+          className="border rounded px-3 py-2 w-full"
+          value={form.company_name}
+          onChange={(e)=>setForm(s=>({...s,company_name:e.target.value}))}
+        />
+
+        <select
+          className="border rounded px-3 py-2 w-full"
+          value={form.role}
+          onChange={(e)=>setForm(s=>({...s,role:e.target.value}))}
         >
-          Back to Dashboard
-        </Link>
-      </div>
+          <option value="customer">Customer</option>
+          <option value="employee">Employee</option>
+          <option value="admin">Admin</option>
+        </select>
 
-      {error && (
-        <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+        <input
+          className="border rounded px-3 py-2 w-full"
+          placeholder="Temporary password (optional)"
+          type="text"
+          value={form.temporaryPassword}
+          onChange={(e)=>
+            setForm((s)=>({
+              ...s,
+              temporaryPassword:e.target.value
+            }))
+          }
+        />
 
-      <form
-        onSubmit={onCreate}
-        className="bg-white border rounded-2xl p-6 space-y-4"
-      >
-        <h2 className="text-lg font-semibold">Create New User</h2>
-
-        <div className="grid md:grid-cols-2 gap-4">
+        <label className="flex gap-2 items-center">
           <input
-            className="border rounded-lg px-3 py-2"
-            placeholder="Full name"
-            value={form.name}
-            onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
-          />
-          <input
-            className="border rounded-lg px-3 py-2"
-            placeholder="Email"
-            type="email"
-            value={form.email}
-            onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
-          />
-          <input
-            className="border rounded-lg px-3 py-2"
-            placeholder="Phone"
-            value={form.phone}
-            onChange={(e) => setForm((s) => ({ ...s, phone: e.target.value }))}
-          />
-          <input
-            className="border rounded-lg px-3 py-2"
-            placeholder="Company name (creates or links company)"
-            value={form.company_name}
-            onChange={(e) =>
-              setForm((s) => ({ ...s, company_name: e.target.value }))
+            type="checkbox"
+            checked={form.sendReset}
+            onChange={(e)=>
+              setForm(s=>({...s,sendReset:e.target.checked}))
             }
           />
-
-          <select
-            className="border rounded-lg px-3 py-2"
-            value={form.role}
-            onChange={(e) => setForm((s) => ({ ...s, role: e.target.value }))}
-          >
-            <option value="customer">Customer</option>
-            <option value="employee">Employee</option>
-            <option value="admin">Admin</option>
-          </select>
-
-          <label className="flex items-center gap-2 rounded-lg border px-3 py-2">
-            <input
-              type="checkbox"
-              checked={form.sendReset}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, sendReset: e.target.checked }))
-              }
-            />
-            <span className="text-sm">Send password setup email</span>
-          </label>
-        </div>
-
-        <div className="text-xs text-gray-500">
-          Role = base access. Company = ownership/scope. User access edits below are per-user overrides.
-        </div>
+          Send password setup email
+        </label>
 
         <button
-          type="submit"
           disabled={creating}
-          className="rounded-xl bg-[#2f4f4f] text-white px-4 py-2 hover:opacity-90 disabled:opacity-60"
+          className="bg-black text-white px-4 py-2 rounded"
         >
           {creating ? "Creating..." : "Create User"}
         </button>
+
       </form>
 
-      <div className="bg-white border rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 border-b font-semibold">Existing Users</div>
+      <div className="space-y-2">
 
-        {loading ? (
-          <div className="p-6 text-sm text-gray-500">Loading users...</div>
-        ) : users.length === 0 ? (
-          <div className="p-6 text-sm text-gray-500">No users found.</div>
-        ) : (
-          <div className="divide-y">
-            {users.map((u) => {
-              const perms = resolvePermissions(
-                u.role,
-                u.company_permissions_json || null,
-                u.permissions_json || null
-              );
-              const isEditing = editingUserId === u.id;
+        {users.map((u)=>(
+          <div key={u.id} className="border p-4 rounded flex justify-between">
 
-              return (
-                <div key={u.id} className="p-6 flex flex-col gap-4">
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="font-semibold">{u.name || "Unnamed User"}</div>
-                      <div className="text-sm text-gray-600">{u.email}</div>
-                      <div className="text-sm text-gray-600">
-                        {u.company_name || "No company"} · {u.role}
-                      </div>
-                      {u.phone && (
-                        <div className="text-sm text-gray-500">{u.phone}</div>
-                      )}
-                    </div>
+            <div>
+              <div>{u.name}</div>
+              <div className="text-sm text-gray-500">{u.email}</div>
+            </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => startEditingUser(u)}
-                        className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
-                      >
-                        Edit User Override
-                      </button>
-                      <button
-                        onClick={() => sendReset(u.id)}
-                        className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
-                      >
-                        Email Reset
-                      </button>
-                      <button
-                        onClick={() => manualReset(u.id)}
-                        className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
-                      >
-                        Set Temp Password
-                      </button>
-                    </div>
-                  </div>
+            <button
+              className="border px-3 py-1 rounded"
+              onClick={()=>manualReset(u.id)}
+            >
+              Set Temp Password
+            </button>
 
-                  {!isEditing && (
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-gray-700">Resolved Access</div>
-                      <div className="flex flex-wrap gap-2">
-                        {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
-                          <PermissionBadge key={key} label={label} enabled={perms[key]} />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {isEditing && (
-                    <div className="border rounded-2xl p-4 bg-gray-50 space-y-4">
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Role</label>
-                          <select
-                            value={editRole}
-                            onChange={(e) => onEditRoleChange(e.target.value)}
-                            className="w-full rounded-lg border px-3 py-2"
-                          >
-                            <option value="customer">Customer</option>
-                            <option value="employee">Employee</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Company</label>
-                          <select
-                            value={editCompanyId}
-                            onChange={(e) => setEditCompanyId(e.target.value)}
-                            className="w-full rounded-lg border px-3 py-2"
-                          >
-                            <option value="">No company assigned</option>
-                            {companies.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="text-xs text-gray-500">
-                        These checkboxes are per-user overrides. Later, we can add company-level access templates on top of this.
-                      </div>
-
-                      <div>
-                        <div className="text-sm font-medium mb-2">User Override Permissions</div>
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
-                            <label
-                              key={key}
-                              className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={!!editPermissions[key]}
-                                onChange={() => togglePermission(key)}
-                              />
-                              <span>{label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => saveUserAccess(u.id)}
-                          disabled={savingId === u.id}
-                          className="rounded-xl bg-[#2f4f4f] text-white px-4 py-2 hover:opacity-90 disabled:opacity-60"
-                        >
-                          {savingId === u.id ? "Saving..." : "Save User Override"}
-                        </button>
-                        <button
-                          onClick={cancelEditingUser}
-                          className="rounded-xl border px-4 py-2 hover:bg-gray-50"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
           </div>
-        )}
+        ))}
+
       </div>
+
     </div>
   );
 }
