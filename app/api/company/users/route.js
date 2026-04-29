@@ -19,11 +19,9 @@ const SAFE_COMPANY_PERMISSIONS = [
 
 function cleanPermissions(input = {}) {
   const out = {};
-
   for (const key of SAFE_COMPANY_PERMISSIONS) {
     out[key] = !!input[key];
   }
-
   return out;
 }
 
@@ -83,7 +81,10 @@ export async function GET() {
     });
   } catch (err) {
     console.error("[COMPANY_USERS_GET_ERROR]", err);
-    return NextResponse.json({ error: "Failed to load company users." }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || "Failed to load company users." },
+      { status: 500 }
+    );
   }
 }
 
@@ -115,12 +116,19 @@ export async function POST(req) {
     const phone = String(body.phone || "").trim();
     const permissions = cleanPermissions(body.permissions_json || {});
 
+    if (!name) {
+      return NextResponse.json({ error: "Name is required." }, { status: 400 });
+    }
+
     if (!email) {
       return NextResponse.json({ error: "Email is required." }, { status: 400 });
     }
 
     if (!email.includes("@") || !email.includes(".")) {
-      return NextResponse.json({ error: "Email format looks invalid." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Email format looks invalid." },
+        { status: 400 }
+      );
     }
 
     const existingUser = await q(
@@ -165,13 +173,14 @@ export async function POST(req) {
         kind,
         submitted_by,
         status,
-        payload
+        payload,
+        created_at
       )
-      VALUES ($1, $2, 'pending', $3::jsonb)
+      VALUES ($1, $2, 'pending', $3::jsonb, NOW())
       `,
       [
         "company_user_create_request",
-        session.user.email || session.user.name || "Company user",
+        session.user.id,
         JSON.stringify({
           company_id: companyId,
           company_name: session.user.company_name || "",
@@ -180,7 +189,7 @@ export async function POST(req) {
           requested_by_email: session.user.email || "",
           requested_by_role: session.user.role || "",
           new_user: {
-            name: name || null,
+            name,
             email,
             phone: phone || null,
             role: "customer",
@@ -196,6 +205,9 @@ export async function POST(req) {
     });
   } catch (err) {
     console.error("[COMPANY_USERS_POST_ERROR]", err);
-    return NextResponse.json({ error: "Failed to submit user request." }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || "Failed to submit user request." },
+      { status: 500 }
+    );
   }
 }
