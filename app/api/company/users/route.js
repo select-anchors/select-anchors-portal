@@ -1,9 +1,9 @@
 // app/api/company/users/route.js
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../../../lib/nextauth-options";
-import { q } from "../../../lib/db";
-import { hasPermission } from "../../../lib/permissions";
+import { authOptions } from "../../../../lib/nextauth-options";
+import { q } from "../../../../lib/db";
+import { hasPermission } from "../../../../lib/permissions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
