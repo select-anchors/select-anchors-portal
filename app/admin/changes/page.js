@@ -143,8 +143,11 @@ export default function AdminChangesPage() {
             ) : (
               rows.map((c) => {
                 const payload = c.payload || {};
-                const changes = payload.changes || {};
-                const entries = Object.entries(changes);
+                const changes =
+  change.kind === "company_user_create_request"
+    ? payload.new_user || {}
+    : payload.changes || {};
+                const entries = Object.entries(changes || {});
 
                 return (
                   <tr key={c.id} className="border-t align-top">
