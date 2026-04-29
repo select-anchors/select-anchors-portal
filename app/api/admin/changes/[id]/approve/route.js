@@ -67,13 +67,9 @@ export async function POST(_req, { params }) {
     const change = changes[0];
     const payload = change.payload || {};
 
-    if (payload.kind && payload.kind !== "well_update_request") {
-      return NextResponse.json({ error: "Unsupported change kind" }, { status: 400 });
-    }
-
-    if (change.kind !== "well_update_request") {
-      return NextResponse.json({ error: "Unsupported change kind" }, { status: 400 });
-    }
+    if (!["well_update_request", "company_user_create_request"].includes(change.kind)) {
+  return NextResponse.json({ error: "Unsupported change kind" }, { status: 400 });
+}
 
     const api = payload.api;
     const diff = payload.changes || {};
@@ -87,6 +83,70 @@ export async function POST(_req, { params }) {
       return NextResponse.json({ error: "Target well not found" }, { status: 404 });
     }
 
+if (change.kind === "company_user_create_request") {
+  const payload = change.payload || {};
+  const newUser = payload.new_user || {};
+
+  if (!newUser.email) {
+    return NextResponse.json({ error: "Missing user email" }, { status: 400 });
+  }
+
+  await q("BEGIN");
+
+  try {
+    const existing = await q(
+      `SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+      [newUser.email]
+    );
+
+    if (existing.rows.length) {
+      throw new Error("User already exists");
+    }
+
+    await q(
+      `
+      INSERT INTO users (
+        name,
+        email,
+        role,
+        phone,
+        company_id,
+        company_name,
+        permissions_json,
+        is_active
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `,
+      [
+        newUser.name || null,
+        newUser.email.toLowerCase(),
+        "customer",
+        newUser.phone || null,
+        payload.company_id,
+        payload.company_name,
+        JSON.stringify(newUser.permissions_json || {}),
+        true
+      ]
+    );
+
+    await q(
+      `
+      UPDATE pending_changes
+      SET status='approved', decided_at=NOW()
+      WHERE id=$1
+      `,
+      [change.id]
+    );
+
+    await q("COMMIT");
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    await q("ROLLBACK");
+    throw err;
+  }
+}
+    
     await q("BEGIN");
 
     const {
