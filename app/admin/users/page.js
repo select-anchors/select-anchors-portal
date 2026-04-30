@@ -67,6 +67,35 @@ export default function AdminUsersPage() {
   const role = session?.user?.role;
   const isAdmin = role === "admin";
 
+  async function toggleUserActive(id, email, nextActive) {
+  const ok = confirm(
+    `${nextActive ? "Reactivate" : "Deactivate"} this user?\n\n${email || ""}`
+  );
+
+  if (!ok) return;
+
+  try {
+    const res = await fetch(`/api/admin/users/${id}/toggle-active`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ is_active: nextActive }),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      alert(json?.error || "Failed to update user");
+      return;
+    }
+
+    await loadUsers();
+    alert(nextActive ? "User reactivated" : "User deactivated");
+  } catch (err) {
+    console.error(err);
+    alert("Error updating user");
+  }
+}
+  
   async function deleteUser(id, email) {
   const ok = confirm(
     `Delete/deactivate this user?\n\n${email || ""}\n\nThey will no longer be able to log in.`
