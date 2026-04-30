@@ -8,6 +8,11 @@ import { hasPermission } from "../../../lib/permissions";
 
 function prettyLabel(key) {
   const labels = {
+    name: "Name",
+    email: "Email",
+    phone: "Phone",
+    role: "Role",
+    permissions_json: "Permissions",
     lease_well_name: "Lease / Well Name",
     company_name: "Company Name",
     company_email: "Company Email",
@@ -32,20 +37,36 @@ function prettyLabel(key) {
   return labels[key] || key;
 }
 
+function formatValue(value) {
+  if (value === null || value === "") return "Blank / null";
+
+  if (typeof value === "object") {
+    return JSON.stringify(value, null, 2);
+  }
+
+  return String(value);
+}
+
 export default function AdminChangesPage() {
   const { data: session, status } = useSession();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState("");
 
-  const canApproveChanges = hasPermission(session, "can_approve_changes");
+  const canApproveChanges = !!session && hasPermission(session, "can_approve_changes");
 
   async function load() {
     try {
       const res = await fetch("/api/admin/changes", { cache: "no-store" });
       const j = await res.json();
+
+      if (!res.ok) {
+        throw new Error(j?.error || "Failed to load pending changes.");
+      }
+
       setRows(Array.isArray(j?.changes) ? j.changes : []);
-    } catch {
+    } catch (err) {
+      console.error("Failed to load pending changes:", err);
       setRows([]);
     } finally {
       setLoading(false);
@@ -65,6 +86,8 @@ export default function AdminChangesPage() {
     if (status === "authenticated" && canApproveChanges) {
       loadSafe();
       intervalId = setInterval(loadSafe, 120000);
+    } else if (status !== "loading") {
+      setLoading(false);
     }
 
     return () => {
@@ -98,6 +121,7 @@ export default function AdminChangesPage() {
 
   if (status === "loading") return <div className="container py-8">Loading…</div>;
   if (!session) return <NotLoggedIn />;
+
   if (!canApproveChanges) {
     return (
       <div className="container py-8">
@@ -120,7 +144,7 @@ export default function AdminChangesPage() {
           <thead className="bg-gray-50 text-gray-600">
             <tr>
               <th className="text-left p-3">When</th>
-              <th className="text-left p-3">API</th>
+              <th className="text-left p-3">Type</th>
               <th className="text-left p-3">Submitted By</th>
               <th className="text-left p-3">Requested Changes</th>
               <th className="text-left p-3">Action</th>
@@ -143,11 +167,18 @@ export default function AdminChangesPage() {
             ) : (
               rows.map((c) => {
                 const payload = c.payload || {};
+
                 const changes =
-  change.kind === "company_user_create_request"
-    ? payload.new_user || {}
-    : payload.changes || {};
+                  c.kind === "company_user_create_request"
+                    ? payload.new_user || {}
+                    : payload.changes || {};
+
                 const entries = Object.entries(changes || {});
+
+                const typeLabel =
+                  c.kind === "company_user_create_request"
+                    ? "Company User Request"
+                    : "Well Update Request";
 
                 return (
                   <tr key={c.id} className="border-t align-top">
@@ -155,21 +186,37 @@ export default function AdminChangesPage() {
                       {c.created_at ? new Date(c.created_at).toLocaleString() : "—"}
                     </td>
 
-                    <td className="p-3 font-mono">{payload.api || "—"}</td>
+                    <td className="p-3">
+                      <div className="font-medium">{typeLabel}</div>
+                      {payload.api ? (
+                        <div className="text-xs text-gray-500 font-mono">
+                          API: {payload.api}
+                        </div>
+                      ) : null}
+                      {payload.company_name ? (
+                        <div className="text-xs text-gray-500">
+                          {payload.company_name}
+                        </div>
+                      ) : null}
+                    </td>
 
                     <td className="p-3">
                       <div>{payload.requested_by_name || c.submitted_by || "—"}</div>
                       {payload.requested_by_email ? (
-                        <div className="text-xs text-gray-500">{payload.requested_by_email}</div>
+                        <div className="text-xs text-gray-500">
+                          {payload.requested_by_email}
+                        </div>
                       ) : null}
                       {payload.requested_by_role ? (
-                        <div className="text-xs text-gray-500 capitalize">{payload.requested_by_role}</div>
+                        <div className="text-xs text-gray-500 capitalize">
+                          {payload.requested_by_role}
+                        </div>
                       ) : null}
                     </td>
 
                     <td className="p-3">
                       {entries.length === 0 ? (
-                        <div className="text-gray-500">No diff found.</div>
+                        <div className="text-gray-500">No details found.</div>
                       ) : (
                         <div className="space-y-2">
                           {entries.map(([key, value]) => (
@@ -177,9 +224,9 @@ export default function AdminChangesPage() {
                               <div className="text-xs font-semibold text-gray-700">
                                 {prettyLabel(key)}
                               </div>
-                              <div className="text-xs text-gray-600 whitespace-pre-wrap break-words">
-                                {value === null || value === "" ? "Blank / null" : String(value)}
-                              </div>
+                              <pre className="text-xs text-gray-600 whitespace-pre-wrap break-words font-sans">
+                                {formatValue(value)}
+                              </pre>
                             </div>
                           ))}
                         </div>
