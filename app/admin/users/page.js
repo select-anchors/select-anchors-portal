@@ -67,6 +67,33 @@ export default function AdminUsersPage() {
   const role = session?.user?.role;
   const isAdmin = role === "admin";
 
+  async function deleteUser(id, email) {
+  const ok = confirm(
+    `Delete/deactivate this user?\n\n${email || ""}\n\nThey will no longer be able to log in.`
+  );
+
+  if (!ok) return;
+
+  try {
+    const res = await fetch(`/api/admin/users/${id}/delete`, {
+      method: "POST",
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      alert(json?.error || "Failed to delete user");
+      return;
+    }
+
+    await loadUsers();
+    alert("User deleted/deactivated");
+  } catch (err) {
+    console.error(err);
+    alert("Error deleting user");
+  }
+}
+  
   async function loadUsers() {
     try {
       setLoading(true);
@@ -408,6 +435,13 @@ export default function AdminUsersPage() {
                       >
                         Set Temp Password
                       </button>
+
+                      <button
+  onClick={() => deleteUser(u.id, u.email)}
+  className="rounded-xl border border-red-300 text-red-700 px-3 py-2 text-sm hover:bg-red-50"
+>
+  Delete User
+</button>    
                     </div>
                   </div>
 
