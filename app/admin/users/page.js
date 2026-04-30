@@ -472,13 +472,6 @@ export default function AdminUsersPage() {
                         Set Temp Password
                       </button>
 
-                      <button
-  onClick={() => deleteUser(u.id, u.email)}
-  className="rounded-xl border border-red-300 text-red-700 px-3 py-2 text-sm hover:bg-red-50"
->
-  Delete User
-</button>    
-
 <button
   onClick={() => toggleUserActive(u.id, u.email, !u.is_active)}
   className={`rounded-xl border px-3 py-2 text-sm ${
