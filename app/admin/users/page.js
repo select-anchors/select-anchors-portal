@@ -437,6 +437,13 @@ export default function AdminUsersPage() {
                       <div className="text-sm text-gray-600">{u.email}</div>
                       <div className="text-sm text-gray-600">
                         {u.company_name || "No company"} · {u.role}
+                        <div
+  className={`text-xs font-medium ${
+    u.is_active ? "text-green-700" : "text-red-700"
+  }`}
+>
+  {u.is_active ? "Active" : "Inactive"}
+</div>
                       </div>
                       {u.phone && (
                         <div className="text-sm text-gray-500">{u.phone}</div>
@@ -471,6 +478,18 @@ export default function AdminUsersPage() {
 >
   Delete User
 </button>    
+
+<button
+  onClick={() => toggleUserActive(u.id, u.email, !u.is_active)}
+  className={`rounded-xl border px-3 py-2 text-sm ${
+    u.is_active
+      ? "border-red-300 text-red-700 hover:bg-red-50"
+      : "border-green-300 text-green-700 hover:bg-green-50"
+  }`}
+>
+  {u.is_active ? "Deactivate" : "Reactivate"}
+</button>
+    
                     </div>
                   </div>
 
