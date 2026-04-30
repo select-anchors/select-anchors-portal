@@ -10,7 +10,10 @@ export const revalidate = 0;
 
 function noStoreJson(data, init = {}) {
   const res = NextResponse.json(data, init);
-  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.headers.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate"
+  );
   res.headers.set("Pragma", "no-cache");
   res.headers.set("Expires", "0");
   return res;
@@ -19,10 +22,9 @@ function noStoreJson(data, init = {}) {
 async function safeCount(sql, params = []) {
   try {
     const { rows } = await q(sql, params);
-    const val = rows?.[0]?.count ?? 0;
-    return Number(val) || 0;
+    return Number(rows?.[0]?.count || 0);
   } catch (err) {
-    console.error("Stats query failed:", err.message);
+    console.error("Stats query failed:", err?.message || err);
     return 0;
   }
 }
@@ -42,20 +44,21 @@ export async function GET() {
 
     if (canViewAllWells) {
       const wells = await safeCount(`SELECT COUNT(*) FROM wells`);
-      const users = canManageUsers ? await safeCount(`SELECT COUNT(*) FROM users`) : 0;
-      const pendingChanges = canApproveChanges
-        ? await safeCount(`SELECT COUNT(*) FROM changes WHERE status = 'pending'`)
+
+      const users = canManageUsers
+        ? await safeCount(`SELECT COUNT(*) FROM users WHERE COALESCE(is_active, TRUE) = TRUE`)
         : 0;
 
-      const upcomingTests = await safeCount(`
-        SELECT COUNT(*)
-        FROM wells w
-        LEFT JOIN well_tests t ON t.id = w.current_test_id
-        WHERE COALESCE(w.current_expires_at, t.expires_at) IS NOT NULL
-          AND COALESCE(w.current_expires_at, t.expires_at) <= (CURRENT_DATE + INTERVAL '90 days')
-      `);
+      const pendingChanges = canApproveChanges
+        ? await safeCount(`SELECT COUNT(*) FROM pending_changes WHERE status = 'pending'`)
+        : 0;
 
-      return noStoreJson({ wells, users, pendingChanges, upcomingTests });
+      return noStoreJson({
+        wells,
+        users,
+        pendingChanges,
+        upcomingTests: 0,
+      });
     }
 
     if (!companyId) {
@@ -76,23 +79,11 @@ export async function GET() {
       [companyId]
     );
 
-    const upcomingTests = await safeCount(
-      `
-      SELECT COUNT(*)
-      FROM wells w
-      LEFT JOIN well_tests t ON t.id = w.current_test_id
-      WHERE w.company_id = $1
-        AND COALESCE(w.current_expires_at, t.expires_at) IS NOT NULL
-        AND COALESCE(w.current_expires_at, t.expires_at) <= (CURRENT_DATE + INTERVAL '90 days')
-      `,
-      [companyId]
-    );
-
     return noStoreJson({
       wells,
       users: 0,
       pendingChanges: 0,
-      upcomingTests,
+      upcomingTests: 0,
     });
   } catch (e) {
     console.error("GET /api/stats error:", e);
