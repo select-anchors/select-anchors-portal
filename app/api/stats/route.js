@@ -54,37 +54,66 @@ export async function GET() {
         : 0;
 
       return noStoreJson({
-        wells,
-        users,
-        pendingChanges,
-        upcomingTests: 0,
-      });
+  wells: 0,
+  users: 0,
+  pendingChanges: 0,
+  upcomingTests: 0,
+  expiringSoonWells: 0,
+  expiredWells: 0,
+});
     }
 
     if (!companyId) {
       return noStoreJson({
-        wells: 0,
-        users: 0,
-        pendingChanges: 0,
-        upcomingTests: 0,
-      });
+  wells: 0,
+  users: 0,
+  pendingChanges: 0,
+  upcomingTests: 0,
+  expiringSoonWells: 0,
+  expiredWells: 0,
+});
     }
 
     const wells = await safeCount(
-      `
-      SELECT COUNT(*)
-      FROM wells
-      WHERE company_id = $1
-      `,
-      [companyId]
-    );
+  `
+  SELECT COUNT(*)
+  FROM wells
+  WHERE company_id = $1
+  `,
+  [companyId]
+);
 
-    return noStoreJson({
-      wells,
-      users: 0,
-      pendingChanges: 0,
-      upcomingTests: 0,
-    });
+const expiringSoonWells = await safeCount(
+  `
+  SELECT COUNT(*)
+  FROM wells
+  WHERE company_id = $1
+    AND current_expires_at IS NOT NULL
+    AND current_expires_at >= CURRENT_DATE
+    AND current_expires_at <= CURRENT_DATE + INTERVAL '90 days'
+  `,
+  [companyId]
+);
+
+const expiredWells = await safeCount(
+  `
+  SELECT COUNT(*)
+  FROM wells
+  WHERE company_id = $1
+    AND current_expires_at IS NOT NULL
+    AND current_expires_at < CURRENT_DATE
+  `,
+  [companyId]
+);
+
+return noStoreJson({
+  wells,
+  users: 0,
+  pendingChanges: 0,
+  upcomingTests: 0,
+  expiringSoonWells,
+  expiredWells,
+});
   } catch (e) {
     console.error("GET /api/stats error:", e);
     return noStoreJson(
