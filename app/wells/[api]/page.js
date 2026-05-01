@@ -197,7 +197,12 @@ export default function WellDetailPage({ params }) {
     !!session && hasPermission(session, "can_edit_company_contacts");
 
   const canShowEdit = canEditWells || canEditCompanyContacts;
-  const canAddService = canEditWells;
+const canAddService = canEditWells;
+const canSubmitThirdPartyService =
+  !!session &&
+  (canEditWells ||
+    hasPermission(session, "can_submit_third_party_services") ||
+    hasPermission(session, "can_edit_company_contacts"));
   const wellsHref = canViewAllWells ? "/admin/wells" : "/wells";
 
   useEffect(() => {
@@ -278,6 +283,9 @@ export default function WellDetailPage({ params }) {
     w.county || ""
   )}`;
   const addServiceHref = `/wells/${encodeURIComponent(w.api)}/services/new`;
+  const thirdPartyServiceHref = `/wells/${encodeURIComponent(
+  w.api
+)}/third-party-service/new`;
 
   return (
     <div className="container py-10 space-y-6">
@@ -338,6 +346,14 @@ export default function WellDetailPage({ params }) {
               Add Service
             </Link>
           )}
+{canSubmitThirdPartyService && (
+  <Link
+    href={thirdPartyServiceHref}
+    className="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+  >
+    Submit Third-Party Service
+  </Link>
+)}
 
           {canShowEdit && (
             <Link
