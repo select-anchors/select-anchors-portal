@@ -119,11 +119,13 @@ export default function DashboardPage() {
   const EXPIRING_WINDOW_DAYS = 90;
 
   const [stats, setStats] = useState({
-    wells: 0,
-    users: 0,
-    pendingChanges: 0,
-    upcomingTests: 0,
-  });
+  wells: 0,
+  users: 0,
+  pendingChanges: 0,
+  upcomingTests: 0,
+  expiringSoonWells: 0,
+  expiredWells: 0,
+});
   const [loadingStats, setLoadingStats] = useState(true);
 
   const [wells, setWells] = useState([]);
@@ -360,7 +362,19 @@ export default function DashboardPage() {
           loading={loadingStats}
           href={wellsPageHref}
         />
+<StatCard
+  title="Expiring Soon Wells"
+  value={stats.expiringSoonWells || 0}
+  loading={loadingStats}
+  href={`${wellsPageHref}?status=expiring`}
+/>
 
+<StatCard
+  title="Expired Wells"
+  value={stats.expiredWells || 0}
+  loading={loadingStats}
+  href={`${wellsPageHref}?status=expired`}
+/>
         {canManageUsers && (
           <StatCard
             title="Users"
