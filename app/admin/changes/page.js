@@ -13,6 +13,7 @@ function prettyLabel(key) {
     phone: "Phone",
     role: "Role",
     permissions_json: "Permissions",
+
     lease_well_name: "Lease / Well Name",
     company_name: "Company Name",
     company_email: "Company Email",
@@ -32,28 +33,71 @@ function prettyLabel(key) {
     current_expires_at: "Expiration Date",
     customer: "Customer",
     customer_id: "Customer ID",
+
     service_date: "Service Date",
-service_type: "Service Type",
-third_party_company_name: "Third-Party Company",
-current_expires_at: "Expiration Date",
-chart_recorder_file_url: "Chart Recorder",
-jsa_file_url: "JSA",
-one_call_file_url: "811 / One-Call",
-responsibility_acknowledged: "Responsibility Acknowledged",
-responsibility_acknowledged_at: "Acknowledged At",
+    service_type: "Service Type",
+    third_party_company_name: "Third-Party Company",
+    chart_recorder_file_url: "Chart Recorder",
+    jsa_file_url: "JSA",
+    one_call_file_url: "811 / One-Call",
+    notes: "Notes",
+    responsibility_acknowledged: "Responsibility Acknowledged",
+    responsibility_acknowledged_at: "Acknowledged At",
   };
 
   return labels[key] || key;
 }
 
-function formatValue(value) {
-  if (value === null || value === "") return "Blank / null";
+function getTypeLabel(kind) {
+  if (kind === "company_user_create_request") return "Company User Request";
+  if (kind === "third_party_service_request") {
+    return "Third-Party Anchor Service Submission";
+  }
+  return "Well Update Request";
+}
 
-  if (typeof value === "object") {
-    return JSON.stringify(value, null, 2);
+function formatValue(value) {
+  if (value === null || value === "" || value === undefined) return "Blank / null";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
+}
+
+function DetailValue({ value }) {
+  if (typeof value === "string" && value.startsWith("data:")) {
+    return (
+      <a
+        href={value}
+        target="_blank"
+        rel="noreferrer"
+        className="underline text-[#2f4f4f] font-medium"
+      >
+        Open File
+      </a>
+    );
   }
 
-  return String(value);
+  if (
+    typeof value === "string" &&
+    (value.startsWith("http://") || value.startsWith("https://"))
+  ) {
+    return (
+      <a
+        href={value}
+        target="_blank"
+        rel="noreferrer"
+        className="underline text-[#2f4f4f] font-medium break-all"
+      >
+        Open Link
+      </a>
+    );
+  }
+
+  return (
+    <pre className="text-xs text-gray-600 whitespace-pre-wrap break-words font-sans">
+      {formatValue(value)}
+    </pre>
+  );
 }
 
 export default function AdminChangesPage() {
@@ -62,7 +106,8 @@ export default function AdminChangesPage() {
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState("");
 
-  const canApproveChanges = !!session && hasPermission(session, "can_approve_changes");
+  const canApproveChanges =
+    !!session && hasPermission(session, "can_approve_changes");
 
   async function load() {
     try {
@@ -128,7 +173,10 @@ export default function AdminChangesPage() {
     }
   }
 
-  if (status === "loading") return <div className="container py-8">Loading…</div>;
+  if (status === "loading") {
+    return <div className="container py-8">Loading…</div>;
+  }
+
   if (!session) return <NotLoggedIn />;
 
   if (!canApproveChanges) {
@@ -148,129 +196,154 @@ export default function AdminChangesPage() {
         </p>
       </div>
 
-      <div className="bg-white border rounded-2xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
-            <tr>
-              <th className="text-left p-3">When</th>
-              <th className="text-left p-3">Type</th>
-              <th className="text-left p-3">Submitted By</th>
-              <th className="text-left p-3">Requested Changes</th>
-              <th className="text-left p-3">Action</th>
-            </tr>
-          </thead>
+      <div className="space-y-4">
+        {loading ? (
+          <div className="bg-white border rounded-2xl p-6 text-sm text-gray-600">
+            Loading…
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="bg-white border rounded-2xl p-6 text-sm text-gray-600">
+            No pending changes.
+          </div>
+        ) : (
+          rows.map((c) => {
+            const payload = c.payload || {};
 
-          <tbody>
-            {loading ? (
-              <tr>
-                <td className="p-4" colSpan={5}>
-                  Loading…
-                </td>
-              </tr>
-            ) : rows.length === 0 ? (
-              <tr>
-                <td className="p-4" colSpan={5}>
-                  No pending changes.
-                </td>
-              </tr>
-            ) : (
-              rows.map((c) => {
-                const payload = c.payload || {};
+            const changes =
+              c.kind === "company_user_create_request"
+                ? payload.new_user || {}
+                : c.kind === "third_party_service_request"
+                ? payload.third_party_service || {}
+                : payload.changes || {};
 
-                const changes =
-  c.kind === "company_user_create_request"
-    ? payload.new_user || {}
-    : c.kind === "third_party_service_request"
-    ? payload.third_party_service || {}
-    : payload.changes || {};
+            const entries = Object.entries(changes || {});
+            const typeLabel = getTypeLabel(c.kind);
 
-                const entries = Object.entries(changes || {});
+            return (
+              <div
+                key={c.id}
+                className="bg-white border rounded-2xl overflow-hidden shadow-sm"
+              >
+                <div className="p-5 border-b bg-gray-50">
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-3 py-1 rounded-full border bg-white text-sm font-medium">
+                          {typeLabel}
+                        </span>
 
-                const typeLabel =
-  c.kind === "company_user_create_request"
-    ? "Company User Request"
-    : c.kind === "third_party_service_request"
-    ? "Third-Party Service Request"
-    : "Well Update Request";
-
-                return (
-                  <tr key={c.id} className="border-t align-top">
-                    <td className="p-3">
-                      {c.created_at ? new Date(c.created_at).toLocaleString() : "—"}
-                    </td>
-
-                    <td className="p-3">
-                      <div className="font-medium">{typeLabel}</div>
-                      {payload.api ? (
-                        <div className="text-xs text-gray-500 font-mono">
-                          API: {payload.api}
-                        </div>
-                      ) : null}
-                      {payload.company_name ? (
-                        <div className="text-xs text-gray-500">
-                          {payload.company_name}
-                        </div>
-                      ) : null}
-                    </td>
-
-                    <td className="p-3">
-                      <div>{payload.requested_by_name || c.submitted_by || "—"}</div>
-                      {payload.requested_by_email ? (
-                        <div className="text-xs text-gray-500">
-                          {payload.requested_by_email}
-                        </div>
-                      ) : null}
-                      {payload.requested_by_role ? (
-                        <div className="text-xs text-gray-500 capitalize">
-                          {payload.requested_by_role}
-                        </div>
-                      ) : null}
-                    </td>
-
-                    <td className="p-3">
-                      {entries.length === 0 ? (
-                        <div className="text-gray-500">No details found.</div>
-                      ) : (
-                        <div className="space-y-2">
-                          {entries.map(([key, value]) => (
-                            <div key={key} className="rounded-lg border p-2 bg-gray-50">
-                              <div className="text-xs font-semibold text-gray-700">
-                                {prettyLabel(key)}
-                              </div>
-                              <pre className="text-xs text-gray-600 whitespace-pre-wrap break-words font-sans">
-                                {formatValue(value)}
-                              </pre>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="p-3">
-                      <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => act(c.id, "approve")}
-                          disabled={actingId === c.id}
-                          className="px-3 py-1 rounded-xl border border-green-600 text-green-700 disabled:opacity-60"
-                        >
-                          {actingId === c.id ? "Working..." : "Approve"}
-                        </button>
-
-                        <button
-                          onClick={() => act(c.id, "reject")}
-                          disabled={actingId === c.id}
-                          className="px-3 py-1 rounded-xl border border-red-600 text-red-700 disabled:opacity-60"
-                        >
-                          {actingId === c.id ? "Working..." : "Reject"}
-                        </button>
+                        {c.created_at ? (
+                          <span className="text-sm text-gray-500">
+                            {new Date(c.created_at).toLocaleString()}
+                          </span>
+                        ) : null}
                       </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+
+                      <div className="text-sm text-gray-600">
+                        Submitted by{" "}
+                        <span className="font-medium text-gray-900">
+                          {payload.requested_by_name || c.submitted_by || "—"}
+                        </span>
+                        {payload.requested_by_email ? (
+                          <span> · {payload.requested_by_email}</span>
+                        ) : null}
+                        {payload.requested_by_role ? (
+                          <span className="capitalize">
+                            {" "}
+                            · {payload.requested_by_role}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="text-sm text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
+                        {payload.api ? (
+                          <span>
+                            API:{" "}
+                            <span className="font-mono text-gray-900">
+                              {payload.api}
+                            </span>
+                          </span>
+                        ) : null}
+
+                        {payload.lease_well_name ? (
+                          <span>
+                            Well:{" "}
+                            <span className="font-medium text-gray-900">
+                              {payload.lease_well_name}
+                            </span>
+                          </span>
+                        ) : null}
+
+                        {payload.company_name ? (
+                          <span>
+                            Company:{" "}
+                            <span className="font-medium text-gray-900">
+                              {payload.company_name}
+                            </span>
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => act(c.id, "approve")}
+                        disabled={actingId === c.id}
+                        className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white disabled:opacity-60"
+                      >
+                        {actingId === c.id ? "Working..." : "Approve"}
+                      </button>
+
+                      <button
+                        onClick={() => act(c.id, "reject")}
+                        disabled={actingId === c.id}
+                        className="px-4 py-2 rounded-xl border border-red-400 text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      >
+                        {actingId === c.id ? "Working..." : "Reject"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5">
+                  {c.kind === "third_party_service_request" && (
+                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                      <div className="font-semibold">
+                        Third-party service disclosure
+                      </div>
+                      <div className="mt-1">
+                        The customer is submitting documentation for work not
+                        performed or certified by Select Anchors. Approving this
+                        records it in service history as a third-party service.
+                      </div>
+                    </div>
+                  )}
+
+                  {entries.length === 0 ? (
+                    <div className="text-sm text-gray-500">No details found.</div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3 max-w-full overflow-hidden">
+                      {entries.map(([key, value]) => (
+                        <div
+                          key={key}
+                          className="rounded-xl border p-3 bg-gray-50 min-w-0"
+                        >
+                          <div className="text-xs font-semibold text-gray-700 mb-1">
+                            {prettyLabel(key)}
+                          </div>
+
+                          <div className="text-sm min-w-0 overflow-hidden">
+                            <DetailValue value={value} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
