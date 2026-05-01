@@ -2,6 +2,12 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install",
   "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/cron/monthly-expiring-tests",
+      "schedule": "0 14 1 * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
