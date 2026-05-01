@@ -240,6 +240,141 @@ async function approveWellUpdate(change) {
   );
 }
 
+async function approveThirdPartyService(change) {
+  const payload = change.payload || {};
+  const service = payload.third_party_service || {};
+
+  if (!payload.well_id || !payload.api) {
+    throw new Error("Missing well information.");
+  }
+
+  if (!service.service_date) {
+    throw new Error("Missing service date.");
+  }
+
+  if (!service.current_expires_at) {
+    throw new Error("Missing expiration date.");
+  }
+
+  if (!service.third_party_company_name) {
+    throw new Error("Missing third-party company name.");
+  }
+
+  if (!service.responsibility_acknowledged) {
+    throw new Error("Responsibility acknowledgment is required.");
+  }
+
+  const inserted = await q(
+    `
+    INSERT INTO well_services (
+      well_id,
+      well_api,
+      service_date,
+      service_type,
+      service_provider_type,
+      third_party_company_name,
+      tested_by_company,
+      notes,
+      review_status,
+      submitted_by_user_id,
+      submitted_by_name,
+      submitted_by_email,
+      responsibility_acknowledged,
+      responsibility_acknowledged_at,
+      chart_recorder_file_url,
+      jsa_file_url,
+      one_call_file_url,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      $1, $2, $3, $4,
+      'third_party',
+      $5, $5, $6,
+      'approved',
+      $7, $8, $9,
+      TRUE, $10,
+      $11, $12, $13,
+      NOW(), NOW()
+    )
+    RETURNING id
+    `,
+    [
+      payload.well_id,
+      payload.api,
+      service.service_date,
+      service.service_type === "third_party_install_test"
+        ? "install_test"
+        : "test",
+      service.third_party_company_name,
+      service.notes || null,
+      payload.requested_by_user_id || null,
+      payload.requested_by_name || null,
+      payload.requested_by_email || null,
+      service.responsibility_acknowledged_at || new Date().toISOString(),
+      service.chart_recorder_file_url || null,
+      service.jsa_file_url || null,
+      service.one_call_file_url || null,
+    ]
+  );
+
+  const wellServiceId = inserted.rows[0].id;
+
+  const fileRows = [
+    ["chart_recorder", service.chart_recorder_file_url],
+    ["jsa", service.jsa_file_url],
+    ["one_call", service.one_call_file_url],
+  ].filter(([, url]) => !!url);
+
+  for (const [fileType, url] of fileRows) {
+    await q(
+      `
+      INSERT INTO well_service_files (
+        well_service_id,
+        file_type,
+        file_url,
+        uploaded_by_user_id,
+        created_at
+      )
+      VALUES ($1, $2, $3, $4, NOW())
+      `,
+      [
+        wellServiceId,
+        fileType,
+        url,
+        payload.requested_by_user_id || null,
+      ]
+    );
+  }
+
+  await q(
+    `
+    UPDATE wells
+    SET
+      current_tested_at = $1,
+      current_expires_at = $2,
+      previous_anchor_company = $3,
+      updated_at = NOW()
+    WHERE id = $4
+    `,
+    [
+      service.service_date,
+      service.current_expires_at,
+      service.third_party_company_name,
+      payload.well_id,
+    ]
+  );
+
+  await q(
+    `
+    UPDATE pending_changes
+    SET status = 'approved', decided_at = NOW()
+    WHERE id = $1
+    `,
+    [change.id]
+  );
+}
+
 export async function POST(_req, { params }) {
   const session = await getServerSession(authOptions);
 
@@ -275,12 +410,14 @@ export async function POST(_req, { params }) {
     await q("BEGIN");
 
     if (change.kind === "well_update_request") {
-      await approveWellUpdate(change);
-    } else if (change.kind === "company_user_create_request") {
-      await approveCompanyUserCreate(change);
-    } else {
-      throw new Error(`Unsupported change kind: ${change.kind}`);
-    }
+  await approveWellUpdate(change);
+} else if (change.kind === "company_user_create_request") {
+  await approveCompanyUserCreate(change);
+} else if (change.kind === "third_party_service_request") {
+  await approveThirdPartyService(change);
+} else {
+  throw new Error(`Unsupported change kind: ${change.kind}`);
+}
 
     await q("COMMIT");
 
