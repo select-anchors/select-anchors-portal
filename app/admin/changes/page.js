@@ -32,6 +32,15 @@ function prettyLabel(key) {
     current_expires_at: "Expiration Date",
     customer: "Customer",
     customer_id: "Customer ID",
+    service_date: "Service Date",
+service_type: "Service Type",
+third_party_company_name: "Third-Party Company",
+current_expires_at: "Expiration Date",
+chart_recorder_file_url: "Chart Recorder",
+jsa_file_url: "JSA",
+one_call_file_url: "811 / One-Call",
+responsibility_acknowledged: "Responsibility Acknowledged",
+responsibility_acknowledged_at: "Acknowledged At",
   };
 
   return labels[key] || key;
@@ -169,16 +178,20 @@ export default function AdminChangesPage() {
                 const payload = c.payload || {};
 
                 const changes =
-                  c.kind === "company_user_create_request"
-                    ? payload.new_user || {}
-                    : payload.changes || {};
+  c.kind === "company_user_create_request"
+    ? payload.new_user || {}
+    : c.kind === "third_party_service_request"
+    ? payload.third_party_service || {}
+    : payload.changes || {};
 
                 const entries = Object.entries(changes || {});
 
                 const typeLabel =
-                  c.kind === "company_user_create_request"
-                    ? "Company User Request"
-                    : "Well Update Request";
+  c.kind === "company_user_create_request"
+    ? "Company User Request"
+    : c.kind === "third_party_service_request"
+    ? "Third-Party Service Request"
+    : "Well Update Request";
 
                 return (
                   <tr key={c.id} className="border-t align-top">
