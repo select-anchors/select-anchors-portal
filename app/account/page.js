@@ -255,6 +255,36 @@ export default function AccountPage() {
                   </div>
                 ) : null}
               </div>
+
+                              <button
+                type="button"
+                onClick={async () => {
+                  setMsg("");
+                  setError("");
+
+                  try {
+                    const res = await fetch("/api/account/send-well-status-email", {
+                      method: "POST",
+                    });
+
+                    const json = await res.json().catch(() => ({}));
+
+                    if (!res.ok) {
+                      throw new Error(json?.error || "Failed to send email.");
+                    }
+
+                    setMsg(
+                      `Well status email sent. Expired: ${json.expired}. Expiring soon: ${json.expiring}.`
+                    );
+                  } catch (err) {
+                    setError(err?.message || "Failed to send email.");
+                  }
+                }}
+                className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+              >
+                Email Me Current Well Statuses
+              </button>
+                  
             </div>
           </div>
 
