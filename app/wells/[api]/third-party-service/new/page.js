@@ -6,6 +6,83 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../../../../components/NotLoggedIn";
 
+function FileUploadBox({ label, fileType, value, onUploaded, required = false }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function uploadFile(file) {
+    if (!file) return;
+
+    setUploading(true);
+    setError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("file_type", fileType);
+
+      const res = await fetch("/api/uploads/service-file", {
+        method: "POST",
+        body: formData,
+      });
+
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Upload failed.");
+      }
+
+      onUploaded(json);
+    } catch (err) {
+      setError(err?.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border bg-white p-4 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="font-medium text-sm">
+            {label} {required ? <span className="text-red-600">*</span> : null}
+          </div>
+          <div className="text-xs text-gray-500">PDF, JPG, PNG, or WEBP up to 15MB</div>
+        </div>
+
+        {value?.file_url ? (
+          <a
+            href={value.file_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm underline text-[#2f4f4f]"
+          >
+            View
+          </a>
+        ) : null}
+      </div>
+
+      <input
+        type="file"
+        accept="application/pdf,image/jpeg,image/png,image/webp"
+        disabled={uploading}
+        onChange={(e) => uploadFile(e.target.files?.[0])}
+        className="block w-full text-sm"
+      />
+
+      {uploading ? <div className="text-xs text-gray-500">Uploading…</div> : null}
+
+      {value?.file_name ? (
+        <div className="text-xs text-green-700">
+          Uploaded: {value.file_name}
+        </div>
+      ) : null}
+
+      {error ? <div className="text-xs text-red-600">{error}</div> : null}
+    </div>
+  );
+}
+
 export default function SubmitThirdPartyServicePage({ params }) {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -26,6 +103,9 @@ export default function SubmitThirdPartyServicePage({ params }) {
     chart_recorder_file_url: "",
     jsa_file_url: "",
     one_call_file_url: "",
+    chart_recorder_file: null,
+    jsa_file: null,
+    one_call_file: null,
     notes: "",
     responsibility_acknowledged: false,
   });
@@ -40,12 +120,29 @@ export default function SubmitThirdPartyServicePage({ params }) {
     setError("");
 
     try {
+      if (!form.chart_recorder_file_url) {
+        throw new Error("Chart recorder upload is required.");
+      }
+
       const res = await fetch(
         `/api/wells/${encodeURIComponent(api)}/third-party-service`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify({
+            service_date: form.service_date,
+            service_type: form.service_type,
+            third_party_company_name: form.third_party_company_name,
+            current_expires_at: form.current_expires_at,
+            chart_recorder_file_url: form.chart_recorder_file_url,
+            jsa_file_url: form.jsa_file_url,
+            one_call_file_url: form.one_call_file_url,
+            chart_recorder_file: form.chart_recorder_file,
+            jsa_file: form.jsa_file,
+            one_call_file: form.one_call_file,
+            notes: form.notes,
+            responsibility_acknowledged: form.responsibility_acknowledged,
+          }),
         }
       );
 
@@ -134,33 +231,43 @@ export default function SubmitThirdPartyServicePage({ params }) {
           />
         </div>
 
-        <div className="rounded-2xl border bg-gray-50 p-4 space-y-3">
+        <div className="rounded-2xl border bg-gray-50 p-4 space-y-4">
           <div>
-            <h2 className="font-semibold">Documentation Links</h2>
+            <h2 className="font-semibold">Documentation Uploads</h2>
             <p className="text-sm text-gray-600">
-              For now, paste file URLs. Later we can replace this with true PDF/JPEG upload buttons.
+              Upload the supporting records for this third-party service.
             </p>
           </div>
 
-          <input
-            className="w-full border rounded-xl px-3 py-2"
-            value={form.chart_recorder_file_url}
-            onChange={(e) => upd("chart_recorder_file_url", e.target.value)}
-            placeholder="Chart recorder file URL"
+          <FileUploadBox
+            label="Chart Recorder"
+            fileType="chart_recorder"
+            required
+            value={form.chart_recorder_file}
+            onUploaded={(file) => {
+              upd("chart_recorder_file", file);
+              upd("chart_recorder_file_url", file.file_url);
+            }}
           />
 
-          <input
-            className="w-full border rounded-xl px-3 py-2"
-            value={form.jsa_file_url}
-            onChange={(e) => upd("jsa_file_url", e.target.value)}
-            placeholder="JSA file URL"
+          <FileUploadBox
+            label="JSA"
+            fileType="jsa"
+            value={form.jsa_file}
+            onUploaded={(file) => {
+              upd("jsa_file", file);
+              upd("jsa_file_url", file.file_url);
+            }}
           />
 
-          <input
-            className="w-full border rounded-xl px-3 py-2"
-            value={form.one_call_file_url}
-            onChange={(e) => upd("one_call_file_url", e.target.value)}
-            placeholder="811 / One-call confirmation file URL"
+          <FileUploadBox
+            label="811 / One-Call Confirmation"
+            fileType="one_call"
+            value={form.one_call_file}
+            onUploaded={(file) => {
+              upd("one_call_file", file);
+              upd("one_call_file_url", file.file_url);
+            }}
           />
         </div>
 
