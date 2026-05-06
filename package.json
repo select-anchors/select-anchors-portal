@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@googlemaps/markerclusterer": "^2.6.2",
+    "@vercel/blob": "^2.3.3",
     "@vercel/postgres": "^0.8.0",
     "autoprefixer": "10.4.14",
     "bcrypt": "^5.1.1",
