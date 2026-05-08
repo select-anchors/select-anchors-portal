@@ -45,6 +45,8 @@ async function loadWellByApi(api) {
       w.previous_anchor_work,
       w.directions_other_notes,
       w.wellhead_coords,
+      w.latitude,
+      w.longitude,
       w.state,
       w.county,
       w.status,
@@ -62,6 +64,107 @@ async function loadWellByApi(api) {
   );
 
   return rows?.[0] ?? null;
+}
+
+async function loadServiceHistory(wellId) {
+  const { rows: services } = await q(
+    `
+    SELECT
+      id,
+      well_id,
+      well_api,
+      TO_CHAR(service_date, 'YYYY-MM-DD') AS service_date,
+      service_type,
+      COALESCE(service_provider_type, 'select_anchors') AS service_provider_type,
+      third_party_company_name,
+      tested_by_company,
+      technician_name,
+      notes,
+      recommended_action,
+      COALESCE(review_status, 'approved') AS review_status,
+      submitted_by_user_id,
+      submitted_by_name,
+      submitted_by_email,
+      responsibility_acknowledged,
+      responsibility_acknowledged_at,
+      replacement_recommended,
+      deactivated_any,
+      invoice_number,
+      chart_recorder_file_url,
+      jsa_file_url,
+      one_call_file_url,
+      invoice_file_url,
+      COALESCE(is_voided, FALSE) AS is_voided,
+      voided_at,
+      voided_by_user_id,
+      void_reason,
+      created_at,
+      updated_at
+    FROM well_services
+    WHERE well_id = $1
+      AND COALESCE(review_status, 'approved') IN ('approved', 'pending', 'rejected')
+    ORDER BY service_date DESC NULLS LAST, created_at DESC
+    `,
+    [wellId]
+  );
+
+  if (!services.length) return [];
+
+  const serviceIds = services.map((s) => s.id);
+
+  const { rows: anchors } = await q(
+    `
+    SELECT
+      id,
+      well_service_id,
+      anchor_position,
+      inches_out_of_ground,
+      pull_result_lbs,
+      pass_fail,
+      deactivated,
+      replacement_required,
+      notes,
+      created_at,
+      updated_at
+    FROM well_service_anchors
+    WHERE well_service_id = ANY($1::uuid[])
+    ORDER BY
+      CASE anchor_position
+        WHEN 'NW' THEN 1
+        WHEN 'NE' THEN 2
+        WHEN 'SE' THEN 3
+        WHEN 'SW' THEN 4
+        ELSE 5
+      END,
+      anchor_position ASC
+    `,
+    [serviceIds]
+  );
+
+  const { rows: files } = await q(
+    `
+    SELECT
+      id,
+      well_service_id,
+      file_type,
+      file_url,
+      file_name,
+      file_size,
+      mime_type,
+      uploaded_by_user_id,
+      created_at
+    FROM well_service_files
+    WHERE well_service_id = ANY($1::uuid[])
+    ORDER BY created_at ASC
+    `,
+    [serviceIds]
+  );
+
+  return services.map((service) => ({
+    ...service,
+    anchors: anchors.filter((a) => a.well_service_id === service.id),
+    files: files.filter((f) => f.well_service_id === service.id),
+  }));
 }
 
 function buildDiff(existing, incoming, allowedFields) {
@@ -164,9 +267,7 @@ async function applyWellUpdate(api, changes, canAssignCustomer) {
     ]
   );
 
-  if (updatedWell.rows.length === 0) {
-    throw new Error("Not found");
-  }
+  if (updatedWell.rows.length === 0) throw new Error("Not found");
 
   let currentTestId = updatedWell.rows[0].current_test_id;
 
@@ -201,7 +302,10 @@ async function applyWellUpdate(api, changes, canAssignCustomer) {
 
         const newTestId = inserted.rows?.[0]?.id;
         if (newTestId) {
-          await q(`UPDATE wells SET current_test_id = $1 WHERE api = $2`, [newTestId, api]);
+          await q(`UPDATE wells SET current_test_id = $1 WHERE api = $2`, [
+            newTestId,
+            api,
+          ]);
           currentTestId = newTestId;
         }
       }
@@ -224,6 +328,7 @@ async function applyWellUpdate(api, changes, canAssignCustomer) {
 
 export async function GET(_req, { params }) {
   const session = await getServerSession(authOptions);
+
   if (!session?.user?.id) {
     return noStoreJson({ error: "Unauthorized" }, { status: 401 });
   }
@@ -245,7 +350,12 @@ export async function GET(_req, { params }) {
       }
     }
 
-    return noStoreJson(well);
+    const serviceHistory = await loadServiceHistory(well.id);
+
+    return noStoreJson({
+      ...well,
+      service_history: serviceHistory,
+    });
   } catch (err) {
     console.error("GET /api/wells/[api] error:", err);
     return noStoreJson({ error: String(err?.message || err) }, { status: 500 });
@@ -254,6 +364,7 @@ export async function GET(_req, { params }) {
 
 export async function PUT(req, { params }) {
   const session = await getServerSession(authOptions);
+
   if (!session?.user?.id) {
     return noStoreJson({ error: "Unauthorized" }, { status: 401 });
   }
@@ -273,6 +384,7 @@ export async function PUT(req, { params }) {
     const body = await req.json();
 
     const existing = await loadWellByApi(api);
+
     if (!existing) {
       return noStoreJson({ error: "Not found" }, { status: 404 });
     }
@@ -336,13 +448,9 @@ export async function PUT(req, { params }) {
 
     let allowedFields = [];
 
-    if (role === "admin") {
-      allowedFields = adminEditableFields;
-    } else if (role === "employee") {
-      allowedFields = employeeEditableFields;
-    } else {
-      allowedFields = customerEditableFields;
-    }
+    if (role === "admin") allowedFields = adminEditableFields;
+    else if (role === "employee") allowedFields = employeeEditableFields;
+    else allowedFields = customerEditableFields;
 
     const diff = buildDiff(existing, body, allowedFields);
 
@@ -354,7 +462,6 @@ export async function PUT(req, { params }) {
       });
     }
 
-    // Admin updates apply immediately
     if (role === "admin") {
       const well = await applyWellUpdate(api, diff, true);
       return noStoreJson({
@@ -365,7 +472,6 @@ export async function PUT(req, { params }) {
       });
     }
 
-    // Employee + customer updates become pending approval
     await q(
       `
       INSERT INTO pending_changes (
