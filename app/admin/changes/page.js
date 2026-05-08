@@ -1,6 +1,7 @@
 // app/admin/changes/page.js
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../../components/NotLoggedIn";
@@ -189,12 +190,22 @@ export default function AdminChangesPage() {
 
   return (
     <div className="container py-8 space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">Pending Changes</h1>
-        <p className="text-xs text-gray-500">
-          This list refreshes automatically every 2 minutes.
-        </p>
-      </div>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+  <div>
+    <h1 className="text-2xl font-bold">Pending Changes</h1>
+
+    <p className="text-xs text-gray-500 mt-1">
+      This list refreshes automatically every 2 minutes.
+    </p>
+  </div>
+
+  <Link
+    href="/admin/changes/history"
+    className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 text-sm"
+  >
+    View Change History
+  </Link>
+</div>
 
       <div className="space-y-4">
         {loading ? (
