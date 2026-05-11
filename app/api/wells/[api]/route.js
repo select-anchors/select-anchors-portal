@@ -45,8 +45,6 @@ async function loadWellByApi(api) {
       w.previous_anchor_work,
       w.directions_other_notes,
       w.wellhead_coords,
-      w.latitude,
-      w.longitude,
       w.state,
       w.county,
       w.status,
