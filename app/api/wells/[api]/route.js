@@ -5,7 +5,7 @@ import { authOptions } from "../../../../lib/nextauth-options";
 import { q } from "../../../../lib/db";
 import { hasPermission } from "../../../../lib/permissions";
 
-export const dynamic = "force-dynamic";x
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 function noStoreJson(data, init = {}) {
