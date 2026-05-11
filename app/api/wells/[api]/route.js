@@ -351,12 +351,10 @@ export async function GET(_req, { params }) {
       }
     }
 
-    const serviceHistory = await loadServiceHistory(well.id);
-
     return noStoreJson({
-      ...well,
-      service_history: serviceHistory,
-    });
+  ...well,
+  service_history: [],
+});
   } catch (err) {
     console.error("GET /api/wells/[api] error:", err);
     return noStoreJson({ error: String(err?.message || err) }, { status: 500 });
