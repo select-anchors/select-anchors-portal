@@ -341,7 +341,10 @@ export async function GET(_req, { params }) {
       return noStoreJson({ error: "Not found" }, { status: 404 });
     }
 
-    const canViewAllWells = hasPermission(session, "can_view_all_wells");
+    const canViewAllWells =
+  session.user.role === "admin" ||
+  session.user.role === "employee" ||
+  hasPermission(session, "can_view_all_wells");
     const companyId = session.user.company_id || null;
 
     if (!canViewAllWells) {
@@ -370,7 +373,10 @@ export async function PUT(req, { params }) {
   }
 
   const role = session.user.role || "customer";
-  const canViewAllWells = hasPermission(session, "can_view_all_wells");
+  const canViewAllWells =
+  session.user.role === "admin" ||
+  session.user.role === "employee" ||
+  hasPermission(session, "can_view_all_wells");
   const canEditWells = hasPermission(session, "can_edit_wells");
   const canEditCompanyContacts = hasPermission(session, "can_edit_company_contacts");
   const companyId = session.user.company_id || null;
