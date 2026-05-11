@@ -351,7 +351,14 @@ export async function GET(_req, { params }) {
       }
     }
 
-    const serviceHistory = await loadServiceHistory(well.id);
+    let serviceHistory = [];
+
+try {
+  serviceHistory = await loadServiceHistory(well.id);
+} catch (historyErr) {
+  console.error("[WELL_SERVICE_HISTORY_ERROR]", historyErr);
+  serviceHistory = [];
+}
 
 return noStoreJson({
   ...well,
