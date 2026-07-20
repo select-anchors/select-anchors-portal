@@ -509,33 +509,42 @@ export default function AdminWellsPage() {
         <h1 className="text-2xl font-bold">All Wells</h1>
 
         <div className="flex gap-2 flex-wrap">
-          {canExportCsv && (
-            <a
-              href={exportHref}
-              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-            >
-              Export CSV
-            </a>
-          )}
+  {canExportCsv && (
+    <a
+      href={exportHref}
+      className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+    >
+      Export CSV
+    </a>
+  )}
 
-          {canEditWells && (
-            <Link
-              href="/admin/wells/new"
-              className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
-            >
-              New Well
-            </Link>
-          )}
+  {canEditWells && (
+    <>
+      <Link
+        href="/admin/wells/new"
+        className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+      >
+        New Well
+      </Link>
 
-          {canBulkImportWells && (
-            <Link
-              href="/admin/wells/import"
-              className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
-            >
-              Bulk Import
-            </Link>
-          )}
-        </div>
+      <Link
+        href="/admin/work-entry"
+        className="px-4 py-2 rounded-xl bg-[#2f4f4f] text-white hover:opacity-90"
+      >
+        Work Entry
+      </Link>
+    </>
+  )}
+
+  {canBulkImportWells && (
+    <Link
+      href="/admin/wells/import"
+      className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50"
+    >
+      Bulk Import
+    </Link>
+  )}
+</div>
       </div>
 
       {error && (
