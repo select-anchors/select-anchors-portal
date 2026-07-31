@@ -64,25 +64,31 @@ export async function GET() {
   if (gate.error) return gate.error;
 
   try {
-    const usersRes = await q(
-      `
-      SELECT
-        u.id,
-        u.name,
-        u.email,
-        u.role,
-        u.is_active,
-        u.phone,
-        u.company_id,
-        COALESCE(u.company_name, c.name, '') AS company_name,
-        u.permissions_json,
-        c.permissions_json AS company_permissions_json,
-        u.created_at
-      FROM users u
-      LEFT JOIN companies c ON c.id = u.company_id
-      ORDER BY u.created_at DESC
-      `
-    );
+
+const usersRes = await q(
+  `
+  SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.role,
+    u.is_active,
+    u.phone,
+    u.company_id,
+    COALESCE(u.company_name, c.name, '') AS company_name,
+    u.permissions_json,
+    c.permissions_json AS company_permissions_json,
+    u.created_at,
+    u.invited_at,
+    u.first_login_at,
+    u.last_login_at,
+    u.login_count,
+    u.last_seen_at
+  FROM users u
+  LEFT JOIN companies c ON c.id = u.company_id
+  ORDER BY u.created_at DESC
+  `
+);
 
     const companiesRes = await q(
       `
