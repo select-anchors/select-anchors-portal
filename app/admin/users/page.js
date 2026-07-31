@@ -1,7 +1,7 @@
 // app/admin/users/page.js
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import NotLoggedIn from "../../components/NotLoggedIn";
@@ -39,6 +39,26 @@ function PermissionBadge({ label, enabled }) {
   );
 }
 
+function formatActivityDate(value) {
+  if (!value) return "Never";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Never";
+  }
+
+  return date.toLocaleString();
+}
+
+function userHasLoggedIn(user) {
+  return !!user.first_login_at || Number(user.login_count || 0) > 0;
+}
+
+function userHasBeenInvited(user) {
+  return !!user.invited_at;
+}
+
 export default function AdminUsersPage() {
   const { data: session, status } = useSession();
 
@@ -48,7 +68,12 @@ export default function AdminUsersPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [savingId, setSavingId] = useState("");
-
+const [searchQuery, setSearchQuery] = useState("");
+const [companyFilter, setCompanyFilter] = useState("");
+const [roleFilter, setRoleFilter] = useState("");
+const [activeFilter, setActiveFilter] = useState("");
+const [loginFilter, setLoginFilter] = useState("");
+const [inviteFilter, setInviteFilter] = useState("");
   const [editingUserId, setEditingUserId] = useState("");
   const [editRole, setEditRole] = useState("customer");
   const [editPermissions, setEditPermissions] = useState({});
@@ -155,6 +180,83 @@ export default function AdminUsersPage() {
     }
   }, [status, isAdmin]);
 
+  const filteredUsers = useMemo(() => {
+  const query = searchQuery.trim().toLowerCase();
+
+  return users.filter((user) => {
+    if (query) {
+      const searchable = [
+        user.name,
+        user.email,
+        user.phone,
+        user.company_name,
+        user.role,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      if (!searchable.includes(query)) {
+        return false;
+      }
+    }
+
+    if (
+      companyFilter &&
+      String(user.company_id || "") !== companyFilter
+    ) {
+      return false;
+    }
+
+    if (roleFilter && user.role !== roleFilter) {
+      return false;
+    }
+
+    if (activeFilter === "active" && user.is_active !== true) {
+      return false;
+    }
+
+    if (activeFilter === "inactive" && user.is_active !== false) {
+      return false;
+    }
+
+    if (loginFilter === "logged_in" && !userHasLoggedIn(user)) {
+      return false;
+    }
+
+    if (loginFilter === "never_logged_in" && userHasLoggedIn(user)) {
+      return false;
+    }
+
+    if (inviteFilter === "invited" && !userHasBeenInvited(user)) {
+      return false;
+    }
+
+    if (inviteFilter === "not_invited" && userHasBeenInvited(user)) {
+      return false;
+    }
+
+    return true;
+  });
+}, [
+  users,
+  searchQuery,
+  companyFilter,
+  roleFilter,
+  activeFilter,
+  loginFilter,
+  inviteFilter,
+]);
+
+  function clearUserFilters() {
+  setSearchQuery("");
+  setCompanyFilter("");
+  setRoleFilter("");
+  setActiveFilter("");
+  setLoginFilter("");
+  setInviteFilter("");
+}
+  
   async function onCreate(e) {
     e.preventDefault();
 
@@ -412,16 +514,105 @@ export default function AdminUsersPage() {
         </button>
       </form>
 
+          <div className="bg-white border rounded-2xl p-6 space-y-4">
+  <div>
+    <h2 className="text-lg font-semibold">Search & Filter Users</h2>
+    <p className="text-sm text-gray-600 mt-1">
+      Search by user, email, phone, company, or role.
+    </p>
+  </div>
+
+  <input
+    className="w-full rounded-xl border px-3 py-2"
+    placeholder="Search by name, email, phone, company, or role…"
+    value={searchQuery}
+    onChange={(e) => setSearchQuery(e.target.value)}
+  />
+
+  <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-3">
+    <select
+      className="w-full rounded-xl border px-3 py-2"
+      value={companyFilter}
+      onChange={(e) => setCompanyFilter(e.target.value)}
+    >
+      <option value="">All Companies</option>
+
+      {companies.map((company) => (
+        <option key={company.id} value={company.id}>
+          {company.name}
+        </option>
+      ))}
+    </select>
+
+    <select
+      className="w-full rounded-xl border px-3 py-2"
+      value={roleFilter}
+      onChange={(e) => setRoleFilter(e.target.value)}
+    >
+      <option value="">All Roles</option>
+      <option value="customer">Customer</option>
+      <option value="employee">Employee</option>
+      <option value="admin">Admin</option>
+    </select>
+
+    <select
+      className="w-full rounded-xl border px-3 py-2"
+      value={activeFilter}
+      onChange={(e) => setActiveFilter(e.target.value)}
+    >
+      <option value="">All Statuses</option>
+      <option value="active">Active</option>
+      <option value="inactive">Inactive</option>
+    </select>
+
+    <select
+      className="w-full rounded-xl border px-3 py-2"
+      value={loginFilter}
+      onChange={(e) => setLoginFilter(e.target.value)}
+    >
+      <option value="">All Login Activity</option>
+      <option value="logged_in">Has Logged In</option>
+      <option value="never_logged_in">Never Logged In</option>
+    </select>
+
+    <select
+      className="w-full rounded-xl border px-3 py-2"
+      value={inviteFilter}
+      onChange={(e) => setInviteFilter(e.target.value)}
+    >
+      <option value="">All Invite Statuses</option>
+      <option value="invited">Invite Sent</option>
+      <option value="not_invited">Invite Not Sent</option>
+    </select>
+  </div>
+
+  <div className="flex items-center gap-3 flex-wrap">
+    <button
+      type="button"
+      onClick={clearUserFilters}
+      className="rounded-xl border px-4 py-2 hover:bg-gray-50"
+    >
+      Clear Filters
+    </button>
+
+    <div className="text-sm text-gray-600">
+      Showing{" "}
+      <span className="font-semibold">{filteredUsers.length}</span>{" "}
+      of <span className="font-semibold">{users.length}</span> users
+    </div>
+  </div>
+</div>
+          
       <div className="bg-white border rounded-2xl overflow-hidden">
         <div className="px-6 py-4 border-b font-semibold">Existing Users</div>
 
         {loading ? (
           <div className="p-6 text-sm text-gray-500">Loading users...</div>
-        ) : users.length === 0 ? (
+        ) : filteredUsers.length === 0 ? (
           <div className="p-6 text-sm text-gray-500">No users found.</div>
         ) : (
           <div className="divide-y">
-            {users.map((u) => {
+            {filteredUsers.map((u) => {
               const perms = resolvePermissions(
                 u.role,
                 u.company_permissions_json || null,
@@ -446,11 +637,48 @@ export default function AdminUsersPage() {
 </div>
                       </div>
                       {u.phone && (
-                        <div className="text-sm text-gray-500">{u.phone}</div>
-                      )}
-                    </div>
+  <div className="text-sm text-gray-500">{u.phone}</div>
+)}
 
-                    <div className="flex flex-wrap gap-2">
+<div className="mt-3 grid gap-x-6 gap-y-1 text-xs text-gray-500">
+  <div>
+    Invite sent:{" "}
+    <span className="font-medium text-gray-700">
+      {formatActivityDate(u.invited_at)}
+    </span>
+  </div>
+
+  <div>
+    First login:{" "}
+    <span className="font-medium text-gray-700">
+      {formatActivityDate(u.first_login_at)}
+    </span>
+  </div>
+
+  <div>
+    Last login:{" "}
+    <span className="font-medium text-gray-700">
+      {formatActivityDate(u.last_login_at)}
+    </span>
+  </div>
+
+  <div>
+    Login count:{" "}
+    <span className="font-medium text-gray-700">
+      {u.login_count || 0}
+    </span>
+  </div>
+
+  <div>
+    Last seen:{" "}
+    <span className="font-medium text-gray-700">
+      {formatActivityDate(u.last_seen_at)}
+    </span>
+  </div>
+</div>
+</div>
+
+<div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => startEditingUser(u)}
                         className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50"
